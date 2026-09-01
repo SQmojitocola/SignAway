@@ -34,8 +34,12 @@ Platform ini dibangun menggunakan arsitektur modern berbasis **TypeScript & Next
 
 Berikut adalah struktur hubungan antar-tabel dalam sistem **SignAway**:
 
-```mermaid
-erDiagram
+<img src="image.png" width="800">
+
+
+
+
+    erDiagram
     USERS ||--o{ DOCUMENTS : "mengirim (sender)"
     USERS ||--o{ DOCUMENT_RECIPIENTS : "ditunjuk sebagai (user)"
     USERS ||--o{ SIGNATURE_LOGS : "menandatangani (signer)"
