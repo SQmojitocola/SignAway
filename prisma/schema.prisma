@@ -1,27 +1,20 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
 
 generator client {
   provider = "prisma-client-js"
 }
 
-enum Role {
-  STAFF
-  ATASAN
-}
-
-//Status Dokumen
 enum DocumentStatus {
   DRAFT
   PENDING
   PARTIAL_SIGNED
   COMPLETED
-  REJECTED 
+  REJECTED
 }
 
-//Status Recipient
 enum RecipientStatus {
   WAITING
   SIGNED
@@ -29,80 +22,79 @@ enum RecipientStatus {
 }
 
 model User {
-  id String @id @default(uuid())
-  email String @unique
-  name String
-  role Role @default(STAFF)
-  passwordHash String @map("password_hash")
-  createdAt DateTime @default(now()) @map("signed_at")
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
 
-  sentDocuments Document[] @relation("SenderRelation")
+  // Relasi
+  sentDocuments Document[]          @relation("SenderRelation")
+  recipients    DocumentRecipient[]
   signatureLogs SignatureLog[]
-  recipients DocumentRecipient[]
 
   @@map("users")
 }
 
-//tabel Dokumen
 model Document {
-  id String @id @default(uuid())
-  title String 
-  filePath String @map("file_path")
-  senderId String @map("sender_path")
-  status DocumentStatus @default(PENDING)
-  createdAt DateTime @default(now()) @map("created_at")
+  id        String         @id @default(uuid())
+  title     String
+  filePath  String         @map("file_path")
+  senderId  String         @map("sender_id")
+  status    DocumentStatus @default(PENDING)
+  createdAt DateTime       @default(now()) @map("created_at")
 
-  sender User @relation("SenderRelation", fields: [senderId], references: [id])
+  // Relasi
+  sender     User                @relation("SenderRelation", fields: [senderId], references: [id])
   recipients DocumentRecipient[]
-  fields DocumentField[]
-  logs SignatureLog[]
+  fields     DocumentField[]
+  logs       SignatureLog[]
 
   @@map("documents")
 }
 
-model SignatureLog {
-  id String @id @default(uuid())
-  documentId String @map("document_id")
-  signerId String @map("signer_id")
-  signatureImagePath String @map("signature_image_path")
-  ipAddress String @map("ip_address")
-  signedAt DateTime @default(now()) @map("signed_at")
-
-  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  signer User @relation(fields: [signerId], references: [id])
-
-  @@map("signature_logs")
-}
-
 model DocumentRecipient {
-  id String @id @default(uuid())
-  documentId String @map("document_id")
-  userId String @map("user_id")
-  role String 
-  status RecipientStatus @default(WAITING)
+  id         String          @id @default(uuid())
+  documentId String          @map("document_id")
+  userId     String          @map("user_id")
+  status     RecipientStatus @default(WAITING)
 
-  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id])
-  fields DocumentField[]
+  // Relasi
+  document Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user     User            @relation(fields: [userId], references: [id])
+  fields   DocumentField[]
 
   @@map("document_recipients")
 }
 
 model DocumentField {
-  id String @id @default(uuid())
-  documentId String @map("document_id")
+  id          String @id @default(uuid())
+  documentId  String @map("document_id")
   recipientId String @map("recipient_id")
-  pageNumber Int @map("page_number")
-  posX Float @map("pos_x")
-  posY Float @map("pos_y")
-  width Float @default(150)
-  height Float @default(60)
+  pageNumber  Int    @map("page_number")
+  posX        Float  @map("pos_x")
+  posY        Float  @map("pos_y")
+  width       Float  @default(150)
+  height      Float  @default(60)
 
-  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  // Relasi
+  document  Document          @relation(fields: [documentId], references: [id], onDelete: Cascade)
   recipient DocumentRecipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
   @@map("document_fields")
 }
 
-datasource db {
-  provider = "postgresql"
+model SignatureLog {
+  id                 String   @id @default(uuid())
+  documentId         String   @map("document_id")
+  signerId           String   @map("signer_id")
+  signatureImagePath String   @map("signature_image_path")
+  ipAddress          String   @map("ip_address")
+  signedAt           DateTime @default(now()) @map("signed_at")
+
+  // Relasi
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  signer   User     @relation(fields: [signerId], references: [id])
+
+  @@map("signature_logs")
 }
