@@ -10,7 +10,7 @@ Aplikasi Tanda Tangan Digital Multi-Recipient berbasis Web & Tablet (iPad) yang 
 * **Database & ORM:** PostgreSQL & Prisma ORM
 * **Authentication:** Auth.js (NextAuth v5) & `bcryptjs`
 * **PDF Processing Engine:** `pdf-lib`
-* **Styling & UI:** Tailwind CSS & `shadcn/ui`
+* **Styling & UI:** Tailwind CSS, `shadcn/ui`, & Lucide Icons
 
 ---
 
@@ -62,19 +62,23 @@ Akses aplikasi melalui browser di `http://localhost:3000` (akan di-redirect otom
 
 ---
 
-## 💻 Modul & Halaman Frontend
+## 💻 Modul & Antarmuka Frontend (UI)
 
-* **Halaman Login (`/login`)**
-* Antarmuka masuk pengguna berdasarkan *Role* (Admin / Karyawan).
-* Terhubung dengan mekanisme autentikasi Auth.js (`credentials`).
-
-
-* **Halaman Register (`/register`)**
-* Form pendaftaran pengguna baru dilengkapi pengisian NIP/ID Karyawan, konfirmasi password, serta perekaman awal **Spesimen Tanda Tangan Digital** via Interactive HTML5 Canvas.
+* **Modul Global Layout & Sidebar (`components/sidebar.tsx` & `app/layout.tsx`)**
+* Navigation bar terpusat yang menyesuaikan status menu aktif (*active state*) via `usePathname()`.
+* Dikonfigurasi secara global di `layout.tsx` sehingga tidak memuat ulang (*re-render*) saat pengguna berpindah halaman.
+* Otomatis tersembunyi pada halaman autentikasi (`/login` & `/register`).
 
 
-* **Redirection Root (`/`)**
-* Mengarahkan secara otomatis pengunjung dari halaman utama (`/`) menuju `/login`.
+* **Modul Autentikasi (`/login` & `/register`)**
+* **Login Page:** Akses masuk berbasis email/username dan peran (*Role Selector: Admin/Karyawan*).
+* **Register Page:** Form pendaftaran pegawai dilengkapi NIP/ID Karyawan, konfirmasi password, serta perekaman awal **Spesimen Tanda Tangan Digital** via Interactive HTML5 Canvas.
+
+
+* **Modul Upload Dokumen & Recipient Management (`/upload`)**
+* **Dropzone Upload PDF:** Area unggah file PDF fisik (maks. 25MB) dengan pemrosesan konversi ke Base64.
+* **Pencarian Kontak:** Pencarian data pengguna terdaftar via API internal berdasarkan email.
+* **Manajemen Penerima (Recipients):** Pengelolaan daftar kontak (*Contact List*) dan alur penentuan penandatangan dokumen berurutan (*Multi-Recipient*).
 
 
 
@@ -86,7 +90,6 @@ Akses aplikasi melalui browser di `http://localhost:3000` (akan di-redirect otom
 
 * **`POST /api/auth/register`**
 * **Fungsi:** Mendaftarkan pengguna baru (Pengirim / Penandatangan) beserta spesimen TTD.
-* **Payload:** `{ "name": "Budi", "email": "budi@surveyor.id", "password": "password123", "nip": "PTS-2024-001", "signatureSpecimen": "data:image/png;base64,..." }`
 
 
 * **`POST /api/auth/callback/credentials`**
@@ -110,25 +113,6 @@ Akses aplikasi melalui browser di `http://localhost:3000` (akan di-redirect otom
 
 * **`POST /api/documents/fields`**
 * **Fungsi:** Menyimpan koordinat frame TTD $(X, Y, \text{halaman}, \text{ukuran})$ hasil *drag-and-drop* pengirim.
-* **Payload:**
-```json
-{
-  "documentId": "doc-uuid",
-  "fields": [
-    {
-      "recipientId": "recipient-uuid",
-      "pageNumber": 1,
-      "posX": 100.5,
-      "posY": 200.0,
-      "width": 150,
-      "height": 60
-    }
-  ]
-}
-
-```
-
-
 
 
 * **`GET /api/documents/fields?documentId={ID}`**
@@ -140,7 +124,6 @@ Akses aplikasi melalui browser di `http://localhost:3000` (akan di-redirect otom
 
 * **`POST /api/documents/sign`**
 * **Fungsi:** Membaca koordinat field, menempelkan gambar TTD (Base64 PNG) ke PDF fisik via `pdf-lib`, mengunci status recipient, dan mencatat *Signature Log* (Audit Trail).
-* **Payload:** `{ "documentId": "doc-uuid", "signatureImageBase64": "data:image/png;base64,..." }`
 
 
 
