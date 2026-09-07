@@ -1,6 +1,3 @@
-Mantap! Karena modul **PDF Stamping Engine** sudah teruji dan kamu memilih menggunakan format gambar `![ERD](ERD.png)` untuk menampilkan diagram, berikut adalah berkas **`README.md`** versi final yang sudah diperbaiki, dirapikan format *bullet points*-nya, dan siap kamu salin ke proyek:
-
-```markdown
 # 🖊️ SignAway - Digital Signature Web App
 
 Aplikasi Tanda Tangan Digital Multi-Recipient berbasis Web & Tablet (iPad) yang dibangun menggunakan Next.js App Router, Prisma ORM, dan PostgreSQL.
@@ -61,7 +58,25 @@ npm run dev
 
 ```
 
-Akses aplikasi melalui browser di `http://localhost:3000`.
+Akses aplikasi melalui browser di `http://localhost:3000` (akan di-redirect otomatis ke `/login`).
+
+---
+
+## 💻 Modul & Halaman Frontend
+
+* **Halaman Login (`/login`)**
+* Antarmuka masuk pengguna berdasarkan *Role* (Admin / Karyawan).
+* Terhubung dengan mekanisme autentikasi Auth.js (`credentials`).
+
+
+* **Halaman Register (`/register`)**
+* Form pendaftaran pengguna baru dilengkapi pengisian NIP/ID Karyawan, konfirmasi password, serta perekaman awal **Spesimen Tanda Tangan Digital** via Interactive HTML5 Canvas.
+
+
+* **Redirection Root (`/`)**
+* Mengarahkan secara otomatis pengunjung dari halaman utama (`/`) menuju `/login`.
+
+
 
 ---
 
@@ -70,8 +85,8 @@ Akses aplikasi melalui browser di `http://localhost:3000`.
 ### **1. Autentikasi**
 
 * **`POST /api/auth/register`**
-* **Fungsi:** Mendaftarkan pengguna baru (Pengirim / Penandatangan).
-* **Payload:** `{ "name": "Budi", "email": "budi@signaway.com", "password": "password123" }`
+* **Fungsi:** Mendaftarkan pengguna baru (Pengirim / Penandatangan) beserta spesimen TTD.
+* **Payload:** `{ "name": "Budi", "email": "budi@surveyor.id", "password": "password123", "nip": "PTS-2024-001", "signatureSpecimen": "data:image/png;base64,..." }`
 
 
 * **`POST /api/auth/callback/credentials`**
@@ -131,16 +146,14 @@ Akses aplikasi melalui browser di `http://localhost:3000`.
 
 ---
 
-## 🗄️ Skema Data & Alur Sistem
+## 🔍 Alat Bantu Pengujian & Manajemen Data
 
-Sistem mendukung alur **Multi-Recipient** dengan struktur entitas:
-
-1. **`User`** $\rightarrow$ Pengirim atau penandatangan.
-2. **`Document`** $\rightarrow$ Menyimpan metadata file PDF dan status dokumen (*DRAFT*, *PENDING*, *PARTIAL_SIGNED*, *COMPLETED*, *REJECTED*).
-3. **`DocumentRecipient`** $\rightarrow$ Daftar penandatangan beserta status (*WAITING*, *SIGNED*, *REJECTED*).
-4. **`DocumentField`** $\rightarrow$ Koordinat titik frame TTD untuk tiap penandatangan.
-5. **`SignatureLog`** $\rightarrow$ Bukti audit trail (IP Address, Timestamp, dan riwayat TTD).
+* **Prisma Studio:**
+Untuk melihat dan memverifikasi data pendaftaran pengguna maupun dokumen secara langsung melalui antarmuka tabel web, jalankan perintah:
+```bash
+npx prisma studio
 
 ```
 
----
+
+Akses antarmuka visual di `http://localhost:5555`.
