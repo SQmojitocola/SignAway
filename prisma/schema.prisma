@@ -39,6 +39,7 @@ model Document {
   id        String         @id @default(uuid())
   title     String
   filePath  String         @map("file_path")
+  fileSize  Int            @default(0) @map("file_size")
   senderId  String         @map("sender_id")
   status    DocumentStatus @default(PENDING)
   createdAt DateTime       @default(now()) @map("created_at")

@@ -12,6 +12,7 @@ export async function POST(req: Request) {
     if (!session?.user?.id) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
     }
+    const userId = session.user.id
 
     const { documentId, signatureImageBase64 } = await req.json()
 
@@ -37,7 +38,7 @@ export async function POST(req: Request) {
 
     // 3. Cek Apakah User Merupakan Recipient yang Berhak
     const recipient = document.recipients.find(
-      (r) => r.userId === session.user.id && r.status === 'WAITING'
+      (r) => r.userId === userId && r.status === 'WAITING'
     )
 
     if (!recipient) {
@@ -95,7 +96,7 @@ export async function POST(req: Request) {
       await tx.signatureLog.create({
         data: {
           documentId: document.id,
-          signerId: session.user.id,
+          signerId: userId,
           signatureImagePath: 'embedded_in_pdf',
           ipAddress: clientIp,
         },

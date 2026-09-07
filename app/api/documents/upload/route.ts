@@ -32,6 +32,7 @@ export async function POST(req: Request) {
       data: {
         title,
         filePath: publicUrl,
+        fileSize: buffer.length,
         senderId: session.user.id,
         status: 'DRAFT',
         recipients: {
