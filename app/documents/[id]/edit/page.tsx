@@ -34,6 +34,10 @@ interface FieldInteraction {
   initialY: number
   initialWidth: number
   initialHeight: number
+  currentX: number
+  currentY: number
+  currentWidth: number
+  currentHeight: number
 }
 
 export default function DocumentFieldPlottingPage() {
@@ -53,11 +57,12 @@ export default function DocumentFieldPlottingPage() {
   const [selectedRecipientId, setSelectedRecipientId] = useState<string | null>(null)
   const [loadingSave, setLoadingSave] = useState(false)
   const [pdfInteractive, setPdfInteractive] = useState(false)
-  const [fieldInteraction, setFieldInteraction] = useState<FieldInteraction | null>(null)
   const [pdfPages, setPdfPages] = useState<Array<{ pageNumber: number; width: number; height: number }>>([])
 
   const pdfContainerRef = useRef<HTMLDivElement | null>(null)
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({})
+  const fieldElementsRef = useRef<Record<string, HTMLDivElement | null>>({})
+  const interactionRef = useRef<FieldInteraction | null>(null)
 
   useEffect(() => {
     if (!documentPath) return
@@ -128,32 +133,50 @@ export default function DocumentFieldPlottingPage() {
   }, [documentPath, pdfPages])
 
   useEffect(() => {
-    if (!fieldInteraction) return
-
     const handlePointerMove = (event: PointerEvent) => {
-      const deltaX = event.clientX - fieldInteraction.startX
-      const deltaY = event.clientY - fieldInteraction.startY
+      const interaction = interactionRef.current
+      if (!interaction) return
 
-      setFields((currentFields) => currentFields.map((field) => {
-        if (field.id !== fieldInteraction.fieldId) return field
+      const deltaX = event.clientX - interaction.startX
+      const deltaY = event.clientY - interaction.startY
+      const element = fieldElementsRef.current[interaction.fieldId]
+      if (!element) return
 
-        if (fieldInteraction.mode === 'drag') {
-          return {
-            ...field,
-            posX: Math.max(0, fieldInteraction.initialX + deltaX),
-            posY: Math.max(0, fieldInteraction.initialY + deltaY),
-          }
-        }
-
-        return {
-          ...field,
-          width: Math.max(80, fieldInteraction.initialWidth + deltaX),
-          height: Math.max(40, fieldInteraction.initialHeight + deltaY),
-        }
-      }))
+      if (interaction.mode === 'drag') {
+        interaction.currentX = Math.max(0, interaction.initialX + deltaX)
+        interaction.currentY = Math.max(0, interaction.initialY + deltaY)
+        element.style.transform = `translate3d(${deltaX}px, ${deltaY}px, 0)`
+      } else {
+        interaction.currentWidth = Math.max(80, interaction.initialWidth + deltaX)
+        interaction.currentHeight = Math.max(40, interaction.initialHeight + deltaY)
+        element.style.width = `${interaction.currentWidth}px`
+        element.style.height = `${interaction.currentHeight}px`
+      }
     }
 
-    const handlePointerUp = () => setFieldInteraction(null)
+    const handlePointerUp = () => {
+      const interaction = interactionRef.current
+      if (!interaction) return
+
+      const nextX = interaction.currentX
+      const nextY = interaction.currentY
+      const element = fieldElementsRef.current[interaction.fieldId]
+
+      setFields((currentFields) => currentFields.map((field) => {
+        if (field.id !== interaction.fieldId) return field
+        return interaction.mode === 'drag'
+          ? { ...field, posX: nextX, posY: nextY }
+          : {
+            ...field,
+            width: interaction.currentWidth,
+            height: interaction.currentHeight,
+          }
+      }))
+      interactionRef.current = null
+      window.requestAnimationFrame(() => {
+        element?.style.removeProperty('transform')
+      })
+    }
 
     window.addEventListener('pointermove', handlePointerMove)
     window.addEventListener('pointerup', handlePointerUp)
@@ -161,7 +184,7 @@ export default function DocumentFieldPlottingPage() {
       window.removeEventListener('pointermove', handlePointerMove)
       window.removeEventListener('pointerup', handlePointerUp)
     }
-  }, [fieldInteraction])
+  }, [])
 
   useEffect(() => {
     const loadDocument = async () => {
@@ -427,11 +450,14 @@ export default function DocumentFieldPlottingPage() {
               return (
                 <div
                   key={field.id}
+                  ref={(element) => {
+                    fieldElementsRef.current[field.id] = element
+                  }}
                   onPointerDown={(event) => {
                     if (pdfInteractive || activeRecipient) return
                     event.preventDefault()
                     setSelectedFieldId(field.id)
-                    setFieldInteraction({
+                    const interaction = {
                       mode: 'drag',
                       fieldId: field.id,
                       startX: event.clientX,
@@ -440,7 +466,12 @@ export default function DocumentFieldPlottingPage() {
                       initialY: field.posY,
                       initialWidth: field.width,
                       initialHeight: field.height,
-                    })
+                      currentX: field.posX,
+                      currentY: field.posY,
+                      currentWidth: field.width,
+                      currentHeight: field.height,
+                    } satisfies FieldInteraction
+                    interactionRef.current = interaction
                   }}
                   onClick={(e) => {
                     e.stopPropagation()
@@ -452,7 +483,7 @@ export default function DocumentFieldPlottingPage() {
                     width: `${field.width}px`,
                     height: `${field.height}px`,
                   }}
-                  className={`absolute z-10 rounded-lg border-2 border-dashed p-2 transition-all flex flex-col items-center justify-center bg-blue-50/80 ${
+                  className={`absolute z-10 rounded-lg border-2 border-dashed p-2 transition-[border-color,box-shadow] flex flex-col items-center justify-center bg-blue-50/80 ${
                     isSelected ? 'border-blue-600 ring-2 ring-blue-400' : 'border-blue-400'
                   }`}
                 >
@@ -482,7 +513,7 @@ export default function DocumentFieldPlottingPage() {
                       onPointerDown={(event) => {
                         event.preventDefault()
                         event.stopPropagation()
-                        setFieldInteraction({
+                        const interaction = {
                           mode: 'resize',
                           fieldId: field.id,
                           startX: event.clientX,
@@ -491,7 +522,12 @@ export default function DocumentFieldPlottingPage() {
                           initialY: field.posY,
                           initialWidth: field.width,
                           initialHeight: field.height,
-                        })
+                          currentX: field.posX,
+                          currentY: field.posY,
+                          currentWidth: field.width,
+                          currentHeight: field.height,
+                        } satisfies FieldInteraction
+                        interactionRef.current = interaction
                       }}
                       className="absolute bottom-0 right-0 h-4 w-4 cursor-se-resize rounded-tl bg-blue-600"
                     />
