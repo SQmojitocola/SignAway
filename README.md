@@ -34,7 +34,7 @@ Platform ini dibangun menggunakan arsitektur modern berbasis **TypeScript & Next
 
 Berikut adalah struktur hubungan antar-tabel dalam sistem **SignAway**:
 
-<img src="image.png" width="800">
+<img src="ERD.png" width="800">
 
 
 
