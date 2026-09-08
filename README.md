@@ -16,7 +16,7 @@ Aplikasi Tanda Tangan Digital Multi-Recipient berbasis Web & Tablet (iPad) yang 
 
 ## 🗄️ Entity Relationship Diagram (ERD)
 
-![ERD](ERD.png)
+<img src="ERD.png" width="400">
 
 ---
 
@@ -64,10 +64,10 @@ Akses aplikasi melalui browser di `http://localhost:3000` (akan di-redirect otom
 
 ## 💻 Modul & Antarmuka Frontend (UI)
 
-* **Modul Global Layout & Sidebar (`components/sidebar.tsx` & `app/layout.tsx`)**
+* **Modul Global Layout & Sidebar (`components/Sidebar.tsx` & `app/layout.tsx`)**
 * Navigation bar terpusat yang menyesuaikan status menu aktif (*active state*) via `usePathname()`.
 * Dikonfigurasi secara global di `layout.tsx` sehingga tidak memuat ulang (*re-render*) saat pengguna berpindah halaman.
-* Otomatis tersembunyi pada halaman autentikasi (`/login` & `/register`).
+* Otomatis tersembunyi pada halaman khusus (`/login`, `/register`, `/documents/[id]/edit`, dan `/upload/success`).
 
 
 * **Modul Autentikasi (`/login` & `/register`)**
@@ -77,8 +77,18 @@ Akses aplikasi melalui browser di `http://localhost:3000` (akan di-redirect otom
 
 * **Modul Upload Dokumen & Recipient Management (`/upload`)**
 * **Dropzone Upload PDF:** Area unggah file PDF fisik (maks. 25MB) dengan pemrosesan konversi ke Base64.
-* **Pencarian Kontak:** Pencarian data pengguna terdaftar via API internal berdasarkan email.
+* **Pencarian Kontak:** Pencarian data pengguna terdaftar via API internal (`/api/users`) berdasarkan email.
 * **Manajemen Penerima (Recipients):** Pengelolaan daftar kontak (*Contact List*) dan alur penentuan penandatangan dokumen berurutan (*Multi-Recipient*).
+
+
+* **Modul Document Field Plotting Editor (`/documents/[id]/edit`)**
+* **Interactive Canvas Plotting:** Antarmuka pemetaan titik lokasi TTD secara dinamis pada lembar PDF.
+* **Multi-Recipient Field Assignment:** Penentuan penandatangan (*recipient*) untuk setiap *box TTD* yang ditempatkan.
+* **Field Property Inspector:** Panel pengaturan tipe kolom (*Tanda Tangan* / *Paraf*) dan pengelolaan penghapusan frame TTD.
+
+
+* **Modul Konfirmasi Pengiriman (`/upload/success`)**
+* **Status Summary:** Ringkasan status pengiriman dokumen, waktu pengiriman, metode penandatanganan, dan indikator status *Menunggu Tanda Tangan* tiap penerima.
 
 
 
@@ -106,6 +116,10 @@ Akses aplikasi melalui browser di `http://localhost:3000` (akan di-redirect otom
 * **`POST /api/documents/upload`**
 * **Fungsi:** Mengunggah file PDF (Base64), menyimpan file ke `/public/uploads`, serta memetakan daftar penerima (*recipients*).
 * **Payload:** `{ "title": "Dokumen A", "pdfBase64": "data:application/pdf;base64,...", "recipientIds": ["user-id-1", "user-id-2"] }`
+
+
+* **`GET /api/documents/[id]`**
+* **Fungsi:** Mengambil data metadata detail dokumen tertentu.
 
 
 
@@ -140,3 +154,23 @@ npx prisma studio
 
 
 Akses antarmuka visual di `http://localhost:5555`.
+
+
+* **Automation Scripts (`scripts/`):**
+```bash
+# Uji coba upload dokumen PDF
+npx tsx scripts/test-upload.ts
+
+# Uji coba simpan & ambil koordinat plotting field
+npx tsx scripts/test-fields.ts
+
+# Uji coba penempelan TTD fisik ke PDF (Stamping Engine)
+npx tsx scripts/test-stamping.ts
+
+```
+
+
+
+```
+
+```
