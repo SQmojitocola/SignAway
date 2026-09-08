@@ -19,7 +19,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
     }
 
-    const { documentId, fields } = await req.json()
+    const { documentId, fields, send = false } = await req.json()
 
     if (!documentId || !fields || !Array.isArray(fields)) {
       return NextResponse.json(
@@ -31,6 +31,7 @@ export async function POST(req: Request) {
     // 2. Cek Apakah Dokumen Ada dan Milik User Ini (Hanya pengirim yang boleh plot TTD)
     const document = await prisma.document.findUnique({
       where: { id: documentId },
+      include: { recipients: true },
     })
 
     if (!document) {
@@ -44,29 +45,78 @@ export async function POST(req: Request) {
       )
     }
 
+    const hasSelfFields = fields.some((field: FieldInput) => field.recipientId === 'self')
+    let selfRecipientId: string | null = null
+    if (hasSelfFields) {
+      const selfRecipient = await prisma.documentRecipient.findFirst({
+        where: { documentId, userId: document.senderId },
+        select: { id: true },
+      })
+      selfRecipientId = selfRecipient?.id ?? (
+        await prisma.documentRecipient.create({
+          data: { documentId, userId: document.senderId },
+          select: { id: true },
+        })
+      ).id
+    }
+
+    const normalizedFields = fields.map((field: FieldInput) => ({
+      documentId,
+      recipientId: field.recipientId === 'self' && selfRecipientId
+        ? selfRecipientId
+        : field.recipientId,
+      pageNumber: field.pageNumber,
+      posX: field.posX,
+      posY: field.posY,
+      width: field.width || 150,
+      height: field.height || 60,
+    }))
+
+    if (send) {
+      const externalRecipients = document.recipients.filter(
+        (recipient) => recipient.userId !== document.senderId
+      )
+      const incompleteRecipient = externalRecipients.find(
+        (recipient) => !normalizedFields.some((field) => field.recipientId === recipient.id)
+      )
+      if (incompleteRecipient) {
+        return NextResponse.json(
+          { message: 'Setiap resipien harus memiliki minimal satu field tanda tangan' },
+          { status: 400 }
+        )
+      }
+    }
+
     // 3. Simpan / Overwrite Fields dalam Transaksi Database
     // Kita hapus plot lama jika ada, lalu masukkan plot koordinat yang baru
-    const result = await prisma.$transaction([
-      prisma.documentField.deleteMany({
-        where: { documentId },
-      }),
-      prisma.documentField.createMany({
-        data: fields.map((field: FieldInput) => ({
-          documentId,
-          recipientId: field.recipientId,
-          pageNumber: field.pageNumber,
-          posX: field.posX,
-          posY: field.posY,
-          width: field.width || 150,
-          height: field.height || 60,
-        })),
-      }),
-    ])
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.documentField.deleteMany({ where: { documentId } })
+      const createdFields = await tx.documentField.createMany({ data: normalizedFields })
+
+      if (send) {
+        await tx.document.update({ where: { id: documentId }, data: { status: 'PENDING' } })
+        if (document.sequential) {
+          await Promise.all(document.recipients.map((recipient) =>
+            tx.documentRecipient.update({
+              where: { id: recipient.id },
+              data: { status: recipient.signingOrder === 1 ? 'WAITING' : 'PENDING' },
+            })
+          ))
+        } else {
+          await tx.documentRecipient.updateMany({
+            where: { documentId },
+            data: { status: 'WAITING' },
+          })
+        }
+      }
+
+      return createdFields
+    })
 
     return NextResponse.json(
       {
         message: 'Koordinat frame tanda tangan berhasil disimpan',
-        savedFieldsCount: result[1].count,
+        savedFieldsCount: result.count,
       },
       { status: 200 }
     )

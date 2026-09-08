@@ -41,6 +41,14 @@ export async function POST(req: Request) {
       (r) => r.userId === userId && r.status === 'WAITING'
     )
 
+    const assignedRecipient = document.recipients.find((r) => r.userId === userId)
+    if (document.sequential && assignedRecipient?.status === 'PENDING') {
+      return NextResponse.json(
+        { message: 'Belum giliran kamu untuk menandatangani dokumen ini' },
+        { status: 409 }
+      )
+    }
+
     if (!recipient) {
       return NextResponse.json(
         { message: 'Kamu tidak memiliki antrean TTD pada dokumen ini' },
@@ -49,8 +57,8 @@ export async function POST(req: Request) {
     }
 
     // 4. Cari Koordinat Field TTD untuk Recipient Ini
-    const field = document.fields.find((f) => f.recipientId === recipient.id)
-    if (!field) {
+    const fields = document.fields.filter((field) => field.recipientId === recipient.id)
+    if (fields.length === 0) {
       return NextResponse.json(
         { message: 'Plot koordinat TTD belum ditentukan oleh pengirim' },
         { status: 400 }
@@ -67,15 +75,16 @@ export async function POST(req: Request) {
     const signatureImageBytes = Buffer.from(base64Data, 'base64')
     const embeddedImage = await pdfDoc.embedPng(signatureImageBytes)
 
-    const pageIndex = field.pageNumber - 1 // pdf-lib menggunakan indeks berbasis 0
-    const page = pdfDoc.getPage(pageIndex)
+    fields.forEach((field) => {
+      const pageIndex = field.pageNumber - 1 // pdf-lib menggunakan indeks berbasis 0
+      const page = pdfDoc.getPage(pageIndex)
 
-    // Tempelkan gambar sesuai koordinat pos_x dan pos_y
-    page.drawImage(embeddedImage, {
-      x: field.posX,
-      y: field.posY,
-      width: field.width,
-      height: field.height,
+      page.drawImage(embeddedImage, {
+        x: field.posX,
+        y: field.posY,
+        width: field.width,
+        height: field.height,
+      })
     })
 
     // 7. Simpan Perubahan PDF
@@ -91,6 +100,18 @@ export async function POST(req: Request) {
         where: { id: recipient.id },
         data: { status: 'SIGNED' },
       })
+
+      if (document.sequential && recipient.signingOrder !== null) {
+        const nextRecipient = document.recipients.find(
+          (candidate) => candidate.signingOrder === (recipient.signingOrder as number) + 1
+        )
+        if (nextRecipient) {
+          await tx.documentRecipient.update({
+            where: { id: nextRecipient.id },
+            data: { status: 'WAITING' },
+          })
+        }
+      }
 
       // Simpan Audit Log
       await tx.signatureLog.create({

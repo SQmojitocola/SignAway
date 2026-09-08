@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { 
   UploadCloud, Trash2, UserPlus, FileText, ChevronDown, Check, Save 
@@ -11,6 +11,62 @@ interface Recipient {
   name: string
   email: string
   nip?: string
+}
+
+interface UploadDraft {
+  documentId?: string
+  fileBase64: string
+  fileName: string
+  fileSize: number
+  fileType: string
+  savedContacts: Recipient[]
+  selectedRecipients: Recipient[]
+  sequential: boolean
+}
+
+const UPLOAD_DRAFT_DB = 'signaway-upload-draft'
+const UPLOAD_DRAFT_STORE = 'drafts'
+
+function openUploadDraftDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(UPLOAD_DRAFT_DB, 1)
+    request.onupgradeneeded = () => request.result.createObjectStore(UPLOAD_DRAFT_STORE)
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error)
+  })
+}
+
+async function loadUploadDraft(): Promise<UploadDraft | null> {
+  const db = await openUploadDraftDb()
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(UPLOAD_DRAFT_STORE, 'readonly')
+      .objectStore(UPLOAD_DRAFT_STORE)
+      .get('current')
+    request.onsuccess = () => resolve((request.result as UploadDraft | undefined) || null)
+    request.onerror = () => reject(request.error)
+  })
+}
+
+async function saveUploadDraft(draft: UploadDraft): Promise<void> {
+  const db = await openUploadDraftDb()
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(UPLOAD_DRAFT_STORE, 'readwrite')
+      .objectStore(UPLOAD_DRAFT_STORE)
+      .put(draft, 'current')
+    request.onsuccess = () => resolve()
+    request.onerror = () => reject(request.error)
+  })
+}
+
+async function clearUploadDraft(): Promise<void> {
+  const db = await openUploadDraftDb()
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(UPLOAD_DRAFT_STORE, 'readwrite')
+      .objectStore(UPLOAD_DRAFT_STORE)
+      .delete('current')
+    request.onsuccess = () => resolve()
+    request.onerror = () => reject(request.error)
+  })
 }
 
 export default function UploadDocumentPage() {
@@ -24,6 +80,8 @@ export default function UploadDocumentPage() {
   // State Kontak & Penandatangan
   const [savedContacts, setSavedContacts] = useState<Recipient[]>([])
   const [selectedRecipients, setSelectedRecipients] = useState<Recipient[]>([])
+  const [sequential, setSequential] = useState(false)
+  const [draftDocumentId, setDraftDocumentId] = useState<string | undefined>()
   
   // State UI & Search
   const [showDropdown, setShowDropdown] = useState(false)
@@ -33,6 +91,68 @@ export default function UploadDocumentPage() {
   const [loadingSearch, setLoadingSearch] = useState(false)
   const [loadingSubmit, setLoadingSubmit] = useState(false)
   const [error, setError] = useState('')
+  const [draftLoaded, setDraftLoaded] = useState(false)
+
+  useEffect(() => {
+    loadUploadDraft()
+      .then((draft) => {
+        if (!draft) {
+          setDraftLoaded(true)
+          return
+        }
+
+        queueMicrotask(() => {
+          setFileBase64(draft.fileBase64)
+          setSavedContacts(draft.savedContacts)
+          setSelectedRecipients(draft.selectedRecipients)
+          setSequential(draft.sequential ?? false)
+          setDraftDocumentId(draft.documentId)
+        })
+
+        return fetch(draft.fileBase64)
+          .then((response) => response.blob())
+          .then((blob) => {
+            setFile(new File([blob], draft.fileName, {
+              type: draft.fileType || blob.type || 'application/pdf',
+              lastModified: Date.now(),
+            }))
+          })
+      })
+      .catch(() => setError('Draft dokumen tidak dapat dipulihkan'))
+      .finally(() => setDraftLoaded(true))
+
+    fetch('/api/users?me=true')
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.user) {
+          setSavedContacts((current) => current.some((contact) => contact.id === data.user.id)
+            ? current
+            : [data.user, ...current])
+        }
+      })
+      .catch(() => undefined)
+  }, [])
+
+  useEffect(() => {
+    if (!draftLoaded) return
+
+    if (!fileBase64 && savedContacts.length === 0 && selectedRecipients.length === 0 && !draftDocumentId) {
+      void clearUploadDraft()
+      return
+    }
+
+    const draft: UploadDraft = {
+      fileBase64,
+      fileName: file?.name || '',
+      fileSize: file?.size || 0,
+      fileType: file?.type || 'application/pdf',
+      savedContacts,
+      selectedRecipients,
+      sequential,
+      documentId: draftDocumentId,
+    }
+    void saveUploadDraft(draft)
+  }, [draftLoaded, draftDocumentId, file, fileBase64, savedContacts, selectedRecipients, sequential])
 
   // Handle Pilih PDF
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -44,6 +164,7 @@ export default function UploadDocumentPage() {
     }
 
     setFile(selectedFile)
+  setDraftDocumentId(undefined)
     setError('')
     const reader = new FileReader()
     reader.onloadend = () => setFileBase64(reader.result as string)
@@ -65,7 +186,7 @@ export default function UploadDocumentPage() {
       } else {
         setError('Pengguna tidak ditemukan')
       }
-    } catch (err) {
+    } catch {
       setError('Gagal mencari kontak')
     } finally {
       setLoadingSearch(false)
@@ -106,22 +227,31 @@ export default function UploadDocumentPage() {
 
     setLoadingSubmit(true)
     try {
-      const res = await fetch('/api/documents/upload', {
+      const upload = (documentId?: string) => fetch('/api/documents/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: file.name,
           pdfBase64: fileBase64,
           recipientIds: selectedRecipients.map((r) => r.id),
+          sequential,
+          ...(documentId ? { documentId } : {}),
         }),
       })
 
-      const data = await res.json()
+      let res = await upload(draftDocumentId)
+      let data = await res.json()
+      if (res.status === 404 && draftDocumentId) {
+        setDraftDocumentId(undefined)
+        res = await upload()
+        data = await res.json()
+      }
       if (!res.ok) throw new Error(data.message || 'Gagal mengunggah dokumen')
 
+      setDraftDocumentId(data.document.id)
       router.push(`/documents/${data.document.id}/edit`)
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Gagal mengunggah dokumen')
     } finally {
       setLoadingSubmit(false)
     }
@@ -163,7 +293,7 @@ export default function UploadDocumentPage() {
                       <p className="text-[11px] text-blue-200">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
                     </div>
                   </div>
-                  <button onClick={() => setFile(null)} className="text-red-400 hover:text-red-200">
+                  <button onClick={() => { setFile(null); setFileBase64(''); setDraftDocumentId(undefined) }} className="text-red-400 hover:text-red-200">
                     <Trash2 className="w-5 h-5" />
                   </button>
                 </div>
@@ -261,9 +391,20 @@ export default function UploadDocumentPage() {
 
             {/* DAFTAR PENANDATANGAN DOKUMEN */}
             <div className="space-y-2">
-              <p className="text-xs font-semibold text-slate-500">
-                Daftar Penanda Tangan ({selectedRecipients.length})
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-slate-500">
+                  Daftar Penanda Tangan ({selectedRecipients.length})
+                </p>
+                <label className="flex items-center gap-1.5 text-[10px] text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={sequential}
+                    onChange={(event) => setSequential(event.target.checked)}
+                    className="accent-blue-600"
+                  />
+                  Berurutan
+                </label>
+              </div>
 
               {selectedRecipients.length === 0 ? (
                 <div className="p-4 bg-slate-50 border rounded-xl text-center text-xs text-slate-400">
@@ -292,7 +433,7 @@ export default function UploadDocumentPage() {
 
           {/* Action Buttons */}
           <div className="flex gap-2 pt-4 border-t border-slate-100">
-            <button onClick={() => router.push('/dashboard')} className="w-1/2 py-2.5 border rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50">
+            <button onClick={() => { void clearUploadDraft(); router.push('/dashboard') }} className="w-1/2 py-2.5 border rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50">
               Batal
             </button>
             <button
