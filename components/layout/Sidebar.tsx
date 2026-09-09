@@ -44,7 +44,7 @@ export default function Sidebar() {
 
       {/* Footer / Bottom Links */}
       <div className="flex flex-col gap-1 mt-auto pb-2 border-t border-white/10 pt-4">
-        <Link href="/settings" className="flex items-center gap-3 px-6 py-2.5 text-blue-100 hover:text-white hover:bg-white/5 transition-all border-l-4 border-transparent font-medium text-sm">
+        <Link href="/setting" className="flex items-center gap-3 px-6 py-2.5 text-blue-100 hover:text-white hover:bg-white/5 transition-all border-l-4 border-transparent font-medium text-sm">
           <span className="material-symbols-outlined text-[20px]">settings</span>
           Settings
         </Link>

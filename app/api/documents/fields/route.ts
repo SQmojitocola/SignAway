@@ -54,7 +54,7 @@ export async function POST(req: Request) {
       })
       selfRecipientId = selfRecipient?.id ?? (
         await prisma.documentRecipient.create({
-          data: { documentId, userId: document.senderId },
+          data: { documentId, userId: document.senderId, role: 'SIGNER' },
           select: { id: true },
         })
       ).id

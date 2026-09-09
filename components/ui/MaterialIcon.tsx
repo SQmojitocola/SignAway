@@ -1,0 +1,85 @@
+import {
+  Award,
+  Badge,
+  BadgeCheck,
+  Bell,
+  BellRing,
+  Building2,
+  Camera,
+  CircleCheck,
+  FilePenLine,
+  FileText,
+  Edit3,
+  Eye,
+  EyeOff,
+  Fingerprint,
+  IdCard,
+  KeyRound,
+  Landmark,
+  Lock,
+  Mail,
+  MapPin,
+  Menu,
+  MonitorSmartphone,
+  Phone,
+  Save,
+  Search,
+  Settings,
+  ShieldCheck,
+  SlidersHorizontal,
+  UploadCloud,
+  User,
+  Verified,
+  X,
+  LayoutDashboard,
+  type LucideProps,
+} from "lucide-react";
+
+const icons = {
+  assured_workload: Landmark,
+  badge: Badge,
+  badge_check: BadgeCheck,
+  call: Phone,
+  check_circle: CircleCheck,
+  corporate_fare: Building2,
+  dashboard: LayoutDashboard,
+  description: FileText,
+  devices: MonitorSmartphone,
+  draw: Edit3,
+  edit_document: FilePenLine,
+  filter_list: SlidersHorizontal,
+  fingerprint: Fingerprint,
+  id_card: IdCard,
+  lock: Lock,
+  lock_reset: KeyRound,
+  logout: X,
+  mail: Mail,
+  menu: Menu,
+  notifications: Bell,
+  notifications_active: BellRing,
+  person: User,
+  photo_camera: Camera,
+  pin: MapPin,
+  save: Save,
+  search: Search,
+  security: ShieldCheck,
+  settings: Settings,
+  tune: SlidersHorizontal,
+  upload_file: UploadCloud,
+  verified: Verified,
+  verified_user: BadgeCheck,
+  visibility: Eye,
+  visibility_off: EyeOff,
+  workspace_premium: Award,
+} as const;
+
+type MaterialIconName = keyof typeof icons;
+
+interface MaterialIconProps extends LucideProps {
+  readonly name: MaterialIconName;
+}
+
+export default function MaterialIcon({ name, ...props }: Readonly<MaterialIconProps>) {
+  const Icon = icons[name];
+  return <Icon aria-hidden="true" {...props} />;
+}

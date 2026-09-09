@@ -56,7 +56,7 @@ export async function POST(req: Request) {
             })
           } else {
             await tx.documentRecipient.create({
-              data: { documentId, userId, status: 'WAITING', signingOrder: index + 1 },
+              data: { documentId, userId, role: 'SIGNER', status: 'WAITING', signingOrder: index + 1 },
             })
           }
         }
@@ -82,6 +82,7 @@ export async function POST(req: Request) {
           recipients: {
             create: recipientIds.map((userId: string, index: number) => ({
               userId,
+              role: 'SIGNER',
               status: 'WAITING',
               signingOrder: index + 1,
             })),

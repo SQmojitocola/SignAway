@@ -36,6 +36,7 @@ async function testUpload() {
       recipients: {
         create: recipientIds.map((id) => ({
           userId: id,
+          role: 'SIGNER',
           status: 'WAITING',
         })),
       },
