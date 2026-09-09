@@ -1,6 +1,12 @@
+'use client';
+
 import Link from "next/link";
+import { signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 export default function Sidebar() {
+  const router = useRouter();
+
   return (
     <aside className="fixed left-0 top-0 h-full w-[260px] bg-[#254872] flex flex-col py-4 z-40">
       {/* Logo & Title */}
@@ -48,7 +54,13 @@ export default function Sidebar() {
           <span className="material-symbols-outlined text-[20px]">settings</span>
           Settings
         </Link>
-        <button className="flex w-full items-center gap-3 px-6 py-2.5 text-blue-100 hover:text-white hover:bg-white/5 transition-all border-l-4 border-transparent font-medium text-sm">
+        <button
+          onClick={() => {
+            void signOut({ callbackUrl: '/login' });
+            router.refresh();
+          }}
+          className="flex w-full items-center gap-3 px-6 py-2.5 text-blue-100 hover:text-white hover:bg-white/5 transition-all border-l-4 border-transparent font-medium text-sm"
+        >
           <span className="material-symbols-outlined text-[20px]">logout</span>
           Logout
         </button>

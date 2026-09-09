@@ -1,11 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { signOut } from 'next-auth/react'
 import { LayoutDashboard, FileText, Upload, Settings, LogOut } from 'lucide-react'
 
 export default function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
 
   const menuItems = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -56,7 +58,13 @@ export default function Sidebar() {
         <Link href="/settings" className="flex items-center gap-3 px-4 py-2.5 text-blue-200 hover:text-white">
           <Settings className="w-4 h-4" /> Settings
         </Link>
-        <button onClick={() => alert('Logout')} className="flex items-center gap-3 px-4 py-2.5 text-red-300 hover:text-red-100 w-full text-left">
+        <button
+          onClick={() => {
+            void signOut({ callbackUrl: '/login' })
+            router.refresh()
+          }}
+          className="flex items-center gap-3 px-4 py-2.5 text-red-300 hover:text-red-100 w-full text-left"
+        >
           <LogOut className="w-4 h-4" /> Logout
         </button>
       </div>
