@@ -161,6 +161,14 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
     return <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-md text-[10px] font-bold">SELESAI</span>
   }
 
+  const getInitials = (name: string) =>
+    name
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? '')
+      .join('') || 'U'
+
   return (
     <div className="space-y-6">
       <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
@@ -230,6 +238,7 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
               <tr className="bg-slate-50/80 border-b border-slate-100 text-slate-400 font-bold uppercase text-[10px] tracking-wider">
                 <th className="p-4">Nama Dokumen</th>
                 <th className="p-4">Pengirim</th>
+                <th className="p-4">Penerima</th>
                 <th className="p-4">Tanggal Diterima</th>
                 <th className="p-4">Status</th>
                 <th className="p-4 text-center">Aksi</th>
@@ -238,7 +247,7 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
             <tbody className="divide-y divide-slate-100">
               {filteredDocs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-10 text-center text-slate-400">
+                  <td colSpan={6} className="p-10 text-center text-slate-400">
                     Tidak ada dokumen di kategori ini.
                   </td>
                 </tr>
@@ -266,8 +275,37 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
                         </div>
                       </td>
                       <td className="p-4">
-                        <p className="font-semibold text-slate-700">{doc.sender.name}</p>
-                        <p className="text-[10px] text-slate-400">{doc.sender.email}</p>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1e4273] text-[10px] font-bold text-white shrink-0">
+                            {getInitials(doc.sender.name)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-700 truncate">{doc.sender.name}</p>
+                            <p className="text-[10px] text-slate-400 truncate">{doc.sender.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        {doc.recipients.length > 0 ? (
+                          <div className="flex items-center -space-x-2">
+                            {doc.recipients.slice(0, 4).map((recipient) => (
+                              <div
+                                key={recipient.id}
+                                title={recipient.user.name}
+                                className="group relative flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-slate-200 text-[9px] font-bold text-slate-600 shadow-sm transition-transform hover:scale-105"
+                              >
+                                {getInitials(recipient.user.name)}
+                              </div>
+                            ))}
+                            {doc.recipients.length > 4 && (
+                              <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-slate-100 text-[9px] font-bold text-slate-500 shadow-sm">
+                                +{doc.recipients.length - 4}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
                       </td>
                       <td className="p-4 text-slate-600 font-medium">{formattedDate}</td>
                       <td className="p-4">{renderStatusBadge(doc)}</td>

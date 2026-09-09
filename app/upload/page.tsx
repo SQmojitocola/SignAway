@@ -96,7 +96,15 @@ export default function UploadDocumentPage() {
   useEffect(() => {
     loadUploadDraft()
       .then((draft) => {
-        if (!draft) {
+        if (!draft || !draft.fileBase64 || !draft.fileName?.trim()) {
+          void clearUploadDraft()
+          setDraftLoaded(true)
+          return
+        }
+
+        const hasValidPdfName = /\.pdf$/i.test(draft.fileName.trim()) || draft.fileType === 'application/pdf'
+        if (!hasValidPdfName) {
+          void clearUploadDraft()
           setDraftLoaded(true)
           return
         }
@@ -136,16 +144,18 @@ export default function UploadDocumentPage() {
   useEffect(() => {
     if (!draftLoaded) return
 
-    if (!fileBase64 && savedContacts.length === 0 && selectedRecipients.length === 0 && !draftDocumentId) {
-      void clearUploadDraft()
+    if (!fileBase64 || !file?.name?.trim() || file.type !== 'application/pdf') {
+      if (!fileBase64 && savedContacts.length === 0 && selectedRecipients.length === 0 && !draftDocumentId) {
+        void clearUploadDraft()
+      }
       return
     }
 
     const draft: UploadDraft = {
       fileBase64,
-      fileName: file?.name || '',
-      fileSize: file?.size || 0,
-      fileType: file?.type || 'application/pdf',
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
       savedContacts,
       selectedRecipients,
       sequential,
@@ -249,6 +259,7 @@ export default function UploadDocumentPage() {
       if (!res.ok) throw new Error(data.message || 'Gagal mengunggah dokumen')
 
       setDraftDocumentId(data.document.id)
+      await clearUploadDraft()
       router.push(`/documents/${data.document.id}/edit`)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Gagal mengunggah dokumen')
