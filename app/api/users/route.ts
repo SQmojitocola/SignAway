@@ -41,3 +41,43 @@ export async function GET(req: Request) {
     return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 })
   }
 }
+
+export async function PUT(req: Request) {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { name, email } = await req.json()
+    const normalizedName = typeof name === 'string' ? name.trim() : ''
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : ''
+
+    if (!normalizedName || !normalizedEmail) {
+      return NextResponse.json({ message: 'Nama dan email wajib diisi' }, { status: 400 })
+    }
+
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        email: normalizedEmail,
+        NOT: { id: session.user.id },
+      },
+      select: { id: true },
+    })
+
+    if (existingUser) {
+      return NextResponse.json({ message: 'Email sudah digunakan pengguna lain' }, { status: 409 })
+    }
+
+    const user = await prisma.user.update({
+      where: { id: session.user.id },
+      data: { name: normalizedName, email: normalizedEmail },
+      select: { id: true, name: true, email: true },
+    })
+
+    return NextResponse.json({ user }, { status: 200 })
+  } catch (error) {
+    console.error('User update error:', error)
+    return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 })
+  }
+}

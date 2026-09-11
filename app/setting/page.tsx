@@ -1,10 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import MaterialIcon from "@/components/ui/MaterialIcon";
 
 export default function SettingsPage() {
+  const [profileName, setProfileName] = useState("");
+  const [profileEmail, setProfileEmail] = useState("");
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMessage, setProfileMessage] = useState("");
   const [activeTab, setActiveTab] = useState("profil");
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -15,6 +20,39 @@ export default function SettingsPage() {
   const [notifReminder, setNotifReminder] = useState(true);
   const [notifWeekly, setNotifWeekly] = useState(false);
   const [otpRequired, setOtpRequired] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/users?me=true")
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Profil tidak dapat dimuat")
+        const data = await response.json()
+        setProfileName(data.user?.name ?? "")
+        setProfileEmail(data.user?.email ?? "")
+      })
+      .catch(() => setProfileMessage("Profil tidak dapat dimuat"))
+      .finally(() => setProfileLoading(false))
+  }, [])
+
+  const handleProfileSave = async () => {
+    setProfileSaving(true)
+    setProfileMessage("")
+    try {
+      const response = await fetch("/api/users", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: profileName, email: profileEmail }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.message ?? "Profil gagal disimpan")
+      setProfileName(data.user.name)
+      setProfileEmail(data.user.email)
+      setProfileMessage("Profil berhasil disimpan")
+    } catch (error) {
+      setProfileMessage(error instanceof Error ? error.message : "Profil gagal disimpan")
+    } finally {
+      setProfileSaving(false)
+    }
+  }
 
   return (
     <div className="bg-[#f8fafc] text-gray-900 min-h-screen flex font-sans">
@@ -182,7 +220,9 @@ export default function SettingsPage() {
                   <MaterialIcon name="person" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input 
                     type="text" 
-                    defaultValue="Ahmad Fauzan"
+                    value={profileName}
+                    onChange={(event) => setProfileName(event.target.value)}
+                    disabled={profileLoading}
                     className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003b73]" 
                   />
                 </div>
@@ -219,7 +259,9 @@ export default function SettingsPage() {
                   <MaterialIcon name="mail" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input 
                     type="email" 
-                    defaultValue="ahmad.fauzan@surveyor.id"
+                    value={profileEmail}
+                    onChange={(event) => setProfileEmail(event.target.value)}
+                    disabled={profileLoading}
                     className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003b73]" 
                   />
                 </div>
@@ -514,16 +556,21 @@ export default function SettingsPage() {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
             <div className="flex items-center gap-2 text-emerald-700 bg-emerald-50 border border-emerald-200 px-4 py-2 rounded-lg text-xs font-medium">
               <MaterialIcon name="check_circle" size={18} />
-              <span>Semua konfigurasi terbaru telah tersinkronisasi dengan aman.</span>
+              <span>{profileMessage || "Semua konfigurasi terbaru telah tersinkronisasi dengan aman."}</span>
             </div>
 
             <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
               <button className="px-4 py-2 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-lg text-xs font-semibold transition-colors">
                 Batalkan
               </button>
-              <button className="px-5 py-2 bg-[#003b73] hover:bg-[#002d58] text-white rounded-lg text-xs font-semibold flex items-center gap-2 shadow-sm transition-all">
+              <button
+                type="button"
+                onClick={handleProfileSave}
+                disabled={profileSaving || profileLoading}
+                className="px-5 py-2 bg-[#003b73] hover:bg-[#002d58] disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center gap-2 shadow-sm transition-all"
+              >
                 <MaterialIcon name="save" size={16} />
-                Simpan Perubahan
+                {profileSaving ? "Menyimpan..." : "Simpan Perubahan"}
               </button>
             </div>
           </div>
