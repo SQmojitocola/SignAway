@@ -53,7 +53,14 @@ export default function Sidebar() {
 
       {/* Footer Navigasi */}
       <div className="space-y-2 text-sm border-t border-blue-800/60 pt-4">
-        <Link href="/settings" className="flex items-center gap-3 px-4 py-2.5 text-blue-200 hover:text-white">
+        <Link
+          href="/setting"
+          className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-colors ${
+            pathname === '/setting'
+              ? 'bg-blue-600 font-semibold text-white shadow-md'
+              : 'text-blue-200 hover:text-white hover:bg-blue-800/50'
+          }`}
+        >
           <Settings className="w-4 h-4" /> Settings
         </Link>
         <button onClick={() => alert('Logout')} className="flex items-center gap-3 px-4 py-2.5 text-red-300 hover:text-red-100 w-full text-left">
