@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { signOut } from 'next-auth/react'
-import { LayoutDashboard, FileText, Upload, Settings, LogOut } from 'lucide-react'
+import { LayoutDashboard, FileText, Upload, Settings, LogOut, FolderOpen } from 'lucide-react'
 
 export default function Sidebar() {
   const pathname = usePathname()
@@ -11,6 +11,7 @@ export default function Sidebar() {
 
   const menuItems = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Draft', href: '/drafts', icon: FolderOpen },
     { name: 'All Documents', href: '/documents', icon: FileText },
     { name: 'Upload', href: '/upload', icon: Upload },
   ]

@@ -5,6 +5,8 @@ import path from 'path'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 
+const PDF_VIEWPORT_SCALE = 1.25
+
 export async function POST(req: Request) {
   try {
     // 1. Verifikasi Session Login
@@ -14,11 +16,14 @@ export async function POST(req: Request) {
     }
     const userId = session.user.id
 
-    const { documentId, signatureImageBase64 } = await req.json()
+    const body = await req.json()
+    // Mendukung nama variabel dari frontend (signatureData atau signatureImageBase64)
+    const documentId = body.documentId
+    const signatureImageBase64 = body.signatureImageBase64 || body.signatureData
 
     if (!documentId || !signatureImageBase64) {
       return NextResponse.json(
-        { message: 'documentId dan signatureImageBase64 wajib diisi' },
+        { message: 'documentId dan signatureData wajib diisi' },
         { status: 400 }
       )
     }
@@ -38,7 +43,7 @@ export async function POST(req: Request) {
 
     // 3. Cek Apakah User Merupakan Recipient yang Berhak
     const recipient = document.recipients.find(
-      (r) => r.userId === userId && r.status === 'WAITING'
+      (r) => r.userId === userId && (r.status === 'WAITING' || r.status === 'PENDING')
     )
 
     const assignedRecipient = document.recipients.find((r) => r.userId === userId)
@@ -66,7 +71,8 @@ export async function POST(req: Request) {
     }
 
     // 5. Buka File PDF dari Storage Lokal
-    const absolutePdfPath = path.join(process.cwd(), 'public', document.filePath)
+    const cleanRelativePath = document.filePath.replace(/^\//, '')
+    const absolutePdfPath = path.join(process.cwd(), 'public', cleanRelativePath)
     const pdfBytes = await readFile(absolutePdfPath)
     const pdfDoc = await PDFDocument.load(pdfBytes)
 
@@ -76,14 +82,36 @@ export async function POST(req: Request) {
     const embeddedImage = await pdfDoc.embedPng(signatureImageBytes)
 
     fields.forEach((field) => {
-      const pageIndex = field.pageNumber - 1 // pdf-lib menggunakan indeks berbasis 0
+      // Menentukan indeks halaman (default ke halaman 1 jika tidak diset)
+      const pageNum = field.pageNumber || field.page || 1
+      const pageIndex = Math.max(0, pageNum - 1)
       const page = pdfDoc.getPage(pageIndex)
 
+      const pageWidth = page.getWidth()
+      const pageHeight = page.getHeight()
+
+      const toPercent = (value: number, pageSize: number) => {
+        if (value <= 0) return 0
+        return value > 100 ? (value / pageSize) * 100 : value
+      }
+
+      const xPercent = field.xPercent ?? toPercent(field.posX, pageWidth)
+      const yPercent = field.yPercent ?? toPercent(field.posY, pageHeight)
+      const widthPercent = field.widthPercent ?? toPercent(field.width, pageWidth)
+      const heightPercent = field.heightPercent ?? toPercent(field.height, pageHeight)
+
+      const drawWidth = (widthPercent / 100) * pageWidth
+      const drawHeight = (heightPercent / 100) * pageHeight
+      const drawX = (xPercent / 100) * pageWidth
+
+      // Dibalik karena sumbu Y pada pdf-lib dimulai dari KIRI-BAWAH
+      const drawY = pageHeight - (yPercent / 100) * pageHeight - drawHeight
+
       page.drawImage(embeddedImage, {
-        x: field.posX,
-        y: field.posY,
-        width: field.width,
-        height: field.height,
+        x: drawX,
+        y: drawY,
+        width: drawWidth,
+        height: drawHeight,
       })
     })
 
@@ -123,9 +151,9 @@ export async function POST(req: Request) {
         },
       })
 
-      // Cek apakah semua recipient sudah TTD
+      // Cek apakah seluruh recipient sudah menandatangani
       const remainingWaiters = await tx.documentRecipient.count({
-        where: { documentId: document.id, status: 'WAITING' },
+        where: { documentId: document.id, status: { not: 'SIGNED' } },
       })
 
       const newDocStatus = remainingWaiters === 0 ? 'COMPLETED' : 'PARTIAL_SIGNED'
@@ -140,8 +168,12 @@ export async function POST(req: Request) {
       { message: 'Tanda tangan berhasil ditempelkan pada PDF' },
       { status: 200 }
     )
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('PDF Stamping Error:', error)
-    return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 })
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json(
+      { message: 'Internal Server Error', error: message },
+      { status: 500 }
+    )
   }
 }

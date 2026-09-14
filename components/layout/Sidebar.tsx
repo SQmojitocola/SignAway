@@ -2,10 +2,19 @@
 
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
+import { Download, FileText, FolderOpen, LayoutDashboard, LogOut, Settings, Upload } from "lucide-react";
 
 export default function Sidebar() {
   const router = useRouter();
+  const pathname = usePathname();
+
+  const menuItems = [
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Draft', href: '/drafts', icon: FolderOpen },
+    { name: 'All Documents', href: '/documents', icon: FileText },
+    { name: 'Upload', href: '/upload', icon: Upload },
+  ];
 
   return (
     <aside className="fixed left-0 top-0 h-full w-[260px] bg-[#254872] flex flex-col py-4 z-40">
@@ -34,18 +43,25 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 flex flex-col gap-1 overflow-y-auto">
-        <Link href="/dashboard" className="flex items-center gap-3 px-6 py-3 bg-[#00529c] text-white border-l-4 border-white font-medium text-sm">
-          <span className="material-symbols-outlined text-[20px]">dashboard</span>
-          Dashboard
-        </Link>
-        <Link href="/documents" className="flex items-center gap-3 px-6 py-3 text-blue-100 hover:text-white hover:bg-white/5 transition-all border-l-4 border-transparent font-medium text-sm">
-          <span className="material-symbols-outlined text-[20px]">description</span>
-          All Documents
-        </Link>
-        <Link href="/upload" className="flex items-center gap-3 px-6 py-3 text-blue-100 hover:text-white hover:bg-white/5 transition-all border-l-4 border-transparent font-medium text-sm">
-          <span className="material-symbols-outlined text-[20px]">upload_file</span>
-          Upload
-        </Link>
+        {menuItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = pathname === item.href;
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`flex items-center gap-3 px-6 py-3 border-l-4 font-medium text-sm transition-all ${
+                isActive
+                  ? 'bg-[#00529c] text-white border-white'
+                  : 'text-blue-100 hover:text-white hover:bg-white/5 border-transparent'
+              }`}
+            >
+              <Icon className="h-5 w-5" />
+              {item.name}
+            </Link>
+          );
+        })}
       </nav>
 
       {/* Footer / Bottom Links */}

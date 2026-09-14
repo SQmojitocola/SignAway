@@ -94,7 +94,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-xl rounded-2xl bg-white p-8 shadow-lg border border-slate-200">
         <div className="text-center mb-6">
           <Image
-            src="/assets/logo-surveyor-indonesia-png-svg.webp"
+            src="/assets/logo-surveyor-indonesia-png-svg-removebg-preview.png"
             alt="Logo Surveyor Indonesia"
             width={200}
             height={110}

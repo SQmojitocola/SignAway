@@ -50,7 +50,7 @@ model Document {
   title      String
   filePath   String         @map("file_path")
   fileSize   Int            @default(0) @map("file_size")
-  senderId   String         @map("sender_path")
+  senderId   String         @map("sender_id")
   status     DocumentStatus @default(PENDING)
   sequential Boolean        @default(false)
   createdAt  DateTime       @default(now()) @map("created_at")
@@ -81,7 +81,7 @@ model DocumentRecipient {
   id           String          @id @default(uuid())
   documentId   String          @map("document_id")
   userId       String          @map("user_id")
-  role         String
+  role         String          @default("penandatangan")
   status       RecipientStatus @default(WAITING)
   signingOrder Int?            @map("signing_order")
 
