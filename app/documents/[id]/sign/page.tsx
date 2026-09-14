@@ -19,6 +19,7 @@ interface Field {
 
 interface Recipient {
   id: string
+  userId?: string
   status: string
   signingOrder?: number | null
   user: { id: string; name: string; email: string }
@@ -34,7 +35,7 @@ interface DocumentData {
   recipients: Recipient[]
 }
 
-const PDF_VIEWPORT_SCALE = 1.5
+const PDF_VIEWPORT_SCALE = 1.25
 
 export default function SignDocumentPage() {
   const params = useParams()
@@ -45,15 +46,10 @@ export default function SignDocumentPage() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null)
   const [signatureData, setSignatureData] = useState<string | null>(null)
   const [pdfPages, setPdfPages] = useState<Array<{ pageNumber: number; width: number; height: number }>>([])
 
-  const normalizeCoord = (value: number, pageSize: number) => {
-    if (value <= 0) return 0
-    return value > 100 ? value : (value / 100) * pageSize
-  }
-
-  // Refs
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const [isDrawing, setIsDrawing] = useState(false)
@@ -71,33 +67,42 @@ export default function SignDocumentPage() {
           const docData = await docRes.json()
           const userData = await userRes.json()
           
+          // FIX BUG #1: Ambil data dari userData.user (bukan userData)
+          const activeUser = userData.user || userData
+          const activeUserId = activeUser.id
+          const activeUserEmail = activeUser.email
+
+          setCurrentUserId(activeUserId)
+          setCurrentUserEmail(activeUserEmail)
+
           const rawDoc = docData.document || docData
-          const normalizedFields = (rawDoc.fields || []).map((f: {
-            id: string
-            recipientId: string
-            recipient?: { user?: { name?: string } }
-            pageNumber: number
-            posX: number
-            posY: number
-            width: number
-            height: number
-          }) => ({
-            id: f.id,
-            recipientId: f.recipientId,
-            recipientName: f.recipient?.user?.name || 'Penandatangan',
-            type: 'SIGNATURE',
-            pageNumber: f.pageNumber,
-            posX: f.posX,
-            posY: f.posY,
-            width: f.width,
-            height: f.height
-          }))
+          const recipients = rawDoc.recipients || []
+
+          const normalizedFields = (rawDoc.fields || []).map((f: any) => {
+            let matchedRecipient = recipients.find((r: any) => r.id === f.recipientId)
+            
+            // Handle jika recipientId tersimpan sebagai 'self' atau matching via userId
+            if (!matchedRecipient) {
+              matchedRecipient = recipients.find((r: any) => r.user?.id === activeUserId || r.userId === activeUserId)
+            }
+
+            return {
+              id: f.id,
+              recipientId: matchedRecipient?.id || f.recipientId,
+              recipientName: matchedRecipient?.user?.name || f.recipient?.user?.name || 'Penandatangan',
+              type: 'SIGNATURE',
+              pageNumber: f.pageNumber || f.page || 1,
+              posX: f.posX,
+              posY: f.posY,
+              width: f.width || 150,
+              height: f.height || 70,
+            }
+          })
 
           setDoc({
             ...rawDoc,
             fields: normalizedFields
           })
-          setCurrentUserId(userData.id)
         }
       } catch (err) {
         console.error('Failed fetching data:', err)
@@ -108,7 +113,7 @@ export default function SignDocumentPage() {
     fetchData()
   }, [documentId])
 
-  // 2. Render PDF (Mencegah Double Render / Canvas Tumpuk)
+  // 2. Render PDF (Persis sama dengan Edit Page)
   useEffect(() => {
     if (!doc?.filePath) return
 
@@ -128,9 +133,7 @@ export default function SignDocumentPage() {
           pages.push({ pageNumber: i, width: viewport.width, height: viewport.height })
         }
 
-        if (!cancelled) {
-          setPdfPages(pages)
-        }
+        if (!cancelled) setPdfPages(pages)
 
         setTimeout(async () => {
           for (const pageInfo of pages) {
@@ -145,7 +148,6 @@ export default function SignDocumentPage() {
             canvas.width = viewport.width
             canvas.height = viewport.height
 
-            // Bersihkan kanvas sebelum digambar ulang untuk mencegah gambar terlipat dua
             context.clearRect(0, 0, canvas.width, canvas.height)
             
             await page.render({
@@ -268,9 +270,18 @@ export default function SignDocumentPage() {
   const recipientsList = doc?.recipients || []
   const fieldsList = doc?.fields || []
   
-  const myRecipientInDoc = recipientsList.find(r => r.user?.id === currentUserId)
+  // Deteksi penerima milik user aktif secara pasti
+  const myRecipientInDoc = useMemo(() => {
+    if (!currentUserId) return null
+    return recipientsList.find(
+      (r) =>
+        r.user?.id === currentUserId ||
+        r.userId === currentUserId ||
+        (currentUserEmail && r.user?.email === currentUserEmail)
+    )
+  }, [recipientsList, currentUserId, currentUserEmail])
 
-  // Cek Hak Penandatanganan
+  // Hak Akses Penandatanganan: Wajib Berurutan Sesuai Daftar Recipient
   const isMyTurn = useMemo(() => {
     if (!currentUserId || !myRecipientInDoc) return false
 
@@ -278,18 +289,28 @@ export default function SignDocumentPage() {
       return false
     }
 
-    if (!doc?.sequential) {
-      return true
-    }
-
+    // Urutkan penerima berdasarkan signingOrder (atau indeks urutan dalam list)
     const sortedRecipients = [...recipientsList].sort((a, b) => {
-      return (a.signingOrder ?? 0) - (b.signingOrder ?? 0)
+      const orderA = a.signingOrder ?? recipientsList.indexOf(a)
+      const orderB = b.signingOrder ?? recipientsList.indexOf(b)
+      return orderA - orderB
     })
 
-    const nextSigner = sortedRecipients.find(r => r.status !== 'SIGNED' && r.status !== 'REJECTED')
-    
-    return nextSigner?.user?.id === currentUserId || myRecipientInDoc.status === 'WAITING'
-  }, [currentUserId, myRecipientInDoc, doc?.sequential, recipientsList])
+    // Cari penandatangan pertama yang BELUM menandatangani
+    const currentActiveSigner = sortedRecipients.find(
+      (r) => r.status !== 'SIGNED' && r.status !== 'REJECTED'
+    )
+
+    if (!currentActiveSigner) return false
+
+    // Cocokkan apakah user yang login adalah penandatangan aktif urutan pertama
+    return (
+      currentActiveSigner.id === myRecipientInDoc.id ||
+      currentActiveSigner.user?.id === currentUserId ||
+      currentActiveSigner.userId === currentUserId ||
+      (currentUserEmail && currentActiveSigner.user?.email === currentUserEmail)
+    )
+  }, [currentUserId, currentUserEmail, myRecipientInDoc, recipientsList])
 
   if (loading) return <div className="p-8 text-center text-slate-500">Memuat dokumen...</div>
   if (!doc) return <div className="p-8 text-center text-slate-500">Dokumen tidak ditemukan.</div>
@@ -297,7 +318,7 @@ export default function SignDocumentPage() {
   return (
     <div className="flex h-screen w-full flex-col bg-slate-900 text-slate-100 overflow-hidden">
       {/* Top Navbar */}
-      <header className="flex h-14 items-center justify-between border-b border-slate-800 bg-slate-950 px-6">
+      <header className="flex h-14 items-center justify-between border-b border-slate-800 bg-slate-950 px-6 shrink-0">
         <div className="flex items-center gap-4">
           <button
             type="button"
@@ -325,44 +346,42 @@ export default function SignDocumentPage() {
       {/* Main Container */}
       <div className="flex flex-1 overflow-hidden">
         {/* Area PDF Viewer Utama */}
-        <main className="flex-1 overflow-auto bg-slate-900/80 p-4 md:p-8 flex justify-center">
-          <div className="flex flex-col items-center gap-6 pb-12 w-full max-w-5xl">
+        <main className="flex-1 overflow-auto bg-slate-900/80 p-8 flex justify-center items-start">
+          <div className="flex flex-col items-center gap-8 pb-16">
             {pdfPages.map((page) => (
               <div
                 key={page.pageNumber}
                 ref={(el) => { pageRefs.current[page.pageNumber] = el }}
-                className="relative bg-white shadow-2xl rounded-sm"
+                className="relative bg-white shadow-2xl rounded-sm select-none"
                 style={{ width: page.width, height: page.height }}
               >
-                <canvas className="absolute inset-0" />
+                <canvas className="block" width={page.width} height={page.height} />
                 
-                {/* Overlay Fields */}
+                {/* Overlay Fields (1:1 Sama Persis dengan Halaman Edit) */}
                 {fieldsList
                   .filter(f => f.pageNumber === page.pageNumber)
                   .map(field => {
                     const recipient = recipientsList.find(r => r.id === field.recipientId)
-                    const isMine = recipient?.user?.id === currentUserId
+                    const isMine =
+                      field.recipientId === myRecipientInDoc?.id ||
+                      (recipient?.user?.id || recipient?.userId) === currentUserId ||
+                      (currentUserEmail && recipient?.user?.email === currentUserEmail)
                     const isSigned = recipient?.status === 'SIGNED'
-
-                    const left = normalizeCoord(field.posX, page.width)
-                    const top = normalizeCoord(field.posY, page.height)
-                    const width = normalizeCoord(field.width, page.width)
-                    const height = normalizeCoord(field.height, page.height)
 
                     return (
                       <div
                         key={field.id}
                         style={{
                           position: 'absolute',
-                          left,
-                          top,
-                          width,
-                          height,
+                          left: `${field.posX}px`,
+                          top: `${field.posY}px`,
+                          width: `${field.width}px`,
+                          height: `${field.height}px`,
                         }}
-                        className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-1 z-10 ${
+                        className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-1 z-10 box-border ${
                           isMine 
-                            ? 'border-emerald-500 bg-emerald-500/10' 
-                            : 'border-blue-400 bg-blue-400/10'
+                            ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600' 
+                            : 'border-blue-500 bg-blue-500/10 text-blue-500'
                         }`}
                       >
                         {isMine && signatureData ? (
@@ -373,9 +392,9 @@ export default function SignDocumentPage() {
                              <span className="text-[8px] font-bold text-emerald-800 uppercase">{field.recipientName}</span>
                            </div>
                         ) : (
-                          <div className="text-center">
-                            <PenTool className={`h-4 w-4 mx-auto mb-1 ${isMine ? 'text-emerald-500' : 'text-blue-400'}`} />
-                            <p className={`text-[9px] font-bold uppercase ${isMine ? 'text-emerald-600' : 'text-blue-600'}`}>
+                          <div className="flex flex-col items-center justify-center text-center overflow-hidden p-0.5 w-full h-full">
+                            <PenTool className="h-4 w-4 shrink-0 mb-0.5" />
+                            <p className="text-[10px] font-bold uppercase truncate w-full">
                               {field.recipientName}
                             </p>
                           </div>
@@ -389,7 +408,7 @@ export default function SignDocumentPage() {
         </main>
 
         {/* Sidebar Kanan untuk Papan TTD */}
-        <aside className="w-80 border-l border-slate-800 bg-slate-950 p-5 flex flex-col gap-4 shrink-0">
+        <aside className="w-80 border-l border-slate-800 bg-slate-950 p-5 flex flex-col gap-4 shrink-0 overflow-y-auto">
           <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Papan Tanda Tangan</h2>
 
           {isMyTurn ? (
@@ -430,21 +449,28 @@ export default function SignDocumentPage() {
 
           <div className="mt-auto rounded-xl border border-slate-800 bg-slate-900/40 p-4 space-y-3">
             <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Status Alur Dokumen</h3>
-            {recipientsList.map((r, idx) => (
-              <div key={r.id} className="flex items-center justify-between border-b border-slate-800/50 pb-2 last:border-0 last:pb-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-slate-500 font-mono">#{idx+1}</span>
-                  <span className={`text-xs ${r.user?.id === currentUserId ? 'font-bold text-white' : 'text-slate-300'}`}>
-                    {r.user?.name || 'User'}
+            {recipientsList.map((r, idx) => {
+              const isCurrentUser =
+                r.id === myRecipientInDoc?.id ||
+                (r.user?.id || r.userId) === currentUserId ||
+                (currentUserEmail && r.user?.email === currentUserEmail)
+
+              return (
+                <div key={r.id} className="flex items-center justify-between border-b border-slate-800/50 pb-2 last:border-0 last:pb-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-slate-500 font-mono">#{idx+1}</span>
+                    <span className={`text-xs ${isCurrentUser ? 'font-bold text-white' : 'text-slate-300'}`}>
+                      {r.user?.name || 'User'}
+                    </span>
+                  </div>
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                    r.status === 'SIGNED' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-500'
+                  }`}>
+                    {r.status}
                   </span>
                 </div>
-                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                  r.status === 'SIGNED' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-500'
-                }`}>
-                  {r.status}
-                </span>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </aside>
       </div>
