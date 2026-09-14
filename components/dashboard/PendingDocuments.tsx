@@ -65,11 +65,13 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
     }
   }
 
+  // Hitung statistik untuk 4 kartu
   const counts = useMemo(() => {
     const waiting = documents.filter((doc) =>
       doc.recipients.some((recipient) => recipient.user.id === userId && (recipient.status === 'WAITING' || recipient.status === 'PENDING'))
     ).length
 
+    // Diupload: Semua dokumen yang dikirim oleh user ini (selain DRAFT)
     const uploaded = documents.filter((doc) => doc.sender.id === userId && doc.status !== 'DRAFT').length
 
     const rejected = documents.filter((doc) =>
@@ -102,6 +104,7 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
     return false
   }
 
+  // Filter daftar dokumen berdasarkan tab aktif
   const filteredDocs = useMemo(() => {
     const query = search.toLowerCase()
 
@@ -121,6 +124,7 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
           doc.recipients.some((recipient) => recipient.user.id === userId && (recipient.status === 'WAITING' || recipient.status === 'PENDING'))
         )
       case 'uploaded':
+        // Dokumen yang pernah diupload pengirim akan SELALU tersimpan di sini
         return base.filter((doc) => doc.sender.id === userId && doc.status !== 'DRAFT')
       case 'rejected':
         return base.filter((doc) =>
@@ -326,7 +330,7 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
                               markDocAsSeen(doc.id)
                               const targetPath = selectedCategory === 'waiting'
                                 ? `/documents/${doc.id}/sign`
-                                : `/documents/${doc.id}/edit`
+                                : `/documents/${doc.id}`
                               router.push(targetPath)
                             }}
                             className="px-4 py-2 bg-[#1e4273] hover:bg-blue-900 text-white font-semibold rounded-xl text-xs transition-colors"

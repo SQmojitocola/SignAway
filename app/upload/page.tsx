@@ -13,62 +13,6 @@ interface Recipient {
   nip?: string
 }
 
-interface UploadDraft {
-  documentId?: string
-  fileBase64: string
-  fileName: string
-  fileSize: number
-  fileType: string
-  savedContacts: Recipient[]
-  selectedRecipients: Recipient[]
-  sequential: boolean
-}
-
-const UPLOAD_DRAFT_DB = 'signaway-upload-draft'
-const UPLOAD_DRAFT_STORE = 'drafts'
-
-function openUploadDraftDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(UPLOAD_DRAFT_DB, 1)
-    request.onupgradeneeded = () => request.result.createObjectStore(UPLOAD_DRAFT_STORE)
-    request.onsuccess = () => resolve(request.result)
-    request.onerror = () => reject(request.error)
-  })
-}
-
-async function loadUploadDraft(): Promise<UploadDraft | null> {
-  const db = await openUploadDraftDb()
-  return new Promise((resolve, reject) => {
-    const request = db.transaction(UPLOAD_DRAFT_STORE, 'readonly')
-      .objectStore(UPLOAD_DRAFT_STORE)
-      .get('current')
-    request.onsuccess = () => resolve((request.result as UploadDraft | undefined) || null)
-    request.onerror = () => reject(request.error)
-  })
-}
-
-async function saveUploadDraft(draft: UploadDraft): Promise<void> {
-  const db = await openUploadDraftDb()
-  return new Promise((resolve, reject) => {
-    const request = db.transaction(UPLOAD_DRAFT_STORE, 'readwrite')
-      .objectStore(UPLOAD_DRAFT_STORE)
-      .put(draft, 'current')
-    request.onsuccess = () => resolve()
-    request.onerror = () => reject(request.error)
-  })
-}
-
-async function clearUploadDraft(): Promise<void> {
-  const db = await openUploadDraftDb()
-  return new Promise((resolve, reject) => {
-    const request = db.transaction(UPLOAD_DRAFT_STORE, 'readwrite')
-      .objectStore(UPLOAD_DRAFT_STORE)
-      .delete('current')
-    request.onsuccess = () => resolve()
-    request.onerror = () => reject(request.error)
-  })
-}
-
 export default function UploadDocumentPage() {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -81,7 +25,6 @@ export default function UploadDocumentPage() {
   const [savedContacts, setSavedContacts] = useState<Recipient[]>([])
   const [selectedRecipients, setSelectedRecipients] = useState<Recipient[]>([])
   const [sequential, setSequential] = useState(false)
-  const [draftDocumentId, setDraftDocumentId] = useState<string | undefined>()
   
   // State UI & Search
   const [showDropdown, setShowDropdown] = useState(false)
@@ -91,44 +34,8 @@ export default function UploadDocumentPage() {
   const [loadingSearch, setLoadingSearch] = useState(false)
   const [loadingSubmit, setLoadingSubmit] = useState(false)
   const [error, setError] = useState('')
-  const [draftLoaded, setDraftLoaded] = useState(false)
 
   useEffect(() => {
-    loadUploadDraft()
-      .then((draft) => {
-        if (!draft || !draft.fileBase64 || !draft.fileName?.trim()) {
-          void clearUploadDraft()
-          setDraftLoaded(true)
-          return
-        }
-
-        const hasValidPdfName = /\.pdf$/i.test(draft.fileName.trim()) || draft.fileType === 'application/pdf'
-        if (!hasValidPdfName) {
-          void clearUploadDraft()
-          setDraftLoaded(true)
-          return
-        }
-
-        queueMicrotask(() => {
-          setFileBase64(draft.fileBase64)
-          setSavedContacts(draft.savedContacts)
-          setSelectedRecipients(draft.selectedRecipients)
-          setSequential(draft.sequential ?? false)
-          setDraftDocumentId(draft.documentId)
-        })
-
-        return fetch(draft.fileBase64)
-          .then((response) => response.blob())
-          .then((blob) => {
-            setFile(new File([blob], draft.fileName, {
-              type: draft.fileType || blob.type || 'application/pdf',
-              lastModified: Date.now(),
-            }))
-          })
-      })
-      .catch(() => setError('Draft dokumen tidak dapat dipulihkan'))
-      .finally(() => setDraftLoaded(true))
-
     fetch('/api/users?me=true')
       .then((response) => response.json())
       .then((data) => {
@@ -141,29 +48,6 @@ export default function UploadDocumentPage() {
       .catch(() => undefined)
   }, [])
 
-  useEffect(() => {
-    if (!draftLoaded) return
-
-    if (!fileBase64 || !file?.name?.trim() || file.type !== 'application/pdf') {
-      if (!fileBase64 && savedContacts.length === 0 && selectedRecipients.length === 0 && !draftDocumentId) {
-        void clearUploadDraft()
-      }
-      return
-    }
-
-    const draft: UploadDraft = {
-      fileBase64,
-      fileName: file.name,
-      fileSize: file.size,
-      fileType: file.type,
-      savedContacts,
-      selectedRecipients,
-      sequential,
-      documentId: draftDocumentId,
-    }
-    void saveUploadDraft(draft)
-  }, [draftLoaded, draftDocumentId, file, fileBase64, savedContacts, selectedRecipients, sequential])
-
   // Handle Pilih PDF
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
@@ -174,7 +58,6 @@ export default function UploadDocumentPage() {
     }
 
     setFile(selectedFile)
-  setDraftDocumentId(undefined)
     setError('')
     const reader = new FileReader()
     reader.onloadend = () => setFileBase64(reader.result as string)
@@ -249,17 +132,10 @@ export default function UploadDocumentPage() {
         }),
       })
 
-      let res = await upload(draftDocumentId)
-      let data = await res.json()
-      if (res.status === 404 && draftDocumentId) {
-        setDraftDocumentId(undefined)
-        res = await upload()
-        data = await res.json()
-      }
+      const res = await upload()
+      const data = await res.json()
       if (!res.ok) throw new Error(data.message || 'Gagal mengunggah dokumen')
 
-      setDraftDocumentId(data.document.id)
-      await clearUploadDraft()
       router.push(`/documents/${data.document.id}/edit`)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Gagal mengunggah dokumen')
@@ -444,7 +320,7 @@ export default function UploadDocumentPage() {
 
           {/* Action Buttons */}
           <div className="flex gap-2 pt-4 border-t border-slate-100">
-            <button onClick={() => { void clearUploadDraft(); router.push('/dashboard') }} className="w-1/2 py-2.5 border rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50">
+            <button onClick={() => router.push('/dashboard')} className="w-1/2 py-2.5 border rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50">
               Batal
             </button>
             <button
