@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, Clock3, FileText, Search, SlidersHorizontal, Upload, XCircle } from 'lucide-react'
 
@@ -50,7 +50,11 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<DashboardCategory>('waiting')
-  const [seenDocs, setSeenDocs] = useState<Record<string, boolean>>(() => readSeenDocs())
+  const [seenDocs, setSeenDocs] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    setSeenDocs(readSeenDocs())
+  }, [])
 
   const markDocAsSeen = (docId: string) => {
     const next = { ...seenDocs, [docId]: true }
@@ -66,7 +70,7 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
       doc.recipients.some((recipient) => recipient.user.id === userId && (recipient.status === 'WAITING' || recipient.status === 'PENDING'))
     ).length
 
-    const uploaded = documents.filter((doc) => doc.sender.id === userId).length
+    const uploaded = documents.filter((doc) => doc.sender.id === userId && doc.status !== 'DRAFT').length
 
     const rejected = documents.filter((doc) =>
       doc.status === 'REJECTED' || doc.recipients.some((recipient) => recipient.user.id === userId && recipient.status === 'REJECTED')
@@ -92,7 +96,7 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
     }
 
     if (category === 'uploaded') {
-      return documents.some((doc) => doc.sender.id === userId && !seenDocs[doc.id])
+      return documents.some((doc) => doc.sender.id === userId && doc.status !== 'DRAFT' && !seenDocs[doc.id])
     }
 
     return false
@@ -117,7 +121,7 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
           doc.recipients.some((recipient) => recipient.user.id === userId && (recipient.status === 'WAITING' || recipient.status === 'PENDING'))
         )
       case 'uploaded':
-        return base.filter((doc) => doc.sender.id === userId)
+        return base.filter((doc) => doc.sender.id === userId && doc.status !== 'DRAFT')
       case 'rejected':
         return base.filter((doc) =>
           doc.status === 'REJECTED' || doc.recipients.some((recipient) => recipient.user.id === userId && recipient.status === 'REJECTED')
@@ -171,7 +175,8 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
 
   return (
     <div className="space-y-6">
-      <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+      {/* 4 Grid Kartu Ringkasan Statistik */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {categoryConfig.map((category) => {
           const Icon =
             category.badgeIcon === 'hourglass_top'
@@ -211,6 +216,7 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
         })}
       </section>
 
+      {/* Panel Tabel Dokumen */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100">
           <h3 className="text-sm font-bold text-slate-800">{panelTitle}</h3>
@@ -318,7 +324,10 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
                           <button
                             onClick={() => {
                               markDocAsSeen(doc.id)
-                              router.push(`/documents/${doc.id}/edit`)
+                              const targetPath = selectedCategory === 'waiting'
+                                ? `/documents/${doc.id}/sign`
+                                : `/documents/${doc.id}/edit`
+                              router.push(targetPath)
                             }}
                             className="px-4 py-2 bg-[#1e4273] hover:bg-blue-900 text-white font-semibold rounded-xl text-xs transition-colors"
                           >

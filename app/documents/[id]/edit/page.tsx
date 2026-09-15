@@ -40,6 +40,8 @@ interface FieldInteraction {
   currentHeight: number
 }
 
+const PDF_VIEWPORT_SCALE = 1.25
+
 export default function DocumentFieldPlottingPage() {
   const router = useRouter()
   const params = useParams()
@@ -58,6 +60,9 @@ export default function DocumentFieldPlottingPage() {
   const [loadingSave, setLoadingSave] = useState(false)
   const [pdfInteractive, setPdfInteractive] = useState(false)
   const [pdfPages, setPdfPages] = useState<Array<{ pageNumber: number; width: number; height: number }>>([])
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [showLeaveDialog, setShowLeaveDialog] = useState(false)
+  const [leaveDialogMode, setLeaveDialogMode] = useState<'back' | 'save'>('back')
 
   const pdfContainerRef = useRef<HTMLDivElement | null>(null)
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({})
@@ -79,7 +84,7 @@ export default function DocumentFieldPlottingPage() {
 
       for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
         const page = await pdf.getPage(pageNumber)
-        const viewport = page.getViewport({ scale: 1.25 })
+        const viewport = page.getViewport({ scale: PDF_VIEWPORT_SCALE })
         pages.push({ pageNumber, width: viewport.width, height: viewport.height })
       }
 
@@ -121,7 +126,7 @@ export default function DocumentFieldPlottingPage() {
         await page.render({
           canvas,
           canvasContext: context,
-          viewport: page.getViewport({ scale: 1.25 }),
+          viewport: page.getViewport({ scale: PDF_VIEWPORT_SCALE }),
         }).promise
       }))
     }
@@ -131,6 +136,20 @@ export default function DocumentFieldPlottingPage() {
       cancelled = true
     }
   }, [documentPath, pdfPages])
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        event.preventDefault()
+        event.returnValue = ''
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [hasUnsavedChanges])
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
@@ -162,6 +181,7 @@ export default function DocumentFieldPlottingPage() {
       const nextY = interaction.currentY
       const element = fieldElementsRef.current[interaction.fieldId]
 
+      setHasUnsavedChanges(true)
       setFields((currentFields) => currentFields.map((field) => {
         if (field.id !== interaction.fieldId) return field
         return interaction.mode === 'drag'
@@ -267,6 +287,7 @@ export default function DocumentFieldPlottingPage() {
       height: 70,
     }
 
+    setHasUnsavedChanges(true)
     setFields((currentFields) => [...currentFields, newField])
     setSelectedFieldId(newField.id)
     setActiveRecipient(null)
@@ -285,9 +306,34 @@ export default function DocumentFieldPlottingPage() {
   const handleDeleteField = (fieldId: string) => {
     const targetField = fields.find((f) => f.id === fieldId)
     if (targetField) {
+      setHasUnsavedChanges(true)
       setFields((currentFields) => currentFields.filter((f) => f.id !== fieldId))
     }
     setSelectedFieldId(null)
+  }
+
+  const handleLeaveEditor = async (mode: 'save' | 'discard') => {
+    setShowLeaveDialog(false)
+
+    if (mode === 'discard') {
+      const res = await fetch(`/api/documents/${documentId}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        alert(data.message || 'Gagal membuang draft')
+        return
+      }
+
+      router.push('/drafts')
+      return
+    }
+
+    const saved = await handleSaveFields(false)
+    if (saved) {
+      setHasUnsavedChanges(false)
+      if (leaveDialogMode === 'back') {
+        router.push('/drafts')
+      }
+    }
   }
 
   // Simpan Koordinat ke Database via API Backend
@@ -301,7 +347,6 @@ export default function DocumentFieldPlottingPage() {
       })
 
       if (!res.ok) throw new Error('Gagal menyimpan posisi TTD')
-      alert('Posisi TTD berhasil disimpan!')
       return true
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Gagal menyimpan posisi TTD')
@@ -313,10 +358,54 @@ export default function DocumentFieldPlottingPage() {
 
   return (
     <div className="flex h-screen flex-col bg-slate-100">
+      {showLeaveDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Perhatian</p>
+            <h3 className="mt-2 text-xl font-bold text-slate-800">Dokumen belum disimpan</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              {leaveDialogMode === 'save'
+                ? 'Apakah ingin menyimpan perubahan ke draft?'
+                : 'Mau disimpan ke draft atau dibuang?'}
+            </p>
+            <div className="mt-5 grid gap-2 sm:grid-cols-3">
+              <button
+                type="button"
+                onClick={() => void handleLeaveEditor('save')}
+                className="rounded-xl bg-[#1e4273] px-3 py-2 text-xs font-semibold text-white hover:bg-blue-900"
+              >
+                {leaveDialogMode === 'save' ? 'Simpan draft' : 'Simpan draft'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleLeaveEditor('discard')}
+                className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100"
+              >
+                Buang
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowLeaveDialog(false)}
+                className="rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Top Navbar Editor */}
       <header className="flex h-16 items-center justify-between border-b bg-white px-6">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.back()} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100">
+          <button onClick={() => {
+            if (!hasUnsavedChanges) {
+              router.back()
+              return
+            }
+            setLeaveDialogMode('back')
+            setShowLeaveDialog(true)
+          }} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100">
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div>
@@ -343,11 +432,18 @@ export default function DocumentFieldPlottingPage() {
                 : 'Scroll / Zoom PDF'}
           </button>
           <button
-            onClick={() => { void handleSaveFields() }}
+            onClick={() => {
+              if (!hasUnsavedChanges) {
+                void handleSaveFields(false)
+                return
+              }
+              setLeaveDialogMode('save')
+              setShowLeaveDialog(true)
+            }}
             disabled={loadingSave}
             className="flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
           >
-            <Save className="h-4 w-4" /> Simpan Posisi
+            <Save className="h-4 w-4" /> Simpan Draft
           </button>
           <button
             onClick={() => {
