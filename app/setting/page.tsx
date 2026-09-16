@@ -216,7 +216,7 @@ export default function SettingsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Email Perusahaan</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Email</label>
                   <div className="relative">
                     <MaterialIcon name="mail" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input 
