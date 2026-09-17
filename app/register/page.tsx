@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
+import BackgroundSlider from '@/components/auth/BackgroundSlider'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -21,7 +22,6 @@ export default function RegisterPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  // Handlers untuk Canvas TTD Sederhana
   const startDrawing = (e: React.MouseEvent) => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -65,7 +65,6 @@ export default function RegisterPage() {
     setError('')
 
     try {
-      // Ambil Base64 spesimen TTD dari Canvas
       const signatureSpecimen = canvasRef.current?.toDataURL('image/png')
 
       const res = await fetch('/api/auth/register', {
@@ -90,8 +89,12 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 py-10 px-4">
-      <div className="w-full max-w-xl rounded-2xl bg-white p-8 shadow-lg border border-slate-200">
+    <div className="relative flex min-h-screen items-center justify-center py-10 px-4">
+      {/* Background Transisi Carousel */}
+      <BackgroundSlider />
+
+      {/* Card Form Register */}
+      <div className="w-full max-w-xl rounded-2xl bg-white/95 backdrop-blur-md p-8 shadow-2xl border border-white/20 relative z-10">
         <div className="text-center mb-6">
           <Image
             src="/assets/logo-surveyor-indonesia-png-svg-removebg-preview.png"
@@ -115,7 +118,7 @@ export default function RegisterPage() {
                 type="text"
                 required
                 placeholder="Contoh: Budi Santoso, S.T."
-                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm outline-none focus:border-blue-800"
+                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm outline-none focus:border-blue-800 bg-white/80"
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
             </div>
@@ -125,7 +128,7 @@ export default function RegisterPage() {
                 type="text"
                 required
                 placeholder="PTS-2024-XXXX"
-                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm outline-none focus:border-blue-800"
+                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm outline-none focus:border-blue-800 bg-white/80"
                 onChange={(e) => setForm({ ...form, nip: e.target.value })}
               />
             </div>
@@ -137,7 +140,7 @@ export default function RegisterPage() {
               type="email"
               required
               placeholder="nama.pegawai@surveyor.id"
-              className="w-full rounded-lg border border-slate-300 p-2.5 text-sm outline-none focus:border-blue-800"
+              className="w-full rounded-lg border border-slate-300 p-2.5 text-sm outline-none focus:border-blue-800 bg-white/80"
               onChange={(e) => setForm({ ...form, email: e.target.value })}
             />
           </div>
@@ -148,7 +151,7 @@ export default function RegisterPage() {
               <input
                 type="password"
                 required
-                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm outline-none focus:border-blue-800"
+                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm outline-none focus:border-blue-800 bg-white/80"
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
               />
             </div>
@@ -157,7 +160,7 @@ export default function RegisterPage() {
               <input
                 type="password"
                 required
-                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm outline-none focus:border-blue-800"
+                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm outline-none focus:border-blue-800 bg-white/80"
                 onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
               />
             </div>
@@ -198,7 +201,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-blue-900 py-3 text-sm font-semibold text-white hover:bg-blue-950 disabled:opacity-50"
+            className="w-full rounded-xl bg-blue-900 py-3 text-sm font-semibold text-white hover:bg-blue-950 disabled:opacity-50 shadow-md"
           >
             {loading ? 'Memproses...' : 'Daftar & Aktivasi Akun →'}
           </button>

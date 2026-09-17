@@ -5,6 +5,7 @@ import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
+import BackgroundSlider from '@/components/auth/BackgroundSlider'
 
 export default function LoginForm() {
   const router = useRouter()
@@ -36,8 +37,12 @@ export default function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-4 pt-2 shadow-lg border border-slate-200 text-center">
+    <div className="relative flex min-h-screen items-center justify-center p-4">
+      {/* Background Transisi Carousel */}
+      <BackgroundSlider />
+
+      {/* Card Form Login */}
+      <div className="w-full max-w-sm rounded-2xl bg-white/95 backdrop-blur-md p-6 shadow-2xl border border-white/20 text-center relative z-10">
         <div className="mb-4 flex flex-col items-center">
           <Image
             src="/assets/logo-surveyor-indonesia-png-svg-removebg-preview.png"
@@ -74,7 +79,7 @@ export default function LoginForm() {
               placeholder="nama@gmail.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 p-2.5 text-xs outline-none focus:border-blue-900"
+              className="w-full rounded-lg border border-slate-300 p-2.5 text-xs outline-none focus:border-blue-900 bg-white/80"
             />
           </div>
 
@@ -86,7 +91,7 @@ export default function LoginForm() {
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 p-2.5 text-xs outline-none focus:border-blue-900"
+              className="w-full rounded-lg border border-slate-300 p-2.5 text-xs outline-none focus:border-blue-900 bg-white/80"
             />
           </div>
 
@@ -101,7 +106,7 @@ export default function LoginForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-blue-900 py-2.5 text-xs font-semibold text-white hover:bg-blue-950 transition-colors"
+            className="w-full rounded-lg bg-blue-900 py-2.5 text-xs font-semibold text-white hover:bg-blue-950 transition-colors shadow-md"
           >
             {loading ? 'Memproses...' : 'Masuk'}
           </button>
@@ -114,7 +119,7 @@ export default function LoginForm() {
           </Link>
         </form>
 
-        <p className="mt-8 text-[10px] text-slate-400">© 2026 PT Surveyor Indonesia</p>
+        <p className="mt-6 text-[10px] text-slate-400">© 2026 PT Surveyor Indonesia</p>
       </div>
     </div>
   )
