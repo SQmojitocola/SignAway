@@ -18,30 +18,41 @@ export default function BackgroundSlider() {
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentIndex((prevIndex) => (prevIndex + 1) % images.length)
-    }, 5000) // Berganti setiap 5 detik
+    }, 6000) // Berganti setiap 6 detik
 
     return () => clearInterval(timer)
   }, [])
 
   return (
-    <div className="fixed inset-0 -z-10 overflow-hidden bg-slate-900">
-      {images.map((src, index) => (
-        <div
-          key={src}
-          className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-            index === currentIndex ? 'opacity-100 scale-105 transition-all duration-10000' : 'opacity-0 scale-100'
-          }`}
-        >
-          <Image
-            src={src}
-            alt="Background Slide"
-            fill
-            priority={index === 0}
-            className="object-cover"
-          />
-        </div>
-      ))}
-      {/* Overlay Gelap dengan Blur Tipis agar Form Kontras dan Elegan */}
+    <div className="fixed inset-0 -z-10 overflow-hidden bg-slate-950">
+      {images.map((src, index) => {
+        const isActive = index === currentIndex
+
+        return (
+          <div
+            key={src}
+            className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
+              isActive ? 'opacity-100' : 'opacity-0'
+            }`}
+          >
+            <div
+              className={`h-full w-full transition-transform duration-[7000ms] ease-out ${
+                isActive ? 'scale-110' : 'scale-100'
+              }`}
+            >
+              <Image
+                src={src}
+                alt="Background Slide"
+                fill
+                priority={index === 0}
+                className="object-cover"
+              />
+            </div>
+          </div>
+        )
+      })}
+
+      {/* Overlay Gelap & Blur Tipis agar Form Kontras dan Elegan */}
       <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[2px]" />
     </div>
   )
