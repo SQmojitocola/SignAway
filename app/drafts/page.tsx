@@ -42,6 +42,22 @@ export default async function DraftsPage() {
     },
   })
 
+  // 3. Fetch Dokumen Selesai (COMPLETED) untuk user ini
+  const completedDocs = await prisma.document.findMany({
+    where: {
+      status: 'COMPLETED',
+      OR: [
+        { senderId: userId },
+        { recipients: { some: { userId: userId, status: 'SIGNED' } } },
+      ],
+    },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      sender: { select: { id: true, name: true, email: true } },
+      recipients: { include: { user: { select: { id: true, name: true, email: true } } } },
+    },
+  })
+
   return (
     <main className="w-full max-w-6xl mx-auto py-8 px-6">
       <DraftsTabClient
@@ -50,6 +66,10 @@ export default async function DraftsPage() {
           createdAt: d.createdAt.toISOString(),
         }))}
         initialRejected={rejectedByMe.map((d) => ({
+          ...d,
+          createdAt: d.createdAt.toISOString(),
+        }))}
+        initialCompleted={completedDocs.map((d) => ({
           ...d,
           createdAt: d.createdAt.toISOString(),
         }))}

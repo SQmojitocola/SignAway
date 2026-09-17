@@ -101,8 +101,8 @@ export default function RegisterPage() {
             className="mx-auto mb-2 h-auto w-48 object-contain"
             priority
           />
-          <h1 className="text-2xl font-bold text-blue-900">Daftar Akun Baru</h1>
-          <p className="text-xs font-semibold tracking-wider text-blue-600 uppercase">Surveyorsign • Corporate Document Management</p>
+          <h1 className="-mt-10 text-2xl font-bold text-blue-900">Daftar Akun Baru</h1>
+          <p className="text-xs font-semibold tracking-wider text-blue-600 uppercase">e-Sign • Document Approval Management</p>
         </div>
 
         {error && <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600 border border-red-200">{error}</div>}

@@ -47,7 +47,7 @@ export default function LoginForm() {
             className="h-auto w-44 object-contain"
             priority
           />
-          <h1 className="text-xl font-bold text-blue-900">e-Sign</h1>
+          <h1 className="-mt-10 text-xl font-bold text-blue-900">e-Sign</h1>
           <p className="text-xs text-slate-500">Platform Tanda Tangan Digital</p>
         </div>
 
@@ -71,7 +71,7 @@ export default function LoginForm() {
             <input
               type="email"
               required
-              placeholder="nama@ptsi.co.id"
+              placeholder="nama@gmail.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-lg border border-slate-300 p-2.5 text-xs outline-none focus:border-blue-900"
