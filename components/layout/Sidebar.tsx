@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { useRouter, usePathname } from "next/navigation";
-import { Download, FileText, FolderOpen, LayoutDashboard, LogOut, Settings, Upload } from "lucide-react";
+import { FilePenLine, FileText, FolderOpen, Landmark, LayoutDashboard, Settings, Upload } from "lucide-react";
 
 export default function Sidebar() {
   const router = useRouter();
