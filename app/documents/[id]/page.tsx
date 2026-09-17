@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, XCircle } from 'lucide-react'
+import { ArrowLeft, XCircle, Download, CheckCircle2 } from 'lucide-react'
 
 interface Recipient {
   id: string
@@ -32,6 +32,7 @@ export default function DocumentDetailPage() {
 
   const [doc, setDoc] = useState<DocumentData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
   const [pdfPages, setPdfPages] = useState<Array<{ pageNumber: number; width: number; height: number }>>([])
 
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({})
@@ -96,15 +97,40 @@ export default function DocumentDetailPage() {
     }
   }, [doc?.filePath])
 
+  // Handler Unduh File via API Stream
+  const handleDownload = async () => {
+    if (!doc) return
+    setDownloading(true)
+    try {
+      const response = await fetch(`/api/documents/${doc.id}/download`)
+      if (!response.ok) throw new Error('Gagal mengunduh dokumen')
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = doc.title.endsWith('.pdf') ? doc.title : `${doc.title}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Download error:', error)
+      alert('Gagal mengunduh berkas PDF.')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   if (loading) return <div className="p-8 text-center text-slate-500">Memuat detail dokumen...</div>
   if (!doc) return <div className="p-8 text-center text-slate-500">Dokumen tidak ditemukan.</div>
 
-  // Deteksi penerima yang menolak & alasan penolakannya
   const rejectingRecipient = doc.recipients?.find((r) => r.status === 'REJECTED')
   const rejectReasonText = rejectingRecipient?.rejectReason || doc.rejectReason || 'Alasan penolakan tidak dicantumkan.'
   const rejecterName = rejectingRecipient?.user?.name || 'Penandatangan'
 
   const isRejected = doc.status === 'REJECTED' || !!rejectingRecipient
+  const isCompleted = doc.status === 'COMPLETED'
 
   return (
     <div className="flex h-screen w-full flex-col bg-slate-900 text-slate-100 overflow-hidden">
@@ -130,7 +156,7 @@ export default function DocumentDetailPage() {
           <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
             isRejected
               ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-              : doc.status === 'COMPLETED'
+              : isCompleted
               ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
               : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
           }`}>
@@ -202,6 +228,27 @@ export default function DocumentDetailPage() {
               </div>
             ))}
           </div>
+
+          {/* 📍 FRAME KARTU UNDUH DOKUMEN (Muncul jika COMPLETED) */}
+          {isCompleted && (
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
+                <CheckCircle2 className="h-4 w-4 shrink-0" /> Dokumen Selesai
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Semua pihak telah menandatangani dokumen ini. Anda dapat mengunduh salinan resmi berkas PDF.
+              </p>
+              <button
+                type="button"
+                disabled={downloading}
+                onClick={handleDownload}
+                className="flex items-center justify-center gap-2 w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 py-2.5 text-xs font-bold text-white transition-all shadow-lg shadow-emerald-950/50 disabled:opacity-50"
+              >
+                <Download className="h-4 w-4" />
+                {downloading ? 'Mengunduh...' : 'Unduh Dokumen (PDF)'}
+              </button>
+            </div>
+          )}
         </aside>
       </div>
     </div>
