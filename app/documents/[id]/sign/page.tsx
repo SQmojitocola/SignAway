@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, RefreshCw, PenTool, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, RefreshCw, PenTool, CheckCircle2, XCircle, Check, Image as ImageIcon } from 'lucide-react'
 
 interface Field {
   id: string
@@ -47,7 +47,17 @@ export default function SignDocumentPage() {
   const [submitting, setSubmitting] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null)
+  const [userSpecimen, setUserSpecimen] = useState<string | null>(null)
+  
+  // State TTD & Mode Pilihan
+  const [sigMode, setSigMode] = useState<'DRAW' | 'SPECIMEN'>('DRAW')
   const [signatureData, setSignatureData] = useState<string | null>(null)
+  
+  // State Modal Penolakan
+  const [showRejectModal, setShowRejectModal] = useState(false)
+  const [rejectReason, setRejectReason] = useState('')
+  const [rejecting, setRejecting] = useState(false)
+
   const [pdfPages, setPdfPages] = useState<Array<{ pageNumber: number; width: number; height: number }>>([])
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -67,23 +77,20 @@ export default function SignDocumentPage() {
           const docData = await docRes.json()
           const userData = await userRes.json()
           
-          // FIX BUG #1: Ambil data dari userData.user (bukan userData)
           const activeUser = userData.user || userData
-          const activeUserId = activeUser.id
-          const activeUserEmail = activeUser.email
-
-          setCurrentUserId(activeUserId)
-          setCurrentUserEmail(activeUserEmail)
+          setCurrentUserId(activeUser.id)
+          setCurrentUserEmail(activeUser.email)
+          if (activeUser.signatureSpecimen) {
+            setUserSpecimen(activeUser.signatureSpecimen)
+          }
 
           const rawDoc = docData.document || docData
           const recipients = rawDoc.recipients || []
 
           const normalizedFields = (rawDoc.fields || []).map((f: any) => {
             let matchedRecipient = recipients.find((r: any) => r.id === f.recipientId)
-            
-            // Handle jika recipientId tersimpan sebagai 'self' atau matching via userId
             if (!matchedRecipient) {
-              matchedRecipient = recipients.find((r: any) => r.user?.id === activeUserId || r.userId === activeUserId)
+              matchedRecipient = recipients.find((r: any) => r.user?.id === activeUser.id || r.userId === activeUser.id)
             }
 
             return {
@@ -113,7 +120,7 @@ export default function SignDocumentPage() {
     fetchData()
   }, [documentId])
 
-  // 2. Render PDF (Persis sama dengan Edit Page)
+  // 2. Render PDF
   useEffect(() => {
     if (!doc?.filePath) return
 
@@ -233,10 +240,18 @@ export default function SignDocumentPage() {
     }
   }
 
+  // Pilih Spesimen TTD
+  const selectSpecimen = () => {
+    if (userSpecimen) {
+      setSigMode('SPECIMEN')
+      setSignatureData(userSpecimen)
+    }
+  }
+
   // Submit Penandatanganan
   const handleSign = async () => {
     if (!signatureData) {
-      alert('Silakan buat tanda tangan terlebih dahulu pada papan TTD.')
+      alert('Silakan buat atau pilih tanda tangan terlebih dahulu.')
       return
     }
 
@@ -267,10 +282,45 @@ export default function SignDocumentPage() {
     }
   }
 
+  // Submit Penolakan Dokumen
+  const handleRejectDocument = async () => {
+    if (!rejectReason.trim()) {
+      alert('Silakan isi alasan penolakan dokumen.')
+      return
+    }
+
+    setRejecting(true)
+    try {
+      const res = await fetch('/api/documents/reject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentId,
+          reason: rejectReason,
+        }),
+      })
+
+      const responseText = await res.text()
+      const result = responseText ? JSON.parse(responseText) : {}
+
+      if (res.ok) {
+        alert('Dokumen berhasil ditolak.')
+        setShowRejectModal(false)
+        router.push('/dashboard')
+      } else {
+        alert(result.message || 'Gagal menolak dokumen')
+      }
+    } catch (error) {
+      console.error('Reject error:', error)
+      alert('Terjadi kesalahan server.')
+    } finally {
+      setRejecting(false)
+    }
+  }
+
   const recipientsList = doc?.recipients || []
   const fieldsList = doc?.fields || []
   
-  // Deteksi penerima milik user aktif secara pasti
   const myRecipientInDoc = useMemo(() => {
     if (!currentUserId) return null
     return recipientsList.find(
@@ -281,7 +331,7 @@ export default function SignDocumentPage() {
     )
   }, [recipientsList, currentUserId, currentUserEmail])
 
-  // Hak Akses Penandatanganan: Wajib Berurutan Sesuai Daftar Recipient
+  // Hak Akses Penandatanganan: Wajib Berurutan
   const isMyTurn = useMemo(() => {
     if (!currentUserId || !myRecipientInDoc) return false
 
@@ -289,21 +339,18 @@ export default function SignDocumentPage() {
       return false
     }
 
-    // Urutkan penerima berdasarkan signingOrder (atau indeks urutan dalam list)
     const sortedRecipients = [...recipientsList].sort((a, b) => {
       const orderA = a.signingOrder ?? recipientsList.indexOf(a)
       const orderB = b.signingOrder ?? recipientsList.indexOf(b)
       return orderA - orderB
     })
 
-    // Cari penandatangan pertama yang BELUM menandatangani
     const currentActiveSigner = sortedRecipients.find(
       (r) => r.status !== 'SIGNED' && r.status !== 'REJECTED'
     )
 
     if (!currentActiveSigner) return false
 
-    // Cocokkan apakah user yang login adalah penandatangan aktif urutan pertama
     return (
       currentActiveSigner.id === myRecipientInDoc.id ||
       currentActiveSigner.user?.id === currentUserId ||
@@ -317,6 +364,46 @@ export default function SignDocumentPage() {
 
   return (
     <div className="flex h-screen w-full flex-col bg-slate-900 text-slate-100 overflow-hidden">
+      {/* Modal Penolakan Dokumen */}
+      {showRejectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <XCircle className="h-5 w-5 text-red-500" /> Tolak Penandatanganan
+            </h3>
+            <p className="mt-2 text-xs text-slate-400">
+              Tuliskan alasan penolakan dokumen ini agar pengirim dapat mengetahuinya.
+            </p>
+
+            <textarea
+              rows={4}
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Masukkan alasan penolakan..."
+              className="mt-4 w-full rounded-xl border border-slate-700 bg-slate-950 p-3 text-xs text-white placeholder-slate-500 outline-none focus:border-red-500"
+            />
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowRejectModal(false)}
+                className="rounded-xl border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={rejecting}
+                onClick={handleRejectDocument}
+                className="rounded-xl bg-red-600 px-4 py-2 text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-50"
+              >
+                {rejecting ? 'Memproses...' : 'Konfirmasi Tolak'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Top Navbar */}
       <header className="flex h-14 items-center justify-between border-b border-slate-800 bg-slate-950 px-6 shrink-0">
         <div className="flex items-center gap-4">
@@ -333,14 +420,27 @@ export default function SignDocumentPage() {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleSign}
-          disabled={submitting || !signatureData || !isMyTurn}
-          className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {submitting ? 'Memproses...' : 'Kirim Tanda Tangan'}
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Tombol Tolak */}
+          <button
+            type="button"
+            onClick={() => setShowRejectModal(true)}
+            disabled={submitting || !isMyTurn}
+            className="flex items-center gap-1.5 rounded-xl border border-red-500/30 bg-red-950/30 px-4 py-2 text-xs font-bold text-red-400 hover:bg-red-900/40 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <XCircle className="h-4 w-4" /> Tolak Dokumen
+          </button>
+
+          {/* Tombol Kirim Tanda Tangan */}
+          <button
+            type="button"
+            onClick={handleSign}
+            disabled={submitting || !signatureData || !isMyTurn}
+            className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {submitting ? 'Memproses...' : 'Kirim Tanda Tangan'}
+          </button>
+        </div>
       </header>
 
       {/* Main Container */}
@@ -357,7 +457,7 @@ export default function SignDocumentPage() {
               >
                 <canvas className="block" width={page.width} height={page.height} />
                 
-                {/* Overlay Fields (1:1 Sama Persis dengan Halaman Edit) */}
+                {/* Overlay Fields */}
                 {fieldsList
                   .filter(f => f.pageNumber === page.pageNumber)
                   .map(field => {
@@ -412,28 +512,70 @@ export default function SignDocumentPage() {
           <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Papan Tanda Tangan</h2>
 
           {isMyTurn ? (
-            <div className="rounded-xl border border-slate-800 bg-slate-900 p-3">
-              <p className="text-[11px] text-slate-400 mb-2 italic">Goreskan tanda tangan Anda di kotak putih:</p>
-              <canvas
-                ref={canvasRef}
-                width={260}
-                height={160}
-                onMouseDown={startDrawing}
-                onMouseMove={draw}
-                onMouseUp={stopDrawing}
-                onMouseLeave={stopDrawing}
-                onTouchStart={startDrawing}
-                onTouchMove={draw}
-                onTouchEnd={stopDrawing}
-                className="w-full rounded-lg bg-white border border-slate-700 cursor-crosshair touch-none"
-              />
-              <button
-                type="button"
-                onClick={clearCanvas}
-                className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 hover:text-red-400 transition-colors"
-              >
-                <RefreshCw className="h-3 w-3" /> Bersihkan Papan
-              </button>
+            <div className="rounded-xl border border-slate-800 bg-slate-900 p-3 space-y-3">
+              {/* Selector Mode TTD */}
+              <div className="flex gap-2 border-b border-slate-800 pb-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSigMode('DRAW')
+                    clearCanvas()
+                  }}
+                  className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-colors ${
+                    sigMode === 'DRAW' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                  }`}
+                >
+                  Gores TTD
+                </button>
+                <button
+                  type="button"
+                  onClick={selectSpecimen}
+                  className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-colors ${
+                    sigMode === 'SPECIMEN' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                  }`}
+                >
+                  Gunakan Spesimen
+                </button>
+              </div>
+
+              {sigMode === 'DRAW' ? (
+                <>
+                  <p className="text-[11px] text-slate-400 italic">Goreskan tanda tangan Anda di kotak putih:</p>
+                  <canvas
+                    ref={canvasRef}
+                    width={260}
+                    height={160}
+                    onMouseDown={startDrawing}
+                    onMouseMove={draw}
+                    onMouseUp={stopDrawing}
+                    onMouseLeave={stopDrawing}
+                    onTouchStart={startDrawing}
+                    onTouchMove={draw}
+                    onTouchEnd={stopDrawing}
+                    className="w-full rounded-lg bg-white border border-slate-700 cursor-crosshair touch-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={clearCanvas}
+                    className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 hover:text-red-400 transition-colors"
+                  >
+                    <RefreshCw className="h-3 w-3" /> Bersihkan Papan
+                  </button>
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-[11px] text-slate-400 italic">Spesimen TTD tersimpan Anda:</p>
+                  {userSpecimen ? (
+                    <div className="p-3 bg-white rounded-lg border border-slate-700 flex justify-center items-center h-40">
+                      <img src={userSpecimen} alt="Spesimen TTD" className="max-h-full max-w-full object-contain" />
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-lg bg-amber-950/20 border border-amber-900/30 text-center text-amber-300 text-xs">
+                      Belum ada spesimen TTD tersimpan di profil Anda.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div className="rounded-xl border border-amber-900/30 bg-amber-950/20 p-4">
@@ -464,7 +606,7 @@ export default function SignDocumentPage() {
                     </span>
                   </div>
                   <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                    r.status === 'SIGNED' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-500'
+                    r.status === 'SIGNED' ? 'bg-emerald-500/10 text-emerald-400' : r.status === 'REJECTED' ? 'bg-red-500/10 text-red-400' : 'bg-slate-800 text-slate-500'
                   }`}>
                     {r.status}
                   </span>

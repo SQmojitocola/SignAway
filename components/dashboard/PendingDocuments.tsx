@@ -37,7 +37,6 @@ const DASHBOARD_SEEN_KEY = 'signaway_dashboard_seen_docs'
 
 const readSeenDocs = (): Record<string, boolean> => {
   if (typeof window === 'undefined') return {}
-
   try {
     const raw = window.localStorage.getItem(DASHBOARD_SEEN_KEY)
     return raw ? JSON.parse(raw) : {}
@@ -59,9 +58,8 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
   const markDocAsSeen = (docId: string) => {
     const next = { ...seenDocs, [docId]: true }
     setSeenDocs(next)
-
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(DASHBOARD_SEEN_KEY, JSON.stringify(next))
+      window.localStorage.getItem && window.localStorage.setItem(DASHBOARD_SEEN_KEY, JSON.stringify(next))
     }
   }
 
@@ -71,12 +69,10 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
       doc.recipients.some((recipient) => recipient.user.id === userId && (recipient.status === 'WAITING' || recipient.status === 'PENDING'))
     ).length
 
-    // Diupload: Semua dokumen yang dikirim oleh user ini (selain DRAFT)
     const uploaded = documents.filter((doc) => doc.sender.id === userId && doc.status !== 'DRAFT').length
 
-    const rejected = documents.filter((doc) =>
-      doc.status === 'REJECTED' || doc.recipients.some((recipient) => recipient.user.id === userId && recipient.status === 'REJECTED')
-    ).length
+    // Statcard Ditolak: Khusus dokumen milik pengirim yang ditolak
+    const rejected = documents.filter((doc) => doc.sender.id === userId && doc.status === 'REJECTED').length
 
     const completed = documents.filter((doc) =>
       doc.status === 'COMPLETED' || doc.recipients.some((recipient) => recipient.user.id === userId && recipient.status === 'SIGNED')
@@ -84,25 +80,6 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
 
     return { waiting, uploaded, rejected, completed }
   }, [documents, userId])
-
-  const hasUnreadDotForCategory = (category: DashboardCategory) => {
-    if (category === 'waiting') {
-      return documents.some((doc) => {
-        const recipient = doc.recipients.find((item) => item.user.id === userId)
-        return (
-          recipient &&
-          (recipient.status === 'WAITING' || recipient.status === 'PENDING') &&
-          !seenDocs[doc.id]
-        )
-      })
-    }
-
-    if (category === 'uploaded') {
-      return documents.some((doc) => doc.sender.id === userId && doc.status !== 'DRAFT' && !seenDocs[doc.id])
-    }
-
-    return false
-  }
 
   // Filter daftar dokumen berdasarkan tab aktif
   const filteredDocs = useMemo(() => {
@@ -124,12 +101,9 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
           doc.recipients.some((recipient) => recipient.user.id === userId && (recipient.status === 'WAITING' || recipient.status === 'PENDING'))
         )
       case 'uploaded':
-        // Dokumen yang pernah diupload pengirim akan SELALU tersimpan di sini
         return base.filter((doc) => doc.sender.id === userId && doc.status !== 'DRAFT')
       case 'rejected':
-        return base.filter((doc) =>
-          doc.status === 'REJECTED' || doc.recipients.some((recipient) => recipient.user.id === userId && recipient.status === 'REJECTED')
-        )
+        return base.filter((doc) => doc.sender.id === userId && doc.status === 'REJECTED')
       case 'completed':
         return base.filter((doc) =>
           doc.status === 'COMPLETED' || doc.recipients.some((recipient) => recipient.user.id === userId && recipient.status === 'SIGNED')
@@ -146,29 +120,6 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
     completed: 'Dokumen Diterima / Selesai',
   }[selectedCategory]
 
-  const renderStatusBadge = (doc: DashboardDocument) => {
-    if (selectedCategory === 'waiting') {
-      const recipient = doc.recipients.find((item) => item.user.id === userId)
-      const status = recipient?.status
-
-      if (status === 'PENDING') {
-        return <span className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-md text-[10px] font-bold">MENUNGGU GILIRAN</span>
-      }
-
-      return <span className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-md text-[10px] font-bold">MENUNGGU</span>
-    }
-
-    if (selectedCategory === 'uploaded') {
-      return <span className="px-2.5 py-1 bg-blue-100 text-blue-700 rounded-md text-[10px] font-bold">{doc.status}</span>
-    }
-
-    if (selectedCategory === 'rejected') {
-      return <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded-md text-[10px] font-bold">DITOLAK</span>
-    }
-
-    return <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-md text-[10px] font-bold">SELESAI</span>
-  }
-
   const getInitials = (name: string) =>
     name
       .split(' ')
@@ -183,15 +134,9 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {categoryConfig.map((category) => {
           const Icon =
-            category.badgeIcon === 'hourglass_top'
-              ? Clock3
-              : category.badgeIcon === 'upload'
-                ? Upload
-                : category.badgeIcon === 'close'
-                  ? XCircle
-                  : CheckCircle2
-
-          const hasUnreadDot = hasUnreadDotForCategory(category.key)
+            category.badgeIcon === 'hourglass_top' ? Clock3 :
+            category.badgeIcon === 'upload' ? Upload :
+            category.badgeIcon === 'close' ? XCircle : CheckCircle2
 
           return (
             <button
@@ -202,10 +147,6 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
                 selectedCategory === category.key ? 'border-blue-500 ring-1 ring-blue-500 shadow-sm' : 'border-slate-200 shadow-sm hover:border-slate-300'
               }`}
             >
-              {hasUnreadDot && (
-                <span className="absolute -top-1.5 right-2 h-3.5 w-3.5 rounded-full bg-red-500 border-2 border-white shadow-sm" />
-              )}
-
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{category.title}</p>
@@ -236,9 +177,6 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
                 className="w-full pl-8 pr-3 py-1.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600"
               />
             </div>
-            <button className="p-2 border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50">
-              <SlidersHorizontal className="w-4 h-4" />
-            </button>
           </div>
         </div>
 
@@ -268,8 +206,6 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
                     month: 'short',
                     year: 'numeric',
                   })
-
-                  const showActionDot = selectedCategory === 'uploaded' && doc.sender.id === userId && !seenDocs[doc.id]
 
                   return (
                     <tr key={doc.id} className="hover:bg-slate-50/80 transition-colors">
@@ -302,42 +238,38 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
                               <div
                                 key={recipient.id}
                                 title={recipient.user.name}
-                                className="group relative flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-slate-200 text-[9px] font-bold text-slate-600 shadow-sm transition-transform hover:scale-105"
+                                className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-slate-200 text-[9px] font-bold text-slate-600"
                               >
                                 {getInitials(recipient.user.name)}
                               </div>
                             ))}
-                            {doc.recipients.length > 4 && (
-                              <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-slate-100 text-[9px] font-bold text-slate-500 shadow-sm">
-                                +{doc.recipients.length - 4}
-                              </div>
-                            )}
                           </div>
                         ) : (
                           <span className="text-slate-400">-</span>
                         )}
                       </td>
                       <td className="p-4 text-slate-600 font-medium">{formattedDate}</td>
-                      <td className="p-4">{renderStatusBadge(doc)}</td>
+                      <td className="p-4">
+                        <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase ${
+                          doc.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' :
+                          doc.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {doc.status}
+                        </span>
+                      </td>
                       <td className="p-4 text-center">
-                        <div className="relative inline-flex">
-                          {showActionDot && (
-                            <span className="absolute -top-1.5 right-1 h-3.5 w-3.5 rounded-full bg-red-500 border-2 border-white shadow-sm" />
-                          )}
-
-                          <button
-                            onClick={() => {
-                              markDocAsSeen(doc.id)
-                              const targetPath = selectedCategory === 'waiting'
-                                ? `/documents/${doc.id}/sign`
-                                : `/documents/${doc.id}`
-                              router.push(targetPath)
-                            }}
-                            className="px-4 py-2 bg-[#1e4273] hover:bg-blue-900 text-white font-semibold rounded-xl text-xs transition-colors"
-                          >
-                            {selectedCategory === 'waiting' ? 'Tanda Tangani' : 'Lihat Detail'}
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => {
+                            markDocAsSeen(doc.id)
+                            const targetPath = selectedCategory === 'waiting'
+                              ? `/documents/${doc.id}/sign`
+                              : `/documents/${doc.id}`
+                            router.push(targetPath)
+                          }}
+                          className="px-4 py-2 bg-[#1e4273] hover:bg-blue-900 text-white font-semibold rounded-xl text-xs transition-colors"
+                        >
+                          {selectedCategory === 'waiting' ? 'Tanda Tangani' : 'Lihat Detail'}
+                        </button>
                       </td>
                     </tr>
                   )
@@ -345,14 +277,6 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
               )}
             </tbody>
           </table>
-        </div>
-
-        <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
-          <p>Menampilkan {filteredDocs.length} dari {documents.length} dokumen</p>
-          <div className="flex gap-2">
-            <button disabled className="px-3 py-1.5 border rounded-lg text-xs disabled:opacity-40">Sebelumnya</button>
-            <button disabled className="px-3 py-1.5 border rounded-lg text-xs disabled:opacity-40">Selanjutnya</button>
-          </div>
         </div>
       </div>
     </div>

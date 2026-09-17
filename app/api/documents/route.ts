@@ -25,8 +25,8 @@ export async function GET(
         id: true,
         title: true,
         filePath: true,
-        status: true,
-        rejectReason: true,
+        status: true, // 📍 Ditambahkan: Status Dokumen
+        rejectReason: true, // 📍 Ditambahkan: Alasan Penolakan Utama Dokumen
         createdAt: true,
         sequential: true,
         sender: {
@@ -38,7 +38,7 @@ export async function GET(
             role: true,
             status: true,
             signingOrder: true,
-            rejectReason: true,
+            rejectReason: true, // 📍 Ditambahkan: Alasan Penolakan dari Recipient
             user: {
               select: { id: true, name: true, email: true, role: true },
             },
@@ -98,41 +98,6 @@ export async function GET(
     return NextResponse.json({ document: responseDocument })
   } catch (error) {
     console.error('Get document error:', error)
-    return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 })
-  }
-}
-
-export async function DELETE(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const session = await auth()
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { id } = await params
-    const document = await prisma.document.findFirst({
-      where: { id, senderId: session.user.id },
-      select: { id: true, filePath: true },
-    })
-
-    if (!document) {
-      return NextResponse.json({ message: 'Dokumen tidak ditemukan' }, { status: 404 })
-    }
-
-    if (document.filePath && document.filePath.startsWith('/uploads/')) {
-      const cleanRelativePath = document.filePath.replace(/^\//, '')
-      const filePath = path.join(process.cwd(), 'public', cleanRelativePath)
-      await unlink(filePath).catch(() => undefined)
-    }
-
-    await prisma.document.delete({ where: { id: document.id } })
-
-    return NextResponse.json({ message: 'Dokumen dibuang' }, { status: 200 })
-  } catch (error) {
-    console.error('Delete document error:', error)
     return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 })
   }
 }
