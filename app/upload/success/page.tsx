@@ -4,6 +4,12 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { CheckCircle, Home, Files } from 'lucide-react'
 
+interface UserProfile {
+  id: string
+  name: string
+  email: string
+}
+
 interface DocumentRecipient {
   id: string
   status: 'PENDING' | 'WAITING' | 'SIGNED' | 'REJECTED'
@@ -33,8 +39,16 @@ export default function SendSuccessPage() {
   const router = useRouter()
   const [document, setDocument] = useState<SuccessDocument | null>(null)
   const [fields, setFields] = useState<DocumentField[]>([])
+  const [user, setUser] = useState<UserProfile | null>(null)
 
   useEffect(() => {
+    fetch('/api/users?me=true')
+      .then((response) => response.json())
+      .then((data) => {
+        if (data?.user) setUser(data.user)
+      })
+      .catch((error) => console.error('Gagal memuat profil pengguna:', error))
+
     const documentId = new URLSearchParams(window.location.search).get('documentId')
     if (!documentId) return
 
@@ -64,11 +78,11 @@ export default function SendSuccessPage() {
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <p className="text-xs font-bold text-slate-800">Ahmad Fauzan</p>
-            <p className="text-[10px] text-slate-400">Corporate Staff</p>
+            <p className="text-xs font-bold text-slate-800">{user?.name ?? 'Memuat...'}</p>
+            <p className="text-[10px] text-slate-400">{user?.email ?? 'Memuat profil'}</p>
           </div>
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1e4273] text-xs font-bold text-white">
-            AF
+            {(user?.name ?? 'U').split(' ').filter(Boolean).slice(0,2).map((part) => part[0]?.toUpperCase() ?? '').join('') || 'U'}
           </div>
         </div>
       </header>

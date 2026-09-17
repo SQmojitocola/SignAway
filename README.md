@@ -90,7 +90,20 @@ Akses aplikasi melalui browser di `http://localhost:3000` (akan di-redirect otom
 * **Modul Konfirmasi Pengiriman (`/upload/success`)**
 * **Status Summary:** Ringkasan status pengiriman dokumen, waktu pengiriman, metode penandatanganan, dan indikator status *Menunggu Tanda Tangan* tiap penerima.
 
+---
 
+## 🔄 Update Pengembangan Modul Terbaru
+
+### Dashboard & Notifikasi Visual
+* Menambahkan indikator dot merah di card dashboard untuk dokumen yang masih belum dibuka / belum diproses.
+* Dot merah hanya aktif untuk dokumen yang benar-benar belum ditangani, bukan sekadar hitungan total dokumen.
+* Jumlah angka pada card tetap stabil; indikator visual yang berubah hanya dot merah.
+* Daftar tabel dashboard telah diperbarui dengan kolom `Penerima` yang menampilkan avatar/initial penerima dan tooltip nama saat hover.
+
+### UI/UX Improvement
+* Menghilangkan ikon notifikasi header yang tidak dibutuhkan.
+* Menata badge dan red-dot agar lebih konsisten berada di sudut kanan atas card/tombol aksi.
+* Mengurangi kebingungan visual pada halaman dashboard dan upload dengan penyederhanaan indikator.
 
 ---
 

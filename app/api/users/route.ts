@@ -11,6 +11,15 @@ export async function GET(req: Request) {
 
     const searchParams = new URL(req.url).searchParams
     const email = searchParams.get('email')?.trim().toLowerCase()
+
+    if (searchParams.get('me') === 'true') {
+      const user = await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { id: true, name: true, email: true, signatureSpecimen: true },
+        })
+      return NextResponse.json({ user }, { status: 200 })
+    }
+
     if (searchParams.get('me') === 'true') {
       const user = await prisma.user.findUnique({
         where: { id: session.user.id },

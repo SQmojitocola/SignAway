@@ -16,6 +16,7 @@ export default function RootLayout({
     pathname === '/login' || 
     pathname === '/register' ||
     pathname.includes('/edit') || 
+    pathname.includes('/sign') ||
     pathname.includes('/success')
 
   return (

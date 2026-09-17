@@ -54,7 +54,7 @@ export async function POST(req: Request) {
       })
       selfRecipientId = selfRecipient?.id ?? (
         await prisma.documentRecipient.create({
-          data: { documentId, userId: document.senderId, role: 'SIGNER' },
+          data: { documentId, userId: document.senderId, role: 'Penandatangan', status: 'WAITING' },
           select: { id: true },
         })
       ).id
@@ -108,6 +108,8 @@ export async function POST(req: Request) {
             data: { status: 'WAITING' },
           })
         }
+      } else {
+        await tx.document.update({ where: { id: documentId }, data: { status: 'DRAFT' } })
       }
 
       return createdFields
