@@ -43,17 +43,18 @@ export default function LoginForm() {
 
       {/* Card Form Login */}
       <div className="w-full max-w-sm rounded-2xl bg-white/95 backdrop-blur-md p-6 shadow-2xl border border-white/20 text-center relative z-10">
-        <div className="mb-4 flex flex-col items-center">
-          <Image
-            src="/assets/logo-surveyor-indonesia-png-svg-removebg-preview.png"
-            alt="Logo Surveyor Indonesia"
-            width={180}
-            height={100}
-            className="h-auto w-44 object-contain"
-            priority
-          />
-          <h1 className="-mt-10 text-xl font-bold text-blue-900">e-Sign</h1>
-          <p className="text-xs text-slate-500">Platform Tanda Tangan Digital</p>
+        <div className="mb-6 flex flex-col items-center">
+          <div className="relative h-16 w-56">
+            <Image
+              src="/assets/logo-surveyor-indonesia-png-svg-removebg-preview.png"
+              alt="Logo Surveyor Indonesia"
+              fill
+              className="object-contain"
+              priority
+            />
+          </div>
+          <h1 className="mt-2 text-xl font-extrabold text-blue-900">e-Sign</h1>
+          <p className="text-xs font-medium text-slate-500">Platform Tanda Tangan Digital</p>
         </div>
 
         {error && <div className="mb-4 rounded-lg bg-red-50 p-2.5 text-xs text-red-600 border border-red-200">{error}</div>}

@@ -12,6 +12,19 @@ interface Recipient {
   user: { id: string; name: string; email: string }
 }
 
+interface DocumentField {
+  id: string
+  recipientId: string
+  pageNumber: number
+  posX: number
+  posY: number
+  width: number
+  height: number
+  recipient?: {
+    user?: { name: string }
+  }
+}
+
 interface DocumentData {
   id: string
   title: string
@@ -21,6 +34,7 @@ interface DocumentData {
   createdAt: string
   sender: { id: string; name: string; email: string }
   recipients: Recipient[]
+  fields?: DocumentField[]
 }
 
 const PDF_VIEWPORT_SCALE = 1.25
@@ -33,7 +47,9 @@ export default function DocumentDetailPage() {
   const [doc, setDoc] = useState<DocumentData | null>(null)
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
-  const [pdfPages, setPdfPages] = useState<Array<{ pageNumber: number; width: number; height: number }>>([])
+  const [pdfPages, setPdfPages] = useState<
+    Array<{ pageNumber: number; width: number; height: number; originalWidth: number; originalHeight: number }>
+  >([])
 
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({})
 
@@ -59,12 +75,20 @@ export default function DocumentDetailPage() {
         pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`
 
         const pdf = await pdfjs.getDocument(doc.filePath).promise
-        const pages: Array<{ pageNumber: number; width: number; height: number }> = []
+        const pages: Array<{ pageNumber: number; width: number; height: number; originalWidth: number; originalHeight: number }> = []
 
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i)
+          const unscaledViewport = page.getViewport({ scale: 1.0 })
           const viewport = page.getViewport({ scale: PDF_VIEWPORT_SCALE })
-          pages.push({ pageNumber: i, width: viewport.width, height: viewport.height })
+
+          pages.push({
+            pageNumber: i,
+            width: viewport.width,
+            height: viewport.height,
+            originalWidth: unscaledViewport.width,
+            originalHeight: unscaledViewport.height,
+          })
         }
 
         if (!cancelled) setPdfPages(pages)
@@ -153,13 +177,15 @@ export default function DocumentDetailPage() {
         {/* Status Badge Pojok Kanan Atas */}
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-slate-400">STATUS:</span>
-          <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
-            isRejected
-              ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-              : isCompleted
-              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-              : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-          }`}>
+          <span
+            className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
+              isRejected
+                ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                : isCompleted
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+            }`}
+          >
             {isRejected ? 'DITOLAK' : doc.status}
           </span>
         </div>
@@ -173,11 +199,41 @@ export default function DocumentDetailPage() {
             {pdfPages.map((page) => (
               <div
                 key={page.pageNumber}
-                ref={(el) => { pageRefs.current[page.pageNumber] = el }}
+                ref={(el) => {
+                  pageRefs.current[page.pageNumber] = el
+                }}
                 className="relative bg-white shadow-2xl rounded-sm select-none"
                 style={{ width: page.width, height: page.height }}
               >
                 <canvas className="block" width={page.width} height={page.height} />
+
+                {/* 📍 OVERLAY KALIBRASI KOORDINAT FIELD TTD PRESISI */}
+                {doc.fields
+                  ?.filter((f) => f.pageNumber === page.pageNumber)
+                  .map((field) => {
+                    const scaleFactor = page.width / page.originalWidth
+                    const scaledLeft = field.posX * scaleFactor
+                    const scaledTop = field.posY * scaleFactor
+                    const scaledWidth = field.width * scaleFactor
+                    const scaledHeight = field.height * scaleFactor
+
+                    return (
+                      <div
+                        key={field.id}
+                        className="absolute flex items-center justify-center rounded border-2 border-dashed border-blue-500 bg-blue-500/20 shadow-md backdrop-blur-[1px]"
+                        style={{
+                          left: `${scaledLeft}px`,
+                          top: `${scaledTop}px`,
+                          width: `${scaledWidth}px`,
+                          height: `${scaledHeight}px`,
+                        }}
+                      >
+                        <span className="text-[10px] font-bold text-blue-900 bg-white/80 px-1.5 py-0.5 rounded shadow-sm">
+                          {field.recipient?.user?.name || 'Tanda Tangan'}
+                        </span>
+                      </div>
+                    )
+                  })}
               </div>
             ))}
           </div>
@@ -194,9 +250,7 @@ export default function DocumentDetailPage() {
               <div className="space-y-1.5 pt-1 text-xs">
                 <p className="text-[11px] text-slate-400">
                   Ditolak oleh:{' '}
-                  <span className="font-bold text-white">
-                    {rejecterName}
-                  </span>
+                  <span className="font-bold text-white">{rejecterName}</span>
                 </p>
                 <div className="rounded-lg border border-red-900/40 bg-slate-900 p-3 text-[11px] italic text-red-200">
                   "{rejectReasonText}"
@@ -211,7 +265,10 @@ export default function DocumentDetailPage() {
               Riwayat Penandatanganan
             </h3>
             {doc.recipients?.map((r, idx) => (
-              <div key={r.id} className="flex items-center justify-between border-b border-slate-800/50 pb-2 last:border-0 last:pb-0">
+              <div
+                key={r.id}
+                className="flex items-center justify-between border-b border-slate-800/50 pb-2 last:border-0 last:pb-0"
+              >
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-[10px] text-slate-500">#{idx + 1}</span>
                   <div>
@@ -219,10 +276,15 @@ export default function DocumentDetailPage() {
                     <p className="text-[9px] text-slate-500">{r.user?.email}</p>
                   </div>
                 </div>
-                <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
-                  r.status === 'SIGNED' ? 'bg-emerald-500/10 text-emerald-400' :
-                  r.status === 'REJECTED' ? 'bg-red-500/10 text-red-400' : 'bg-slate-800 text-slate-500'
-                }`}>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                    r.status === 'SIGNED'
+                      ? 'bg-emerald-500/10 text-emerald-400'
+                      : r.status === 'REJECTED'
+                      ? 'bg-red-500/10 text-red-400'
+                      : 'bg-slate-800 text-slate-500'
+                  }`}
+                >
                   {r.status}
                 </span>
               </div>

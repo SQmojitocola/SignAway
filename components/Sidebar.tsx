@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import { LayoutDashboard, FileText, Upload, Settings, LogOut, FolderOpen, PenTool } from 'lucide-react'
@@ -12,7 +13,7 @@ export default function Sidebar() {
   const menuItems = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Draft', href: '/drafts', icon: FolderOpen },
-    { name: 'Atribut Pengesahan', href: '/specimens', icon: PenTool }, // 📍 Menu Baru di sini
+    { name: 'Atribut Pengesahan', href: '/specimens', icon: PenTool },
     { name: 'All Documents', href: '/documents', icon: FileText },
     { name: 'Upload', href: '/upload', icon: Upload },
   ]
@@ -20,14 +21,22 @@ export default function Sidebar() {
   return (
     <aside className="w-64 bg-[#1e4273] text-white p-6 flex flex-col justify-between h-screen sticky top-0">
       <div className="space-y-8">
-        {/* Logo Application */}
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center font-bold text-[#1e4273]">
-            e
+        {/* 📍 KARTU LOGO PT SURVEYOR INDONESIA + E-SIGN (SESUAI GAMBAR) */}
+        <div className="flex items-center gap-3 bg-white rounded-xl p-3 shadow-md border border-white/20">
+          <div className="relative h-10 w-12 shrink-0">
+            <Image
+              src="/assets/logo-dashboard.png"
+              alt="Logo Surveyor Indonesia"
+              fill
+              className="object-contain"
+              priority
+            />
           </div>
-          <div>
-            <h2 className="font-bold text-lg leading-tight">e-Sign</h2>
-            <p className="text-[10px] text-blue-200">Platform Tanda Tangan Digital</p>
+          <div className="min-w-0 flex-1">
+            <h2 className="font-extrabold text-2xl leading-tight text-[#1e4273]">e-Sign</h2>
+            <p className="text-[8px] font-medium text-blue-500  leading-tight truncate">
+              Platform Tanda Tangan Digital
+            </p>
           </div>
         </div>
 

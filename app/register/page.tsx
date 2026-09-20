@@ -94,18 +94,21 @@ export default function RegisterPage() {
       <BackgroundSlider />
 
       {/* Card Form Register */}
-      <div className="w-full max-w-xl rounded-2xl bg-white/95 backdrop-blur-md p-8 shadow-2xl border border-white/20 relative z-10">
-        <div className="text-center mb-6">
-          <Image
-            src="/assets/logo-surveyor-indonesia-png-svg-removebg-preview.png"
-            alt="Logo Surveyor Indonesia"
-            width={200}
-            height={110}
-            className="mx-auto mb-2 h-auto w-48 object-contain"
-            priority
-          />
-          <h1 className="-mt-10 text-2xl font-bold text-blue-900">Daftar Akun Baru</h1>
-          <p className="text-xs font-semibold tracking-wider text-blue-600 uppercase">e-Sign • Document Approval Management</p>
+      <div className="w-full max-w-2xl rounded-2xl bg-white/95 backdrop-blur-md p-6 shadow-2xl border border-white/20 relative z-10">
+        <div className="mb-6 text-center">
+          <div className="relative mx-auto h-20 w-64 mb-3">
+            <Image
+              src="/assets/logo-surveyor-indonesia-png-svg-removebg-preview.png"
+              alt="Logo Surveyor Indonesia"
+              fill
+              className="object-contain"
+              priority
+            />
+          </div>
+          <h1 className="text-2xl font-extrabold text-blue-900">Daftar Akun Baru</h1>
+          <p className="mt-1 text-xs font-semibold tracking-wider text-blue-600 uppercase">
+            e-Sign • Document Approval Management
+          </p>
         </div>
 
         {error && <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600 border border-red-200">{error}</div>}

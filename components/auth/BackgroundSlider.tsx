@@ -4,12 +4,12 @@ import { useState, useEffect } from 'react'
 import Image from 'next/image'
 
 const images = [
-  '/assets/bg1.jpg',
-  '/assets/bg2.jpg',
+  '/assets/bg1.jpeg',
+  '/assets/bg2.jpeg',
   '/assets/bg3.jpg',
-  '/assets/bg4.jpg',
+  '/assets/bg4.jpeg',
   '/assets/bg5.jpg',
-  '/assets/bg6.jpg'
+  '/assets/bg6.jpeg'
 ]
 
 export default function BackgroundSlider() {
