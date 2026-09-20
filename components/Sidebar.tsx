@@ -4,7 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { signOut } from 'next-auth/react'
-import { LayoutDashboard, FileText, Upload, Settings, LogOut, FolderOpen, PenTool } from 'lucide-react'
+import { LayoutDashboard, Users, Upload, Settings, LogOut, FolderOpen, PenTool } from 'lucide-react'
 
 export default function Sidebar() {
   const pathname = usePathname()
@@ -14,14 +14,14 @@ export default function Sidebar() {
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Draft', href: '/drafts', icon: FolderOpen },
     { name: 'Atribut Pengesahan', href: '/specimens', icon: PenTool },
-    { name: 'All Documents', href: '/documents', icon: FileText },
+    { name: 'Daftar Kontak', href: '/contacts', icon: Users }, // 📍 MENGGANTIKAN ALL DOCUMENTS
     { name: 'Upload', href: '/upload', icon: Upload },
   ]
 
   return (
     <aside className="w-64 bg-[#1e4273] text-white p-6 flex flex-col justify-between h-screen sticky top-0">
       <div className="space-y-8">
-        {/* 📍 KARTU LOGO PT SURVEYOR INDONESIA + E-SIGN (SESUAI GAMBAR) */}
+        {/* Logo Card */}
         <div className="flex items-center gap-3 bg-white rounded-xl p-3 shadow-md border border-white/20">
           <div className="relative h-10 w-12 shrink-0">
             <Image
@@ -34,7 +34,7 @@ export default function Sidebar() {
           </div>
           <div className="min-w-0 flex-1">
             <h2 className="font-extrabold text-2xl leading-tight text-[#1e4273]">E-Sign</h2>
-            <p className="text-[8px] font-medium text-blue-500  leading-tight truncate">
+            <p className="text-[8px] font-medium text-blue-500 leading-tight truncate">
               Platform Tanda Tangan Digital
             </p>
           </div>
