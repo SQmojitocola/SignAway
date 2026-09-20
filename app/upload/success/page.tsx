@@ -1,175 +1,199 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
-import { CheckCircle, Home, Files } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
+import { CheckCircle2, FileText, Home, Files } from 'lucide-react'
 
-interface UserProfile {
+interface Recipient {
   id: string
-  name: string
-  email: string
-}
-
-interface DocumentRecipient {
-  id: string
-  status: 'PENDING' | 'WAITING' | 'SIGNED' | 'REJECTED'
+  status: string
   user: { name: string; email: string }
 }
 
-interface DocumentField {
-  recipientId: string
+interface Field {
+  id: string
   pageNumber: number
+  recipientId: string
 }
 
-interface SuccessDocument {
+interface DocumentData {
+  id: string
   title: string
-  sequential: boolean
   createdAt: string
-  recipients: DocumentRecipient[]
+  status: string
+  recipients: Recipient[]
+  fields: Field[]
 }
 
-const statusLabels: Record<DocumentRecipient['status'], string> = {
-  PENDING: 'Menunggu Giliran',
-  WAITING: 'Menunggu Tanda Tangan',
-  SIGNED: 'Sudah Menandatangani',
-  REJECTED: 'Ditolak',
-}
-
-export default function SendSuccessPage() {
+export default function UploadSuccessPage() {
   const router = useRouter()
-  const [document, setDocument] = useState<SuccessDocument | null>(null)
-  const [fields, setFields] = useState<DocumentField[]>([])
-  const [user, setUser] = useState<UserProfile | null>(null)
+  const searchParams = useSearchParams()
+  const documentId = searchParams.get('documentId')
+
+  const [doc, setDoc] = useState<DocumentData | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/users?me=true')
-      .then((response) => response.json())
-      .then((data) => {
-        if (data?.user) setUser(data.user)
-      })
-      .catch((error) => console.error('Gagal memuat profil pengguna:', error))
-
-    const documentId = new URLSearchParams(window.location.search).get('documentId')
     if (!documentId) return
 
-    Promise.all([
-      fetch(`/api/documents/${documentId}`).then((response) => response.json()),
-      fetch(`/api/documents/fields?documentId=${documentId}`).then((response) => response.json()),
-    ]).then(([documentData, fieldData]) => {
-      if (documentData.document) setDocument(documentData.document)
-      if (fieldData.fields) setFields(fieldData.fields)
-    }).catch((error) => console.error('Gagal memuat ringkasan dokumen:', error))
-  }, [])
+    fetch(`/api/documents/${documentId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        setDoc(data.document || data)
+      })
+      .catch((err) => console.error('Fetch error:', err))
+      .finally(() => setLoading(false))
+  }, [documentId])
 
-  const getRecipientLocation = (recipientId: string) => {
-    const recipientFields = fields.filter((field) => field.recipientId === recipientId)
-    if (recipientFields.length === 0) return 'Lokasi belum ditentukan'
-    return recipientFields.map((field) => `Halaman ${field.pageNumber}`).join(', ')
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50 text-xs text-slate-500">
+        Memuat konfirmasi pengiriman...
+      </div>
+    )
   }
 
+  if (!doc) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50 text-xs text-slate-500">
+        Dokumen tidak ditemukan.
+      </div>
+    )
+  }
+
+  // Format Waktu Pengiriman
+  const formattedDate = new Date(doc.createdAt).toLocaleString('id-ID', {
+    day: 'numeric',
+    month: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+
   return (
-    <div className="flex min-h-screen flex-col bg-slate-100">
-      {/* Top Header Ringkas */}
-      <header className="flex h-16 items-center justify-between border-b bg-white px-8">
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          <span>Unggah Dokumen</span>
-          <span>&gt;</span>
-          <span className="font-semibold text-slate-800">Konfirmasi Pengiriman</span>
+    <div className="flex min-h-screen w-full items-center justify-center bg-slate-100/80 p-6">
+      <div className="w-full max-w-lg rounded-3xl bg-white p-8 shadow-xl border border-slate-200/60 space-y-6">
+        
+        {/* Icon & Banner Sukses */}
+        <div className="flex flex-col items-center text-center space-y-2">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+            <CheckCircle2 className="h-8 w-8" />
+          </div>
+          <h1 className="text-xl font-bold text-slate-800">Dokumen Berhasil Dikirim!</h1>
+          <p className="text-xs text-slate-500 max-w-xs">
+            Dokumen Anda telah berhasil dikirim kepada semua pihak terkait untuk proses penandatanganan secara digital.
+          </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="text-right">
-            <p className="text-xs font-bold text-slate-800">{user?.name ?? 'Memuat...'}</p>
-            <p className="text-[10px] text-slate-400">{user?.email ?? 'Memuat profil'}</p>
-          </div>
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1e4273] text-xs font-bold text-white">
-            {(user?.name ?? 'U').split(' ').filter(Boolean).slice(0,2).map((part) => part[0]?.toUpperCase() ?? '').join('') || 'U'}
-          </div>
-        </div>
-      </header>
 
-      {/* Main Container Card */}
-      <main className="flex flex-1 items-center justify-center p-6">
-        <div className="w-full max-w-lg rounded-2xl bg-white p-8 shadow-sm border border-slate-200 text-center space-y-6">
-          {/* Success Icon */}
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
-            <CheckCircle className="h-10 w-10 text-emerald-600" />
-          </div>
-
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">Dokumen Berhasil Dikirim!</h1>
-            <p className="text-xs text-slate-500 mt-1">
-              Dokumen Anda telah berhasil dikirim kepada semua pihak terkait untuk proses penandatanganan secara digital.
-            </p>
+        {/* Card Ringkasan Dokumen */}
+        <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 space-y-4">
+          
+          {/* Baris Atas: Icon PDF & Judul Dokumen (Truncate agar tidak memotong UI) */}
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-600 font-bold text-[10px]">
+              PDF
+            </div>
+            <div className="min-w-0 flex-1">
+              {/* 📍 Truncate dipasang agar judul panjang tidak merusak tata letak */}
+              <p className="text-xs font-bold text-slate-800 truncate" title={doc.title}>
+                {doc.title}
+              </p>
+              <p className="text-[10px] text-emerald-600 font-medium">Dokumen berhasil diproses</p>
+            </div>
           </div>
 
-          {/* Info Card Dokumen */}
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-left space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-100 text-red-600 font-bold text-xs">
-                  PDF
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-slate-800">{document?.title || 'Dokumen PDF'}</p>
-                  <p className="text-[10px] text-slate-400">Dokumen berhasil diproses</p>
-                </div>
-              </div>
-              <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
-                • Menunggu Tanda Tangan
+          <hr className="border-slate-200/80" />
+
+          {/* Baris Bawah: Waktu Pengiriman & Status Sampingnya (Teks 'Metode TTD' Dihapus) */}
+          <div className="flex items-center justify-between text-xs">
+            <div>
+              <span className="block text-[10px] text-slate-400 font-medium">Waktu Pengiriman:</span>
+              <span className="font-semibold text-slate-700">{formattedDate}</span>
+            </div>
+
+            {/* 📍 Badge Status tampil rapi di samping Waktu Pengiriman */}
+            <div>
+              <span className="inline-block rounded-full bg-amber-500/15 px-3 py-1 text-[11px] font-bold text-amber-700 border border-amber-500/30">
+                Menunggu Tanda Tangan
               </span>
             </div>
-
-            <div className="grid grid-cols-2 pt-2 border-t border-slate-200/60 text-[11px]">
-              <div>
-                <p className="text-slate-400">Waktu Pengiriman:</p>
-                <p className="font-semibold text-slate-700">{document ? new Date(document.createdAt).toLocaleString('id-ID') : '-'}</p>
-              </div>
-              <div>
-                <p className="text-slate-400">Metode Tanda Tangan:</p>
-                <p className="font-semibold text-slate-700">{document?.sequential ? 'Berurutan' : 'Bersamaan'}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Daftar Penerima */}
-          <div className="space-y-2 text-left">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Daftar Penandatangan ({document?.recipients.length || 0} Pihak)
-            </p>
-
-            {document?.recipients.map((recipient, index) => (
-              <div key={recipient.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-[10px] font-bold text-slate-600">
-                    {index + 1}
-                  </span>
-                  <div>
-                    <p className="text-xs font-bold text-slate-800">{recipient.user.name}</p>
-                    <p className="text-[10px] text-slate-500">{recipient.user.email} • <span className="text-blue-600 font-medium">{getRecipientLocation(recipient.id)}</span></p>
-                  </div>
-                </div>
-                <span className="text-[11px] font-semibold text-slate-400 bg-slate-200/60 px-2.5 py-1 rounded-lg">{statusLabels[recipient.status]}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Tombol Aksi */}
-          <div className="flex gap-3 pt-2">
-            <button
-              onClick={() => router.push('/documents')}
-              className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-slate-300 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              <Files className="h-4 w-4" /> Lihat Semua Dokumen
-            </button>
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#1e4273] py-2.5 text-xs font-semibold text-white hover:bg-blue-900"
-            >
-              <Home className="h-4 w-4" /> Kembali ke Beranda
-            </button>
           </div>
         </div>
-      </main>
+
+        {/* Daftar Penandatangan */}
+        <div className="space-y-3 pt-2">
+          <h2 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            DAFTAR PENANDATANGAN ({doc.recipients?.length || 0} PIHAK)
+          </h2>
+
+          <div className="space-y-2">
+            {doc.recipients?.map((recipient, idx) => {
+              const recipientFields = doc.fields?.filter((f) => f.recipientId === recipient.id) || []
+              const pageNumbers = Array.from(new Set(recipientFields.map((f) => f.pageNumber)))
+
+              return (
+                <div
+                  key={recipient.id}
+                  className="flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/80 p-3"
+                >
+                  <div className="flex items-center gap-3 min-w-0 pr-2">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-bold text-slate-600">
+                      {idx + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-slate-800 truncate">{recipient.user?.name}</p>
+                      <p className="text-[10px] text-slate-500 truncate">
+                        {recipient.user?.email}{' '}
+                        {pageNumbers.length > 0 && (
+                          <span className="text-blue-600 font-medium">
+                            · Halaman {pageNumbers.join(', ')}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <span
+                    className={`shrink-0 rounded-lg px-2.5 py-1 text-[10px] font-semibold ${
+                      recipient.status === 'SIGNED'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : recipient.status === 'WAITING' || recipient.status === 'PENDING'
+                        ? 'bg-slate-200/80 text-slate-600'
+                        : 'bg-slate-100 text-slate-500'
+                    }`}
+                  >
+                    {recipient.status === 'SIGNED'
+                      ? 'Sudah TTD'
+                      : idx === 0
+                      ? 'Menunggu Tanda Tangan'
+                      : 'Menunggu Giliran'}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Tombol Navigasi Bawah */}
+        <div className="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100">
+          <button
+            type="button"
+            onClick={() => router.push('/documents')}
+            className="flex items-center justify-center gap-2 rounded-xl border border-slate-300 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+          >
+            <Files className="h-4 w-4" /> Lihat Semua Dokumen
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push('/dashboard')}
+            className="flex items-center justify-center gap-2 rounded-xl bg-[#1e3a5f] py-2.5 text-xs font-semibold text-white hover:bg-slate-800 transition-colors"
+          >
+            <Home className="h-4 w-4" /> Kembali ke Beranda
+          </button>
+        </div>
+
+      </div>
     </div>
   )
 }
