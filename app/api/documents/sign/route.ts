@@ -62,29 +62,36 @@ export async function POST(req: Request) {
     const embeddedImage = await pdfDoc.embedPng(signatureImageBytes)
 
     fields.forEach((field: any) => {
-      const pageNum = field.pageNumber || 1
-      const pageIndex = Math.max(0, pageNum - 1)
-      const page = pdfDoc.getPage(pageIndex)
+  const pageNum = field.pageNumber || 1
+  const pageIndex = Math.max(0, pageNum - 1)
+  const page = pdfDoc.getPage(pageIndex)
+  const pageHeight = page.getHeight()
 
-      const pageHeight = page.getHeight()
+  // Konversi dari skala canvas visual (1.25) ke skala PDF asli (1.0)
+  const boxX = field.posX / 1.25
+  const boxY = field.posY / 1.25
+  const boxWidth = (field.width || 150) / 1.25
+  const boxHeight = (field.height || 70) / 1.25
 
-      // 📍 KONVERSI DARI SKALA CANVAS VISUAL (1.25) KE SKALA PDF ASLI (1.0)
-      const realX = field.posX / 1.25
-      const realY = field.posY / 1.25
-      const realWidth = (field.width || 150) / 1.25
-      const realHeight = (field.height || 70) / 1.25
+  // 📍 Hitung Skala Proporsional (Aspect Ratio Guard)
+  const imgWidth = embeddedImage.width
+  const imgHeight = embeddedImage.height
+  const scale = Math.min(boxWidth / imgWidth, boxHeight / imgHeight)
 
-      // 📍 Balik Sumbu Y karena PDF-lib berpatokan dari KIRI-BAWAH
-      const drawX = realX
-      const drawY = pageHeight - realY - realHeight
+  const drawWidth = imgWidth * scale
+  const drawHeight = imgHeight * scale
 
-      page.drawImage(embeddedImage, {
-        x: drawX,
-        y: drawY,
-        width: realWidth,
-        height: realHeight,
-      })
-    })
+  // Posisikan gambar persis di tengah-tengah (center alignment) dalam box TTD
+  const drawX = boxX + (boxWidth - drawWidth) / 2
+  const drawY = pageHeight - boxY - boxHeight + (boxHeight - drawHeight) / 2
+
+  page.drawImage(embeddedImage, {
+    x: drawX,
+    y: drawY,
+    width: drawWidth,
+    height: drawHeight,
+  })
+})
 
     const updatedPdfBytes = await pdfDoc.save()
     await writeFile(absolutePdfPath, updatedPdfBytes)
