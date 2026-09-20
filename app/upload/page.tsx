@@ -41,11 +41,11 @@ export default function UploadDocumentPage() {
   const [isSearching, setIsSearching] = useState(false)
   const [showAddContactForm, setShowAddContactForm] = useState(false)
 
-  // 1. Ambil data session & kontak tersimpan dengan aman
+  // 1. Ambil data session & DAFTAR KONTAK TERSIMPAN (/api/contacts)
   useEffect(() => {
     const initData = async () => {
       try {
-        // Ambil data session pengguna
+        // Ambil data session pengguna login
         const sessionRes = await fetch('/api/auth/session')
         const contentTypeSession = sessionRes.headers.get('content-type')
         if (sessionRes.ok && contentTypeSession?.includes('application/json')) {
@@ -59,12 +59,12 @@ export default function UploadDocumentPage() {
           }
         }
 
-        // Ambil daftar kontak tersimpan
-        const contactsRes = await fetch('/api/users')
+        // 📍 AMBIL DAFTAR KONTAK DARI API /api/contacts
+        const contactsRes = await fetch('/api/contacts')
         const contentTypeContacts = contactsRes.headers.get('content-type')
         if (contactsRes.ok && contentTypeContacts?.includes('application/json')) {
           const data = await contactsRes.json()
-          setSavedContacts(Array.isArray(data) ? data : data.users || [])
+          setSavedContacts(data.contacts || [])
         }
       } catch (err) {
         console.warn('Informasi API tidak merespons JSON, menggunakan default:', err)
@@ -74,7 +74,7 @@ export default function UploadDocumentPage() {
     initData()
   }, [])
 
-  // 2. Gabungkan "Saya Sendiri" dan Kontak Tersimpan ke dalam KONTAK TERSEDIA
+  // 2. Gabungkan "Saya Sendiri" dan Daftar Kontak Tersimpan ke dalam KONTAK TERSEDIA
   const availableContacts = useMemo(() => {
     const list: UserContact[] = []
 
@@ -85,7 +85,6 @@ export default function UploadDocumentPage() {
         email: currentUser.email,
       })
     } else {
-      // Fallback default jika session belum termuat
       list.push({
         id: 'self',
         name: 'Saya Sendiri (Pengirim)',
@@ -94,7 +93,7 @@ export default function UploadDocumentPage() {
     }
 
     savedContacts.forEach((contact) => {
-      if (contact.id !== currentUser?.id) {
+      if (contact.email.toLowerCase() !== currentUser?.email.toLowerCase()) {
         list.push(contact)
       }
     })
@@ -102,7 +101,7 @@ export default function UploadDocumentPage() {
     return list
   }, [currentUser, savedContacts])
 
-  // 📍 3. Handler Cari Kontak via Email (Cek Lokal Dulu, Baru API)
+  // Handler Cari Kontak via Email
   const handleSearchContact = async () => {
     const cleanEmail = searchEmail.trim().toLowerCase()
     if (!cleanEmail || !cleanEmail.includes('@')) return
@@ -111,7 +110,7 @@ export default function UploadDocumentPage() {
     setFoundContact(null)
     setShowAddContactForm(false)
 
-    // A. Cek dulu di daftar Kontak Tersimpan (termasuk Santos dll.)
+    // Cek di lokal Kontak Tersedia
     const localMatch = availableContacts.find(
       (c) => c.email.toLowerCase() === cleanEmail
     )
@@ -122,7 +121,7 @@ export default function UploadDocumentPage() {
       return
     }
 
-    // B. Jika tidak ditemukan di lokal, cari ke Database via API Search
+    // Cari ke Database User via API
     try {
       const res = await fetch(`/api/users/search?email=${encodeURIComponent(cleanEmail)}`)
       const contentType = res.headers.get('content-type')
@@ -135,7 +134,6 @@ export default function UploadDocumentPage() {
         }
       }
 
-      // Jika benar-benar tidak ada di database, baru tampilkan form tambah
       setShowAddContactForm(true)
       setNewContactName('')
     } catch (err) {
@@ -146,40 +144,33 @@ export default function UploadDocumentPage() {
     }
   }
 
-  // Handler Simpan Kontak Baru
+  // Handler Simpan Kontak Baru ke /api/contacts
   const handleSaveNewContact = async () => {
     if (!newContactName.trim() || !searchEmail.trim()) return
 
-    const newContact: UserContact = {
-      id: `user-${Date.now()}`,
-      name: newContactName.trim(),
-      email: searchEmail.trim(),
-    }
-
     try {
-      const res = await fetch('/api/users', {
+      const res = await fetch('/api/contacts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newContact),
+        body: JSON.stringify({ name: newContactName.trim(), email: searchEmail.trim() }),
       })
 
-      const contentType = res.headers.get('content-type')
-      if (res.ok && contentType?.includes('application/json')) {
-        const data = await res.json()
-        setSavedContacts((prev) => [...prev, data.user || newContact])
-      } else {
-        setSavedContacts((prev) => [...prev, newContact])
+      if (res.ok) {
+        const contactsRes = await fetch('/api/contacts')
+        if (contactsRes.ok) {
+          const data = await contactsRes.json()
+          setSavedContacts(data.contacts || [])
+        }
       }
     } catch (err) {
-      setSavedContacts((prev) => [...prev, newContact])
+      console.error('Save contact error:', err)
     } finally {
       setSearchEmail('')
       setShowAddContactForm(false)
-      setShowUserDropdown(true)
     }
   }
 
-  // Handler Drag & Drop & Select File PDF
+  // Drag & Drop / Select File
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragging(true)
@@ -218,7 +209,7 @@ export default function UploadDocumentPage() {
 
   // Handler Tambah & Hapus Resipien
   const handleAddRecipient = (user: UserContact) => {
-    if (!selectedRecipients.some((r) => r.id === user.id)) {
+    if (!selectedRecipients.some((r) => r.id === user.id || r.email === user.email)) {
       setSelectedRecipients([...selectedRecipients, user])
     }
   }
@@ -227,7 +218,7 @@ export default function UploadDocumentPage() {
     setSelectedRecipients(selectedRecipients.filter((r) => r.id !== userId))
   }
 
-  // Submit Upload (sequential dikunci true)
+  // Submit Upload
   const handleSubmit = async () => {
     if (!file) {
       alert('Silakan pilih berkas PDF terlebih dahulu.')
@@ -239,10 +230,10 @@ export default function UploadDocumentPage() {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('title', documentTitle || file.name)
-      formData.append('sequential', 'true') // 📍 DIKUNCI DEFAULT BERURUTAN
+      formData.append('sequential', 'true')
       formData.append(
         'recipients',
-        JSON.stringify(selectedRecipients.map((r) => ({ userId: r.id })))
+        JSON.stringify(selectedRecipients.map((r) => ({ userId: r.id, email: r.email })))
       )
 
       const res = await fetch('/api/documents/upload', {
@@ -356,7 +347,7 @@ export default function UploadDocumentPage() {
             <div className="space-y-4">
               <h2 className="text-sm font-bold text-slate-800">Pengaturan Penandatangan</h2>
 
-              {/* Form Cari/Tambah Kontak Baru */}
+              {/* Form Cari Kontak via Email */}
               <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
                   Cari Kontak via Email
@@ -445,8 +436,10 @@ export default function UploadDocumentPage() {
                 <div className="max-h-44 overflow-y-auto space-y-2 pr-1">
                   {availableContacts.length > 0 ? (
                     availableContacts.map((user) => {
-                      const isSelected = selectedRecipients.some((r) => r.id === user.id)
-                      const isSelf = currentUser && user.id === currentUser.id
+                      const isSelected = selectedRecipients.some(
+                        (r) => r.id === user.id || r.email === user.email
+                      )
+                      const isSelf = currentUser && user.email === currentUser.email
                       return (
                         <div
                           key={user.id}
