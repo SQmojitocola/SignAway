@@ -89,7 +89,6 @@ export default function DocumentFieldPlottingPage() {
       }
 
       if (!cancelled) setPdfPages(pages)
-
     }
 
     renderPdf().catch((error) => {
@@ -114,21 +113,22 @@ export default function DocumentFieldPlottingPage() {
       ).toString()
       const pdf = await pdfjs.getDocument(documentPath).promise
 
-      await Promise.all(pdfPages.map(async ({ pageNumber, width, height }) => {
-        const page = await pdf.getPage(pageNumber)
-        const pageElement = pageRefs.current[pageNumber]
-        const canvas = pageElement?.querySelector('canvas')
-        const context = canvas?.getContext('2d')
-        if (!canvas || !context || cancelled) return
+      await Promise.all(
+        pdfPages.map(async ({ pageNumber, width, height }) => {
+          const page = await pdf.getPage(pageNumber)
+          const pageElement = pageRefs.current[pageNumber]
+          const canvas = pageElement?.querySelector('canvas')
+          const context = canvas?.getContext('2d')
+          if (!canvas || !context || cancelled) return
 
-        canvas.width = width
-        canvas.height = height
-        await page.render({
-          canvas,
-          canvasContext: context,
-          viewport: page.getViewport({ scale: PDF_VIEWPORT_SCALE }),
-        }).promise
-      }))
+          canvas.width = width
+          canvas.height = height
+          await page.render({
+            canvasContext: context,
+            viewport: page.getViewport({ scale: PDF_VIEWPORT_SCALE }),
+          }).promise
+        })
+      )
     }
 
     renderPages().catch((error) => console.error('PDF page render error:', error))
@@ -182,16 +182,18 @@ export default function DocumentFieldPlottingPage() {
       const element = fieldElementsRef.current[interaction.fieldId]
 
       setHasUnsavedChanges(true)
-      setFields((currentFields) => currentFields.map((field) => {
-        if (field.id !== interaction.fieldId) return field
-        return interaction.mode === 'drag'
-          ? { ...field, posX: nextX, posY: nextY }
-          : {
-            ...field,
-            width: interaction.currentWidth,
-            height: interaction.currentHeight,
-          }
-      }))
+      setFields((currentFields) =>
+        currentFields.map((field) => {
+          if (field.id !== interaction.fieldId) return field
+          return interaction.mode === 'drag'
+            ? { ...field, posX: nextX, posY: nextY }
+            : {
+                ...field,
+                width: interaction.currentWidth,
+                height: interaction.currentHeight,
+              }
+        })
+      )
       interactionRef.current = null
       window.requestAnimationFrame(() => {
         element?.style.removeProperty('transform')
@@ -234,7 +236,8 @@ export default function DocumentFieldPlottingPage() {
         const fieldsData = await fieldsResponse.json()
         if (!fieldsResponse.ok) throw new Error(fieldsData.message || 'Gagal memuat posisi TTD')
 
-        setFields(fieldsData.fields.map((field: {
+        setFields(
+          fieldsData.fields.map((field: {
             id: string
             recipientId: string
             recipient: { user: { id: string; name: string } }
@@ -255,7 +258,8 @@ export default function DocumentFieldPlottingPage() {
             posY: field.posY,
             width: field.width,
             height: field.height,
-          })))
+          }))
+        )
       } catch (error) {
         alert(error instanceof Error ? error.message : 'Gagal memuat dokumen')
       }
@@ -374,7 +378,7 @@ export default function DocumentFieldPlottingPage() {
                 onClick={() => void handleLeaveEditor('save')}
                 className="rounded-xl bg-[#1e4273] px-3 py-2 text-xs font-semibold text-white hover:bg-blue-900"
               >
-                {leaveDialogMode === 'save' ? 'Simpan draft' : 'Simpan draft'}
+                Simpan draft
               </button>
               <button
                 type="button"
@@ -398,14 +402,17 @@ export default function DocumentFieldPlottingPage() {
       {/* Top Navbar Editor */}
       <header className="flex h-16 items-center justify-between border-b bg-white px-6">
         <div className="flex items-center gap-3">
-          <button onClick={() => {
-            if (!hasUnsavedChanges) {
-              router.back()
-              return
-            }
-            setLeaveDialogMode('back')
-            setShowLeaveDialog(true)
-          }} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100">
+          <button
+            onClick={() => {
+              if (!hasUnsavedChanges) {
+                router.back()
+                return
+              }
+              setLeaveDialogMode('back')
+              setShowLeaveDialog(true)
+            }}
+            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+          >
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div>
@@ -428,8 +435,8 @@ export default function DocumentFieldPlottingPage() {
             {activeRecipient
               ? 'Batal Tempatkan'
               : pdfInteractive
-                ? 'Mode Tempatkan TTD'
-                : 'Scroll / Zoom PDF'}
+              ? 'Mode Tempatkan TTD'
+              : 'Scroll / Zoom PDF'}
           </button>
           <button
             onClick={() => {
@@ -489,7 +496,9 @@ export default function DocumentFieldPlottingPage() {
                     {recipient.id === SELF_RECIPIENT_ID ? 'Saya' : idx}
                   </span>
                   <div>
-                    <p className="text-xs font-bold text-slate-800">{recipient.id === SELF_RECIPIENT_ID ? 'Saya' : recipient.name}</p>
+                    <p className="text-xs font-bold text-slate-800">
+                      {recipient.id === SELF_RECIPIENT_ID ? 'Saya' : recipient.name}
+                    </p>
                     <p className="text-[10px] text-slate-500">{recipient.email}</p>
                   </div>
                 </div>
@@ -498,13 +507,13 @@ export default function DocumentFieldPlottingPage() {
                   {(() => {
                     const recipientFieldCount = fields.filter((field) => field.recipientId === recipient.id).length
                     return recipientFieldCount > 0 ? (
-                    <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-600">
-                      <CheckCircle2 className="h-3.5 w-3.5" /> {recipientFieldCount} field ditempatkan
-                    </span>
+                      <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-600">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> {recipientFieldCount} field ditempatkan
+                      </span>
                     ) : (
-                    <span className="flex items-center gap-1 text-[11px] font-medium text-amber-600">
-                      <AlertTriangle className="h-3.5 w-3.5" /> Belum ditempatkan
-                    </span>
+                      <span className="flex items-center gap-1 text-[11px] font-medium text-amber-600">
+                        <AlertTriangle className="h-3.5 w-3.5" /> Belum ditempatkan
+                      </span>
                     )
                   })()}
 
@@ -541,96 +550,98 @@ export default function DocumentFieldPlottingPage() {
               >
                 <canvas className="absolute inset-0 block" />
 
-                {visibleFields.filter((field) => field.pageNumber === page.pageNumber).map((field) => {
-              const isSelected = selectedFieldId === field.id
-              return (
-                <div
-                  key={field.id}
-                  ref={(element) => {
-                    fieldElementsRef.current[field.id] = element
-                  }}
-                  onPointerDown={(event) => {
-                    if (pdfInteractive || activeRecipient) return
-                    event.preventDefault()
-                    setSelectedFieldId(field.id)
-                    const interaction = {
-                      mode: 'drag',
-                      fieldId: field.id,
-                      startX: event.clientX,
-                      startY: event.clientY,
-                      initialX: field.posX,
-                      initialY: field.posY,
-                      initialWidth: field.width,
-                      initialHeight: field.height,
-                      currentX: field.posX,
-                      currentY: field.posY,
-                      currentWidth: field.width,
-                      currentHeight: field.height,
-                    } satisfies FieldInteraction
-                    interactionRef.current = interaction
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setSelectedFieldId(field.id)
-                  }}
-                  style={{
-                    left: `${field.posX}px`,
-                    top: `${field.posY}px`,
-                    width: `${field.width}px`,
-                    height: `${field.height}px`,
-                  }}
-                  className={`absolute z-10 rounded-lg border-2 border-dashed p-2 transition-[border-color,box-shadow] flex flex-col items-center justify-center bg-blue-50/80 ${
-                    isSelected ? 'border-blue-600 ring-2 ring-blue-400' : 'border-blue-400'
-                  }`}
-                >
-                  <div className="absolute -top-3 left-2 bg-[#1e4273] text-white text-[9px] font-bold px-2 py-0.5 rounded">
-                    {field.recipientName}
-                  </div>
-                  <button
-                    type="button"
-                    aria-label="Batalkan field tanda tangan"
-                    onPointerDown={(event) => {
-                      event.preventDefault()
-                      event.stopPropagation()
-                      handleDeleteField(field.id)
-                    }}
-                    className="absolute -right-3 -top-3 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow hover:bg-red-700"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                  <PenTool className="w-4 h-4 text-blue-600 mb-1" />
-                  <span className="text-[10px] font-semibold text-blue-800">
-                    {field.type === 'SIGNATURE' ? 'Tanda tangan di sini' : 'Paraf di sini'}
-                  </span>
-                  {isSelected && !pdfInteractive && (
-                    <button
-                      type="button"
-                      aria-label="Ubah ukuran field tanda tangan"
-                      onPointerDown={(event) => {
-                        event.preventDefault()
-                        event.stopPropagation()
-                        const interaction = {
-                          mode: 'resize',
-                          fieldId: field.id,
-                          startX: event.clientX,
-                          startY: event.clientY,
-                          initialX: field.posX,
-                          initialY: field.posY,
-                          initialWidth: field.width,
-                          initialHeight: field.height,
-                          currentX: field.posX,
-                          currentY: field.posY,
-                          currentWidth: field.width,
-                          currentHeight: field.height,
-                        } satisfies FieldInteraction
-                        interactionRef.current = interaction
-                      }}
-                      className="absolute bottom-0 right-0 h-4 w-4 cursor-se-resize rounded-tl bg-blue-600"
-                    />
-                  )}
-                </div>
-              )
-                })}
+                {visibleFields
+                  .filter((field) => field.pageNumber === page.pageNumber)
+                  .map((field) => {
+                    const isSelected = selectedFieldId === field.id
+                    return (
+                      <div
+                        key={field.id}
+                        ref={(element) => {
+                          fieldElementsRef.current[field.id] = element
+                        }}
+                        onPointerDown={(event) => {
+                          if (pdfInteractive || activeRecipient) return
+                          event.preventDefault()
+                          setSelectedFieldId(field.id)
+                          const interaction = {
+                            mode: 'drag',
+                            fieldId: field.id,
+                            startX: event.clientX,
+                            startY: event.clientY,
+                            initialX: field.posX,
+                            initialY: field.posY,
+                            initialWidth: field.width,
+                            initialHeight: field.height,
+                            currentX: field.posX,
+                            currentY: field.posY,
+                            currentWidth: field.width,
+                            currentHeight: field.height,
+                          } satisfies FieldInteraction
+                          interactionRef.current = interaction
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setSelectedFieldId(field.id)
+                        }}
+                        style={{
+                          left: `${field.posX}px`,
+                          top: `${field.posY}px`,
+                          width: `${field.width}px`,
+                          height: `${field.height}px`,
+                        }}
+                        className={`absolute z-10 rounded-lg border-2 border-dashed p-2 transition-[border-color,box-shadow] flex flex-col items-center justify-center bg-blue-50/80 ${
+                          isSelected ? 'border-blue-600 ring-2 ring-blue-400' : 'border-blue-400'
+                        }`}
+                      >
+                        <div className="absolute -top-3 left-2 bg-[#1e4273] text-white text-[9px] font-bold px-2 py-0.5 rounded">
+                          {field.recipientName}
+                        </div>
+                        <button
+                          type="button"
+                          aria-label="Batalkan field tanda tangan"
+                          onPointerDown={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            handleDeleteField(field.id)
+                          }}
+                          className="absolute -right-3 -top-3 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow hover:bg-red-700"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                        <PenTool className="w-4 h-4 text-blue-600 mb-1" />
+                        <span className="text-[10px] font-semibold text-blue-800">
+                          {field.type === 'SIGNATURE' ? 'Tanda tangan di sini' : 'Paraf di sini'}
+                        </span>
+                        {isSelected && !pdfInteractive && (
+                          <button
+                            type="button"
+                            aria-label="Ubah ukuran field tanda tangan"
+                            onPointerDown={(event) => {
+                              event.preventDefault()
+                              event.stopPropagation()
+                              const interaction = {
+                                mode: 'resize',
+                                fieldId: field.id,
+                                startX: event.clientX,
+                                startY: event.clientY,
+                                initialX: field.posX,
+                                initialY: field.posY,
+                                initialWidth: field.width,
+                                initialHeight: field.height,
+                                currentX: field.posX,
+                                currentY: field.posY,
+                                currentWidth: field.width,
+                                currentHeight: field.height,
+                              } satisfies FieldInteraction
+                              interactionRef.current = interaction
+                            }}
+                            className="absolute bottom-0 right-0 h-4 w-4 cursor-se-resize rounded-tl bg-blue-600"
+                          />
+                        )}
+                      </div>
+                    )
+                  })}
               </div>
             ))}
           </div>
@@ -654,7 +665,11 @@ export default function DocumentFieldPlottingPage() {
               >
                 <option value="">Semua penandatangan</option>
                 {selfRecipient && <option value={SELF_RECIPIENT_ID}>Saya</option>}
-                {recipients.map((recipient) => <option key={recipient.id} value={recipient.id}>{recipient.name}</option>)}
+                {recipients.map((recipient) => (
+                  <option key={recipient.id} value={recipient.id}>
+                    {recipient.name}
+                  </option>
+                ))}
               </select>
               {visibleFields.length > 0 ? (
                 <div className="space-y-2">
@@ -666,10 +681,16 @@ export default function DocumentFieldPlottingPage() {
                         setSelectedFieldId(field.id)
                         setSelectedRecipientId(field.recipientId)
                       }}
-                      className={`w-full rounded-lg border p-2 text-left text-[11px] ${selectedFieldId === field.id ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-slate-50'}`}
+                      className={`w-full rounded-lg border p-2 text-left text-[11px] ${
+                        selectedFieldId === field.id ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-slate-50'
+                      }`}
                     >
-                      <span className="block font-semibold text-slate-700">{index + 1}. {field.recipientName}</span>
-                      <span className="block text-slate-500">Halaman {field.pageNumber} · X: {Math.round(field.posX)} · Y: {Math.round(field.posY)}</span>
+                      <span className="block font-semibold text-slate-700">
+                        {index + 1}. {field.recipientName}
+                      </span>
+                      <span className="block text-slate-500">
+                        Halaman {field.pageNumber} · X: {Math.round(field.posX)} · Y: {Math.round(field.posY)}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -678,20 +699,19 @@ export default function DocumentFieldPlottingPage() {
               )}
             </div>
 
-          {selectedField ? (
-            <div className="space-y-4 border-t pt-4">
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Ditugaskan Kepada</label>
-                <input
-                  type="text"
-                  disabled
-                  value={selectedField.recipientName}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs font-semibold text-slate-700"
-                />
+            {selectedField ? (
+              <div className="space-y-4 border-t pt-4">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Ditugaskan Kepada</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={selectedField.recipientName}
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs font-semibold text-slate-700"
+                  />
+                </div>
               </div>
-
-            </div>
-          ) : null}
+            ) : null}
           </div>
         </aside>
       </div>
