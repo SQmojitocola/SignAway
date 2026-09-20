@@ -11,6 +11,8 @@ interface FieldInput {
   height?: number
 }
 
+const PDF_VIEWPORT_SCALE = 1.25
+
 export async function POST(req: Request) {
   try {
     // 1. Cek Autentikasi Pengguna
@@ -60,16 +62,17 @@ export async function POST(req: Request) {
       ).id
     }
 
+    // 📍 NORMALISASI SKALA KOORDINAT (Dibagi 1.25 agar tersimpan dalam skala PDF murni 1.0)
     const normalizedFields = fields.map((field: FieldInput) => ({
       documentId,
       recipientId: field.recipientId === 'self' && selfRecipientId
         ? selfRecipientId
         : field.recipientId,
       pageNumber: field.pageNumber,
-      posX: field.posX,
-      posY: field.posY,
-      width: field.width || 150,
-      height: field.height || 60,
+      posX: field.posX / PDF_VIEWPORT_SCALE,
+      posY: field.posY / PDF_VIEWPORT_SCALE,
+      width: (field.width || 150) / PDF_VIEWPORT_SCALE,
+      height: (field.height || 60) / PDF_VIEWPORT_SCALE,
     }))
 
     if (send) {
@@ -88,7 +91,6 @@ export async function POST(req: Request) {
     }
 
     // 3. Simpan / Overwrite Fields dalam Transaksi Database
-    // Kita hapus plot lama jika ada, lalu masukkan plot koordinat yang baru
     const result = await prisma.$transaction(async (tx) => {
       await tx.documentField.deleteMany({ where: { documentId } })
       const createdFields = await tx.documentField.createMany({ data: normalizedFields })

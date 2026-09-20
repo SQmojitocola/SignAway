@@ -291,7 +291,7 @@ export default function DocumentDetailPage() {
             ))}
           </div>
 
-          {/* 📍 FRAME KARTU UNDUH DOKUMEN (Muncul jika COMPLETED) */}
+          {/* FRAME KARTU UNDUH DOKUMEN */}
           {isCompleted && (
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4 space-y-3">
               <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
