@@ -33,7 +33,7 @@ export default function Sidebar() {
             />
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="font-extrabold text-2xl leading-tight text-[#1e4273]">e-Sign</h2>
+            <h2 className="font-extrabold text-2xl leading-tight text-[#1e4273]">E-Sign</h2>
             <p className="text-[8px] font-medium text-blue-500  leading-tight truncate">
               Platform Tanda Tangan Digital
             </p>

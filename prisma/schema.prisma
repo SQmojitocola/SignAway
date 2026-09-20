@@ -44,6 +44,7 @@ model User {
   recipients    DocumentRecipient[]
 
   specimens UserSpecimen[]
+  contacts  Contact[]
 
   @@map("users")
 }
@@ -134,4 +135,14 @@ model DocumentField {
 
 datasource db {
   provider = "postgresql"
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  userId    String   // ID pemilik kontak
+  name      String
+  email     String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

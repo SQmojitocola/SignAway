@@ -27,7 +27,7 @@ export default function Sidebar() {
             </span>
           </div>
           <div>
-            <h1 className="text-lg font-bold text-white leading-tight">SurveyorSign</h1>
+            <h1 className="text-lg font-bold text-white leading-tight">E-Sign</h1>
             <p className="text-xs text-blue-200">Corporate Portal</p>
           </div>
         </div>
