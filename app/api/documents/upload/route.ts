@@ -6,7 +6,7 @@ import { auth } from '@/lib/auth'
 
 export async function POST(req: Request) {
   try {
-    // 1. Cek Verifikasi Session User
+    // 1. Verifikasi Session User Login
     const session = await auth()
     if (!session?.user?.id) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
@@ -14,7 +14,7 @@ export async function POST(req: Request) {
 
     const senderId = session.user.id
 
-    // 2. Parse FormData dari Request
+    // 2. Parse Form Data
     const formData = await req.formData()
     const file = formData.get('file') as File | null
     const title = (formData.get('title') as string) || 'Dokumen Tanpa Judul'
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
 
     const isSequential = sequentialRaw === 'true' || sequentialRaw === true
 
-    // 3. Simpan File PDF ke Directory Storage Lokal
+    // 3. Simpan Berkas PDF ke Folder Storage Local
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
 
@@ -40,27 +40,61 @@ export async function POST(req: Request) {
 
     await writeFile(absoluteFilePath, buffer)
 
-    // 4. Parse Daftar Recipient & Mapping ID User
-    let parsedRecipients: Array<{ userId: string }> = []
+    // 4. Parse & Cocokkan Recipient Email ke Tabel User Database
+    let rawRecipients: Array<{ userId?: string; email?: string }> = []
     if (recipientsRaw) {
       try {
-        parsedRecipients = JSON.parse(recipientsRaw)
+        rawRecipients = JSON.parse(recipientsRaw)
       } catch (e) {
-        console.error('Error parse recipients JSON:', e)
+        console.error('Error parsing recipients JSON:', e)
       }
     }
 
-    // 📍 Penanganan ID "self": Jika userId bernilai "self", ganti dengan ID sender yang login
-    const validRecipients = parsedRecipients.map((r) => {
-      const realUserId = r.userId === 'self' ? senderId : r.userId
-      return { userId: realUserId }
-    })
+    const resolvedUserIds: string[] = []
+    const missingRecipientEmails: string[] = []
 
-    // Pastikan sender dimasukkan jika belum ada di list resipien
-    const hasSender = validRecipients.some((r) => r.userId === senderId)
-    if (!hasSender) {
-      validRecipients.unshift({ userId: senderId })
+    for (const item of rawRecipients) {
+      let user = null
+
+      if (item.email?.trim()) {
+        user = await prisma.user.findFirst({
+          where: { email: { equals: item.email.trim(), mode: 'insensitive' } },
+          select: { id: true },
+        })
+      }
+
+      if (!user && item.userId && item.userId !== 'self' && !item.userId.startsWith('user-')) {
+        user = await prisma.user.findUnique({
+          where: { id: item.userId },
+          select: { id: true },
+        })
+      }
+
+      if (user) {
+        resolvedUserIds.push(user.id)
+      } else if (item.email?.trim()) {
+        missingRecipientEmails.push(item.email.trim())
+      }
     }
+
+    if (missingRecipientEmails.length > 0) {
+      return NextResponse.json(
+        {
+          message: 'Satu atau lebih penerima belum terdaftar sebagai pengguna',
+          emails: missingRecipientEmails,
+        },
+        { status: 400 }
+      )
+    }
+
+    // Pastikan ID Pengirim (sender) dimasukkan di urutan pertama jika belum ada
+    if (!resolvedUserIds.includes(senderId)) {
+      resolvedUserIds.unshift(senderId)
+    }
+
+    // Buat objek resipien tanpa duplikasi ID
+    const uniqueUserIds = Array.from(new Set(resolvedUserIds))
+    const validRecipients = uniqueUserIds.map((userId) => ({ userId }))
 
     // 5. Buat Dokumen & Recipient di Database Prisma
     const newDocument = await prisma.document.create({
@@ -75,7 +109,7 @@ export async function POST(req: Request) {
             userId: recipient.userId,
             role: recipient.userId === senderId ? 'Pengirim & Penandatangan' : 'Penandatangan',
             status: 'PENDING',
-            signingOrder: index + 1, // Urutan TTD berurutan (1, 2, 3...)[cite: 21]
+            signingOrder: index + 1,
           })),
         },
       },
