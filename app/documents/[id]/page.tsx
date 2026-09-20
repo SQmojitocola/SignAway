@@ -48,7 +48,7 @@ export default function DocumentDetailPage() {
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [pdfPages, setPdfPages] = useState<
-    Array<{ pageNumber: number; width: number; height: number; originalWidth: number; originalHeight: number }>
+    Array<{ pageNumber: number; width: number; height: number }>
   >([])
 
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({})
@@ -75,19 +75,16 @@ export default function DocumentDetailPage() {
         pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`
 
         const pdf = await pdfjs.getDocument(doc.filePath).promise
-        const pages: Array<{ pageNumber: number; width: number; height: number; originalWidth: number; originalHeight: number }> = []
+        const pages: Array<{ pageNumber: number; width: number; height: number }> = []
 
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i)
-          const unscaledViewport = page.getViewport({ scale: 1.0 })
           const viewport = page.getViewport({ scale: PDF_VIEWPORT_SCALE })
 
           pages.push({
             pageNumber: i,
             width: viewport.width,
             height: viewport.height,
-            originalWidth: unscaledViewport.width,
-            originalHeight: unscaledViewport.height,
           })
         }
 
@@ -121,7 +118,6 @@ export default function DocumentDetailPage() {
     }
   }, [doc?.filePath])
 
-  // Handler Unduh File via API Stream
   const handleDownload = async () => {
     if (!doc) return
     setDownloading(true)
@@ -158,7 +154,6 @@ export default function DocumentDetailPage() {
 
   return (
     <div className="flex h-screen w-full flex-col bg-slate-900 text-slate-100 overflow-hidden">
-      {/* Top Navbar */}
       <header className="flex h-14 items-center justify-between border-b border-slate-800 bg-slate-950 px-6 shrink-0">
         <div className="flex items-center gap-4">
           <button
@@ -174,7 +169,6 @@ export default function DocumentDetailPage() {
           </div>
         </div>
 
-        {/* Status Badge Pojok Kanan Atas */}
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-slate-400">STATUS:</span>
           <span
@@ -191,9 +185,7 @@ export default function DocumentDetailPage() {
         </div>
       </header>
 
-      {/* Main Container */}
       <div className="flex flex-1 overflow-hidden">
-        {/* PDF Viewer */}
         <main className="flex-1 overflow-auto bg-slate-900/80 p-8 flex justify-center items-start">
           <div className="flex flex-col items-center gap-8 pb-16">
             {pdfPages.map((page) => (
@@ -207,41 +199,31 @@ export default function DocumentDetailPage() {
               >
                 <canvas className="block" width={page.width} height={page.height} />
 
-                {/* 📍 OVERLAY KALIBRASI KOORDINAT FIELD TTD PRESISI */}
+                {/* 📍 RENDER OVERLAY FIELD SAMA PERSIS DENGAN CANVAS EDITOR */}
                 {doc.fields
                   ?.filter((f) => f.pageNumber === page.pageNumber)
-                  .map((field) => {
-                    const scaleFactor = page.width / page.originalWidth
-                    const scaledLeft = field.posX * scaleFactor
-                    const scaledTop = field.posY * scaleFactor
-                    const scaledWidth = field.width * scaleFactor
-                    const scaledHeight = field.height * scaleFactor
-
-                    return (
-                      <div
-                        key={field.id}
-                        className="absolute flex items-center justify-center rounded border-2 border-dashed border-blue-500 bg-blue-500/20 shadow-md backdrop-blur-[1px]"
-                        style={{
-                          left: `${scaledLeft}px`,
-                          top: `${scaledTop}px`,
-                          width: `${scaledWidth}px`,
-                          height: `${scaledHeight}px`,
-                        }}
-                      >
-                        <span className="text-[10px] font-bold text-blue-900 bg-white/80 px-1.5 py-0.5 rounded shadow-sm">
-                          {field.recipient?.user?.name || 'Tanda Tangan'}
-                        </span>
-                      </div>
-                    )
-                  })}
+                  .map((field) => (
+                    <div
+                      key={field.id}
+                      className="absolute flex items-center justify-center rounded border-2 border-dashed border-blue-500 bg-blue-500/20 shadow-md backdrop-blur-[1px]"
+                      style={{
+                        left: `${field.posX}px`,
+                        top: `${field.posY}px`,
+                        width: `${field.width}px`,
+                        height: `${field.height}px`,
+                      }}
+                    >
+                      <span className="text-[10px] font-bold text-blue-900 bg-white/80 px-1.5 py-0.5 rounded shadow-sm">
+                        {field.recipient?.user?.name || 'Tanda Tangan'}
+                      </span>
+                    </div>
+                  ))}
               </div>
             ))}
           </div>
         </main>
 
-        {/* Sidebar Kanan Info */}
         <aside className="w-80 border-l border-slate-800 bg-slate-950 p-5 flex flex-col gap-4 shrink-0 overflow-y-auto">
-          {/* Card Info Alasan Penolakan */}
           {isRejected && (
             <div className="rounded-xl border border-red-500/30 bg-red-950/40 p-4 space-y-2">
               <div className="flex items-center gap-2 text-xs font-bold text-red-400">
@@ -259,7 +241,6 @@ export default function DocumentDetailPage() {
             </div>
           )}
 
-          {/* Status Riwayat Penandatanganan */}
           <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 space-y-3">
             <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
               Riwayat Penandatanganan
@@ -291,7 +272,6 @@ export default function DocumentDetailPage() {
             ))}
           </div>
 
-          {/* FRAME KARTU UNDUH DOKUMEN */}
           {isCompleted && (
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4 space-y-3">
               <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">

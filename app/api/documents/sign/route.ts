@@ -68,13 +68,13 @@ export async function POST(req: Request) {
 
       const pageHeight = page.getHeight()
 
-      // 📍 Data di DB sudah skala 1.0, tinggal gunakan langsung
-      const realX = field.posX
-      const realY = field.posY
-      const realWidth = field.width || 120
-      const realHeight = field.height || 56
+      // 📍 KONVERSI DARI SKALA CANVAS VISUAL (1.25) KE SKALA PDF ASLI (1.0)
+      const realX = field.posX / 1.25
+      const realY = field.posY / 1.25
+      const realWidth = (field.width || 150) / 1.25
+      const realHeight = (field.height || 70) / 1.25
 
-      // 📍 Balik sumbu Y karena PDF-lib berpatokan dari KIRI-BAWAH
+      // 📍 Balik Sumbu Y karena PDF-lib berpatokan dari KIRI-BAWAH
       const drawX = realX
       const drawY = pageHeight - realY - realHeight
 

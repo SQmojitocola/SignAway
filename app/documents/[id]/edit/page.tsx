@@ -236,17 +236,9 @@ export default function DocumentFieldPlottingPage() {
         const fieldsData = await fieldsResponse.json()
         if (!fieldsResponse.ok) throw new Error(fieldsData.message || 'Gagal memuat posisi TTD')
 
+        // 📍 BACA KOORDINAT DARI DB APA ADANYA (SKALA 1:1 CANVAS)
         setFields(
-          fieldsData.fields.map((field: {
-            id: string
-            recipientId: string
-            recipient: { user: { id: string; name: string } }
-            pageNumber: number
-            posX: number
-            posY: number
-            width: number
-            height: number
-          }) => ({
+          fieldsData.fields.map((field: any) => ({
             id: field.id,
             recipientId: field.recipient.user.id === data.document.sender.id
               ? SELF_RECIPIENT_ID
@@ -276,7 +268,7 @@ export default function DocumentFieldPlottingPage() {
     const pageElement = pageRefs.current[pageNumber]
     if (!pageElement) return
     const rect = pageElement.getBoundingClientRect()
-    const posX = e.clientX - rect.left - 75 // Sentralkan kotak
+    const posX = e.clientX - rect.left - 75
     const posY = e.clientY - rect.top - 35
 
     const newField: SignatureField = {
@@ -297,7 +289,6 @@ export default function DocumentFieldPlottingPage() {
     setActiveRecipient(null)
   }
 
-  // Ambil Field yang Sedang Dipilih
   const selectedField = fields.find((f) => f.id === selectedFieldId)
   const visibleFields = selectedRecipientId
     ? fields.filter((field) => field.recipientId === selectedRecipientId)
@@ -306,7 +297,6 @@ export default function DocumentFieldPlottingPage() {
     fields.some((field) => field.recipientId === recipient.id)
   )
 
-  // Hapus Field TTD
   const handleDeleteField = (fieldId: string) => {
     const targetField = fields.find((f) => f.id === fieldId)
     if (targetField) {
@@ -340,7 +330,6 @@ export default function DocumentFieldPlottingPage() {
     }
   }
 
-  // Simpan Koordinat ke Database via API Backend
   const handleSaveFields = async (send = false) => {
     setLoadingSave(true)
     try {
@@ -468,9 +457,8 @@ export default function DocumentFieldPlottingPage() {
         </div>
       </header>
 
-      {/* Main Workspace (3 Kolom Grid) */}
+      {/* Main Workspace */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Panel Kiri: Daftar Penandatangan */}
         <aside className="w-72 border-r bg-white p-4 space-y-6 overflow-y-auto">
           <div>
             <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Instruksi</h3>
@@ -533,7 +521,6 @@ export default function DocumentFieldPlottingPage() {
           </div>
         </aside>
 
-        {/* Panel Tengah: Pratinjau Dokumen PDF */}
         <main className="flex-1 bg-slate-200/70 p-8 overflow-y-auto flex justify-center">
           <div ref={pdfContainerRef} className="flex flex-col items-center gap-4 pb-8">
             {pdfPages.map((page) => (
@@ -647,7 +634,6 @@ export default function DocumentFieldPlottingPage() {
           </div>
         </main>
 
-        {/* Panel Kanan: Properti Tanda Tangan */}
         <aside className="w-64 border-l bg-white p-4 space-y-6">
           <h3 className="text-xs font-bold text-slate-800 border-b pb-2">Properti Tanda Tangan</h3>
 

@@ -11,8 +11,6 @@ interface FieldInput {
   height?: number
 }
 
-const PDF_VIEWPORT_SCALE = 1.25
-
 export async function POST(req: Request) {
   try {
     // 1. Cek Autentikasi Pengguna
@@ -25,12 +23,12 @@ export async function POST(req: Request) {
 
     if (!documentId || !fields || !Array.isArray(fields)) {
       return NextResponse.json(
-        { message: 'Data documentId dan fields (array) wajib diisi' },
+        { message: 'Data documentId dan fields wajib diisi' },
         { status: 400 }
       )
     }
 
-    // 2. Cek Apakah Dokumen Ada dan Milik User Ini (Hanya pengirim yang boleh plot TTD)
+    // 2. Cek Dokumen di Database
     const document = await prisma.document.findUnique({
       where: { id: documentId },
       include: { recipients: true },
@@ -49,6 +47,7 @@ export async function POST(req: Request) {
 
     const hasSelfFields = fields.some((field: FieldInput) => field.recipientId === 'self')
     let selfRecipientId: string | null = null
+
     if (hasSelfFields) {
       const selfRecipient = await prisma.documentRecipient.findFirst({
         where: { documentId, userId: document.senderId },
@@ -62,35 +61,20 @@ export async function POST(req: Request) {
       ).id
     }
 
-    // 📍 NORMALISASI SKALA KOORDINAT (Dibagi 1.25 agar tersimpan dalam skala PDF murni 1.0)
+    // 📍 SIMPAN KOORDINAT APA ADANYA SESUAI PIKSEL VISUAL CANVAS (SKALA 1:1)
     const normalizedFields = fields.map((field: FieldInput) => ({
       documentId,
       recipientId: field.recipientId === 'self' && selfRecipientId
         ? selfRecipientId
         : field.recipientId,
       pageNumber: field.pageNumber,
-      posX: field.posX / PDF_VIEWPORT_SCALE,
-      posY: field.posY / PDF_VIEWPORT_SCALE,
-      width: (field.width || 150) / PDF_VIEWPORT_SCALE,
-      height: (field.height || 60) / PDF_VIEWPORT_SCALE,
+      posX: field.posX,
+      posY: field.posY,
+      width: field.width || 150,
+      height: field.height || 70,
     }))
 
-    if (send) {
-      const externalRecipients = document.recipients.filter(
-        (recipient) => recipient.userId !== document.senderId
-      )
-      const incompleteRecipient = externalRecipients.find(
-        (recipient) => !normalizedFields.some((field) => field.recipientId === recipient.id)
-      )
-      if (incompleteRecipient) {
-        return NextResponse.json(
-          { message: 'Setiap resipien harus memiliki minimal satu field tanda tangan' },
-          { status: 400 }
-        )
-      }
-    }
-
-    // 3. Simpan / Overwrite Fields dalam Transaksi Database
+    // 3. Simpan / Overwrite Field
     const result = await prisma.$transaction(async (tx) => {
       await tx.documentField.deleteMany({ where: { documentId } })
       const createdFields = await tx.documentField.createMany({ data: normalizedFields })
@@ -130,7 +114,6 @@ export async function POST(req: Request) {
   }
 }
 
-// Endpoint GET untuk mengambil data field yang sudah tersimpan
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
