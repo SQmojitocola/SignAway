@@ -53,8 +53,8 @@ export default function LoginForm() {
               priority
             />
           </div>
-          <h1 className="mt-2 text-xl font-extrabold text-blue-900">e-Sign</h1>
-          <p className="text-xs font-medium text-slate-500">Platform Tanda Tangan Digital</p>
+          <h1 className="mt-2 text-xl font-extrabold text-blue-900">E-Sign</h1>
+          <p className="text-xs font-medium text-slate-500">Document Approval Management</p>
         </div>
 
         {error && <div className="mb-4 rounded-lg bg-red-50 p-2.5 text-xs text-red-600 border border-red-200">{error}</div>}
