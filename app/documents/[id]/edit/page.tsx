@@ -6,12 +6,11 @@ import { ArrowLeft, CheckCircle2, AlertTriangle, Send, Save, PenTool, X } from '
 
 interface Recipient {
   id: string
+  userId: string
   name: string
   email: string
   role?: string
 }
-
-const SELF_RECIPIENT_ID = 'self'
 
 interface SignatureField {
   id: string
@@ -50,7 +49,6 @@ export default function DocumentFieldPlottingPage() {
   const [documentTitle, setDocumentTitle] = useState('Memuat dokumen...')
   const [documentPath, setDocumentPath] = useState<string | null>(null)
   const [recipients, setRecipients] = useState<Recipient[]>([])
-  const [selfRecipient, setSelfRecipient] = useState<Recipient | null>(null)
 
   // State Plotting
   const [fields, setFields] = useState<SignatureField[]>([])
@@ -69,6 +67,7 @@ export default function DocumentFieldPlottingPage() {
   const fieldElementsRef = useRef<Record<string, HTMLDivElement | null>>({})
   const interactionRef = useRef<FieldInteraction | null>(null)
 
+  // 1. Render PDF.js Viewport
   useEffect(() => {
     if (!documentPath) return
 
@@ -101,6 +100,7 @@ export default function DocumentFieldPlottingPage() {
     }
   }, [documentPath])
 
+  // 2. Render Canvas Per Halaman
   useEffect(() => {
     if (!documentPath || pdfPages.length === 0) return
 
@@ -137,6 +137,7 @@ export default function DocumentFieldPlottingPage() {
     }
   }, [documentPath, pdfPages])
 
+  // 3. Prevent Unsaved Departure
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       if (hasUnsavedChanges) {
@@ -151,6 +152,7 @@ export default function DocumentFieldPlottingPage() {
     }
   }, [hasUnsavedChanges])
 
+  // 4. Drag & Resize Interaction Listener
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
       const interaction = interactionRef.current
@@ -208,6 +210,7 @@ export default function DocumentFieldPlottingPage() {
     }
   }, [])
 
+  // 5. Load Data Dokumen & Field
   useEffect(() => {
     const loadDocument = async () => {
       try {
@@ -217,33 +220,28 @@ export default function DocumentFieldPlottingPage() {
 
         setDocumentTitle(data.document.title)
         setDocumentPath(data.document.filePath)
-        setSelfRecipient({
-          id: SELF_RECIPIENT_ID,
-          name: data.document.sender.name,
-          email: data.document.sender.email,
-        })
-        setRecipients(
-          data.document.recipients
-            .filter((recipient: { user: { id: string } }) => recipient.user.id !== data.document.sender.id)
-            .map((recipient: { id: string; user: { id: string; name: string; email: string } }) => ({
-              id: recipient.id,
-              name: recipient.user.name,
-              email: recipient.user.email,
-            }))
-        )
 
+        // 📍 AMBIL TERBATAS DARI RESIPIEN YANG DIDAFTARKAN SAAT UPLOAD (DATABASE)
+        const validRecipients: Recipient[] = data.document.recipients.map((r: any) => ({
+          id: r.id,
+          userId: r.userId,
+          name: r.user.id === data.document.sender.id ? `${r.user.name} (Saya)` : r.user.name,
+          email: r.user.email,
+          role: r.role,
+        }))
+
+        setRecipients(validRecipients)
+
+        // Load Field Koordinat dari DB
         const fieldsResponse = await fetch(`/api/documents/fields?documentId=${documentId}`)
         const fieldsData = await fieldsResponse.json()
         if (!fieldsResponse.ok) throw new Error(fieldsData.message || 'Gagal memuat posisi TTD')
 
-        // 📍 BACA KOORDINAT DARI DB APA ADANYA (SKALA 1:1 CANVAS)
         setFields(
           fieldsData.fields.map((field: any) => ({
             id: field.id,
-            recipientId: field.recipient.user.id === data.document.sender.id
-              ? SELF_RECIPIENT_ID
-              : field.recipientId,
-            recipientName: field.recipient.user.name,
+            recipientId: field.recipientId,
+            recipientName: field.recipient?.user?.name || 'Penandatangan',
             type: 'SIGNATURE',
             pageNumber: field.pageNumber,
             posX: field.posX,
@@ -293,6 +291,7 @@ export default function DocumentFieldPlottingPage() {
   const visibleFields = selectedRecipientId
     ? fields.filter((field) => field.recipientId === selectedRecipientId)
     : fields
+
   const canSend = recipients.length > 0 && recipients.every((recipient) =>
     fields.some((field) => field.recipientId === recipient.id)
   )
@@ -351,6 +350,7 @@ export default function DocumentFieldPlottingPage() {
 
   return (
     <div className="flex h-screen flex-col bg-slate-100">
+      {/* Dialog Unsaved Changes */}
       {showLeaveDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
@@ -388,7 +388,7 @@ export default function DocumentFieldPlottingPage() {
         </div>
       )}
 
-      {/* Top Navbar Editor */}
+      {/* Header Bar */}
       <header className="flex h-16 items-center justify-between border-b bg-white px-6">
         <div className="flex items-center gap-3">
           <button
@@ -459,6 +459,7 @@ export default function DocumentFieldPlottingPage() {
 
       {/* Main Workspace */}
       <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar Kiri: Daftar Penandatangan */}
         <aside className="w-72 border-r bg-white p-4 space-y-6 overflow-y-auto">
           <div>
             <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Instruksi</h3>
@@ -470,7 +471,7 @@ export default function DocumentFieldPlottingPage() {
           <div className="space-y-3">
             <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Daftar Penandatangan</h3>
 
-            {[...(selfRecipient ? [selfRecipient] : []), ...recipients].map((recipient, idx) => (
+            {recipients.map((recipient, idx) => (
               <div
                 key={recipient.id}
                 className={`p-3 rounded-xl border transition-all ${
@@ -481,12 +482,10 @@ export default function DocumentFieldPlottingPage() {
               >
                 <div className="flex items-center gap-2.5">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-xs font-bold text-slate-600">
-                    {recipient.id === SELF_RECIPIENT_ID ? 'Saya' : idx}
+                    {idx + 1}
                   </span>
                   <div>
-                    <p className="text-xs font-bold text-slate-800">
-                      {recipient.id === SELF_RECIPIENT_ID ? 'Saya' : recipient.name}
-                    </p>
+                    <p className="text-xs font-bold text-slate-800">{recipient.name}</p>
                     <p className="text-[10px] text-slate-500">{recipient.email}</p>
                   </div>
                 </div>
@@ -521,6 +520,7 @@ export default function DocumentFieldPlottingPage() {
           </div>
         </aside>
 
+        {/* Panel Tengah: Canvas PDF */}
         <main className="flex-1 bg-slate-200/70 p-8 overflow-y-auto flex justify-center">
           <div ref={pdfContainerRef} className="flex flex-col items-center gap-4 pb-8">
             {pdfPages.map((page) => (
@@ -634,6 +634,7 @@ export default function DocumentFieldPlottingPage() {
           </div>
         </main>
 
+        {/* Sidebar Kanan: Properti TTD */}
         <aside className="w-64 border-l bg-white p-4 space-y-6">
           <h3 className="text-xs font-bold text-slate-800 border-b pb-2">Properti Tanda Tangan</h3>
 
@@ -650,13 +651,13 @@ export default function DocumentFieldPlottingPage() {
                 className="mb-3 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs text-slate-700"
               >
                 <option value="">Semua penandatangan</option>
-                {selfRecipient && <option value={SELF_RECIPIENT_ID}>Saya</option>}
                 {recipients.map((recipient) => (
                   <option key={recipient.id} value={recipient.id}>
                     {recipient.name}
                   </option>
                 ))}
               </select>
+
               {visibleFields.length > 0 ? (
                 <div className="space-y-2">
                   {visibleFields.map((field, index) => (
