@@ -50,12 +50,12 @@ export async function POST(req: Request) {
     const pdfBytes = await readFile(absolutePdfPath)
     const pdfDoc = await PDFDocument.load(pdfBytes)
 
-    // Embed Tanda Tangan PNG
+    // Embed Gambar Tanda Tangan PNG
     const base64Data = signatureImageBase64.replace(/^data:image\/png;base64,/, '')
     const signatureImageBytes = Buffer.from(base64Data, 'base64')
     const embeddedImage = await pdfDoc.embedPng(signatureImageBytes)
 
-    // Stamping TTD
+    // Stamping TTD dengan Aspect Ratio Protection
     fields.forEach((field: any) => {
       const pageNum = field.pageNumber || 1
       const pageIndex = Math.max(0, pageNum - 1)
@@ -67,7 +67,6 @@ export async function POST(req: Request) {
       const boxWidth = (field.width || 150) / 1.25
       const boxHeight = (field.height || 70) / 1.25
 
-      // Maintain Aspect Ratio
       const scale = Math.min(boxWidth / embeddedImage.width, boxHeight / embeddedImage.height)
       const drawWidth = embeddedImage.width * scale
       const drawHeight = embeddedImage.height * scale
@@ -83,11 +82,17 @@ export async function POST(req: Request) {
       })
     })
 
-    // 📍 1. MEMBUAT QR CODE UNTUK FOOTER VERIFIKATOR
+    // 📍 1. GENERATE QR CODE HIGH RESOLUTION (400px agar tajam & tidak pecah saat discaling)
     const host = req.headers.get('host') || 'localhost:3000'
     const protocol = host.includes('localhost') ? 'http' : 'https'
     const verifyUrl = `${protocol}://${host}/verify/${document.id}`
-    const qrCodeDataUrl = await QRCode.toDataURL(verifyUrl, { margin: 1, width: 80 })
+
+    const qrCodeDataUrl = await QRCode.toDataURL(verifyUrl, {
+      margin: 1,
+      width: 400, // Dimensi sumber tinggi untuk efek Retina Display
+      errorCorrectionLevel: 'H', // Presisi bentuk QR tinggi
+    })
+
     const qrBase64 = qrCodeDataUrl.replace(/^data:image\/png;base64,/, '')
     const embeddedQrImage = await pdfDoc.embedPng(Buffer.from(qrBase64, 'base64'))
 
@@ -95,58 +100,58 @@ export async function POST(req: Request) {
     const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica)
 
     // 📍 2. STAMPING FOOTER DI SETIAP HALAMAN
-    const totalPages = pdfDoc.getPageCount()
-    for (let i = 0; i < totalPages; i++) {
-      const page = pdfDoc.getPage(i)
-      const { width } = page.getSize()
+const totalPages = pdfDoc.getPageCount()
+for (let i = 0; i < totalPages; i++) {
+  const page = pdfDoc.getPage(i)
+  const { width } = page.getSize()
 
-      // Gambar Garis Pembatas Tipis di Bawah Halaman
-      page.drawLine({
-        start: { x: 30, y: 35 },
-        end: { x: width - 30, y: 35 },
-        thickness: 0.5,
-        color: rgb(0.85, 0.88, 0.92),
-      })
+  // Garis Pembatas Tipis Footer
+  page.drawLine({
+    start: { x: 30, y: 42 },
+    end: { x: width - 30, y: 42 },
+    thickness: 0.5,
+    color: rgb(0.85, 0.88, 0.92),
+  })
 
-      // Tempel QR Code Kecil di Kiri Bawah
-      page.drawImage(embeddedQrImage, {
-        x: 30,
-        y: 10,
-        width: 22,
-        height: 22,
-      })
+  // 📍 TEMPEL QR CODE DENGAN UKURAN LEBIH BESAR (32x32 pt)
+  page.drawImage(embeddedQrImage, {
+    x: 30,
+    y: 7,
+    width: 42,  // 👈 Diperbesar dari 22 ke 32
+    height: 42, // 👈 Diperbesar dari 22 ke 32
+  })
 
-      // Teks Kiri: SHA-256 Audit Trail (Warna Hijau Pudar & Abu-abu)
-      page.drawText('SHA-256 Audit Trail Verified', {
-        x: 58,
-        y: 22,
-        size: 7,
-        font: helveticaBold,
-        color: rgb(0.05, 0.6, 0.35), // Hijau pudar terverifikasi
-      })
+  // 📍 TEKS KIRI: SHA-256 Audit Trail (Digeser posisi X nya dari 58 ke 70)
+  page.drawText('SHA-256 Audit Trail Verified', {
+    x: 70,      // 👈 Digeser ke kanan agar tidak menabrak QR Code
+    y: 22,
+    size: 7.5,
+    font: helveticaBold,
+    color: rgb(0.05, 0.6, 0.35),
+  })
 
-      page.drawText('• Dokumen sah & terdaftar secara digital', {
-        x: 165,
-        y: 22,
-        size: 7,
-        font: helvetica,
-        color: rgb(0.5, 0.55, 0.6),
-      })
+  page.drawText('• Dokumen sah & terdaftar secara digital', {
+    x: 182,     // 👈 Digeser menyesuaikan teks di kirinya
+    y: 22,
+    size: 7.5,
+    font: helvetica,
+    color: rgb(0.5, 0.55, 0.6),
+  })
 
-      // Teks Kanan: DOC-ID
-      const docIdText = `DOC-ID: ${document.id.toUpperCase().slice(0, 18)}`
-      const docIdWidth = helveticaBold.widthOfTextAtSize(docIdText, 7)
+  // Teks Kanan: DOC-ID
+  const docIdText = `DOC-ID: ${document.id.toUpperCase().slice(0, 18)}`
+  const docIdWidth = helveticaBold.widthOfTextAtSize(docIdText, 7.5)
 
-      page.drawText(docIdText, {
-        x: width - 30 - docIdWidth,
-        y: 22,
-        size: 7,
-        font: helveticaBold,
-        color: rgb(0.4, 0.45, 0.5),
-      })
-    }
+  page.drawText(docIdText, {
+    x: width - 30 - docIdWidth,
+    y: 22,
+    size: 7.5,
+    font: helveticaBold,
+    color: rgb(0.4, 0.45, 0.5),
+  })
+}
 
-    // 📍 3. HITUNG HASH SHA-256 KRIPTOGRAFI UNTUK DOKUMEN FINAL
+    // 📍 3. KALKULASI HASH SHA-256 KRIPTOGRAFI DOKUMEN FINAL
     const updatedPdfBytes = await pdfDoc.save()
     const finalDocumentHash = crypto.createHash('sha256').update(updatedPdfBytes).digest('hex')
 
@@ -179,12 +184,12 @@ export async function POST(req: Request) {
         where: { id: document.id },
         data: {
           status: newDocStatus,
-          checksum: finalDocumentHash, // Simpan Hash SHA-256 di DB
+          checksum: finalDocumentHash,
         },
       })
     })
 
-    return NextResponse.json({ message: 'Tanda tangan & stempel berhasil' }, { status: 200 })
+    return NextResponse.json({ message: 'Tanda tangan & stempel footer berhasil ditambahkan' }, { status: 200 })
   } catch (error) {
     console.error('PDF Stamping Error:', error)
     return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 })
