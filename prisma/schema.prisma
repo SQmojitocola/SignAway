@@ -69,15 +69,17 @@ model UserSpecimen {
 
 //tabel Dokumen
 model Document {
-  id         String         @id @default(uuid())
-  title      String
-  filePath   String         @map("file_path")
-  fileSize   Int            @default(0) @map("file_size")
-  senderId   String         @map("sender_id")
-  status     DocumentStatus @default(PENDING)
-  sequential Boolean        @default(false)
-  rejectReason String? @map("reject_reason")
-  createdAt  DateTime       @default(now()) @map("created_at")
+  id            String         @id @default(uuid())
+  title         String
+  filePath      String         @map("file_path")
+  fileSize      Int            @default(0) @map("file_size")
+  senderId      String         @map("sender_id")
+  status        DocumentStatus @default(PENDING)
+  sequential    Boolean        @default(false)
+  rejectReason  String?        @map("reject_reason")
+  checksum      String?
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at")
 
   sender     User                @relation("SenderRelation", fields: [senderId], references: [id])
   recipients DocumentRecipient[]
