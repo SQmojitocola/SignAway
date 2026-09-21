@@ -117,12 +117,12 @@ for (let i = 0; i < totalPages; i++) {
   page.drawImage(embeddedQrImage, {
     x: 30,
     y: 7,
-    width: 42,  // 👈 Diperbesar dari 22 ke 32
-    height: 42, // 👈 Diperbesar dari 22 ke 32
+    width: 27,  // 👈 Diperbesar dari 22 ke 32
+    height: 27, // 👈 Diperbesar dari 22 ke 32
   })
 
   // 📍 TEKS KIRI: SHA-256 Audit Trail (Digeser posisi X nya dari 58 ke 70)
-  page.drawText('SHA-256 Audit Trail Verified', {
+  page.drawText('SHA-256 Tanda Tangan Terverifikasi', {
     x: 70,      // 👈 Digeser ke kanan agar tidak menabrak QR Code
     y: 22,
     size: 7.5,
@@ -131,8 +131,8 @@ for (let i = 0; i < totalPages; i++) {
   })
 
   page.drawText('• Dokumen sah & terdaftar secara digital', {
-    x: 182,     // 👈 Digeser menyesuaikan teks di kirinya
-    y: 22,
+    x: 70,
+    y: 12,
     size: 7.5,
     font: helvetica,
     color: rgb(0.5, 0.55, 0.6),
