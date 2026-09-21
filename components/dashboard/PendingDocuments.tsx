@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, Clock3, FileText, Search, SlidersHorizontal, Upload, XCircle } from 'lucide-react'
+import { CheckCircle2, Clock3, FileText, Search, Upload, XCircle } from 'lucide-react'
 
 export interface DashboardDocument {
   id: string
@@ -49,17 +49,17 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<DashboardCategory>('waiting')
-  const [seenDocs, setSeenDocs] = useState<Record<string, boolean>>({})
-
-  useEffect(() => {
-    setSeenDocs(readSeenDocs())
-  }, [])
+  const [statusFilter, setStatusFilter] = useState('ALL')
+  const [senderFilter, setSenderFilter] = useState('ALL')
+  const [recipientFilter, setRecipientFilter] = useState('ALL')
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest')
+  const [seenDocs, setSeenDocs] = useState<Record<string, boolean>>(readSeenDocs)
 
   const markDocAsSeen = (docId: string) => {
     const next = { ...seenDocs, [docId]: true }
     setSeenDocs(next)
     if (typeof window !== 'undefined') {
-      window.localStorage.getItem && window.localStorage.setItem(DASHBOARD_SEEN_KEY, JSON.stringify(next))
+      window.localStorage.setItem(DASHBOARD_SEEN_KEY, JSON.stringify(next))
     }
   }
 
@@ -81,21 +81,43 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
     return { waiting, uploaded, rejected, completed }
   }, [documents, userId])
 
-  // Filter daftar dokumen berdasarkan tab aktif
+  const senderOptions = useMemo(() => {
+    const senders = new Map(documents.map((doc) => [doc.sender.id, doc.sender]))
+    return Array.from(senders.values()).sort((first, second) => first.name.localeCompare(second.name))
+  }, [documents])
+
+  const recipientOptions = useMemo(() => {
+    const recipients = new Map(
+      documents.flatMap((doc) => doc.recipients.map((recipient) => [recipient.user.id, recipient.user] as const))
+    )
+    return Array.from(recipients.values()).sort((first, second) => first.name.localeCompare(second.name))
+  }, [documents])
+
+  // Filter dan urutkan daftar dokumen berdasarkan tab aktif.
   const filteredDocs = useMemo(() => {
-    const query = search.toLowerCase()
+    const query = search.trim().toLowerCase()
 
     const base = documents.filter((doc) => {
+      const recipientText = doc.recipients
+        .map((recipient) => `${recipient.user.name} ${recipient.user.email}`)
+        .join(' ')
       const matchesText =
         doc.title.toLowerCase().includes(query) ||
         doc.sender.name.toLowerCase().includes(query) ||
-        doc.sender.email.toLowerCase().includes(query)
+        doc.sender.email.toLowerCase().includes(query) ||
+        recipientText.toLowerCase().includes(query) ||
+        doc.status.toLowerCase().includes(query) ||
+        doc.id.toLowerCase().includes(query)
 
-      if (!query) return true
-      return matchesText
+      const matchesStatus = statusFilter === 'ALL' || doc.status === statusFilter
+      const matchesSender = senderFilter === 'ALL' || doc.sender.id === senderFilter
+      const matchesRecipient = recipientFilter === 'ALL' || doc.recipients.some((recipient) => recipient.user.id === recipientFilter)
+
+      return matchesText && matchesStatus && matchesSender && matchesRecipient
     })
 
-    switch (selectedCategory) {
+    const categorized = (() => {
+      switch (selectedCategory) {
       case 'waiting':
         return base.filter((doc) =>
           doc.recipients.some((recipient) => recipient.user.id === userId && (recipient.status === 'WAITING' || recipient.status === 'PENDING'))
@@ -110,8 +132,15 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
         )
       default:
         return base
-    }
-  }, [documents, search, selectedCategory, userId])
+      }
+    })()
+
+    return categorized.sort((first, second) => {
+      const firstTime = new Date(first.createdAt).getTime()
+      const secondTime = new Date(second.createdAt).getTime()
+      return sortOrder === 'newest' ? secondTime - firstTime : firstTime - secondTime
+    })
+  }, [documents, search, selectedCategory, statusFilter, senderFilter, recipientFilter, sortOrder, userId])
 
   const panelTitle = {
     waiting: 'Dokumen Menunggu Tanda Tangan',
@@ -166,17 +195,37 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
         <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100">
           <h3 className="text-sm font-bold text-slate-800">{panelTitle}</h3>
 
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1 sm:w-60">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 w-full lg:w-auto">
+            <div className="relative sm:col-span-2 lg:col-span-1">
               <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
               <input
                 type="text"
-                placeholder="Cari dokumen..."
+                placeholder="Cari dokumen, pengirim..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600"
+                className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600"
               />
             </div>
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="border border-slate-200 rounded-xl px-3 py-2 text-xs outline-none focus:border-blue-600">
+              <option value="ALL">Semua status</option>
+              <option value="DRAFT">Draft</option>
+              <option value="PENDING">Menunggu</option>
+              <option value="PARTIAL_SIGNED">Sebagian ditandatangani</option>
+              <option value="COMPLETED">Selesai</option>
+              <option value="REJECTED">Ditolak</option>
+            </select>
+            <select value={senderFilter} onChange={(event) => setSenderFilter(event.target.value)} className="border border-slate-200 rounded-xl px-3 py-2 text-xs outline-none focus:border-blue-600">
+              <option value="ALL">Semua pengirim</option>
+              {senderOptions.map((sender) => <option key={sender.id} value={sender.id}>{sender.name}</option>)}
+            </select>
+            <select value={recipientFilter} onChange={(event) => setRecipientFilter(event.target.value)} className="border border-slate-200 rounded-xl px-3 py-2 text-xs outline-none focus:border-blue-600">
+              <option value="ALL">Semua penerima</option>
+              {recipientOptions.map((recipient) => <option key={recipient.id} value={recipient.id}>{recipient.name}</option>)}
+            </select>
+            <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value as 'newest' | 'oldest')} className="border border-slate-200 rounded-xl px-3 py-2 text-xs outline-none focus:border-blue-600">
+              <option value="newest">Terbaru</option>
+              <option value="oldest">Terlama</option>
+            </select>
           </div>
         </div>
 
