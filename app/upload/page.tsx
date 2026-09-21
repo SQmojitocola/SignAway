@@ -20,6 +20,7 @@ export default function UploadDocumentPage() {
   // State File & Konten
   const [file, setFile] = useState<File | null>(null)
   const [fileBase64, setFileBase64] = useState<string>('')
+  const [isDraggingFile, setIsDraggingFile] = useState(false)
   
   // State Kontak & Penandatangan
   const [savedContacts, setSavedContacts] = useState<Recipient[]>([])
@@ -48,11 +49,11 @@ export default function UploadDocumentPage() {
       .catch(() => undefined)
   }, [])
 
-  // Handle Pilih PDF
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0]
+  const validateAndSetFile = (selectedFile: File | null) => {
     if (!selectedFile) return
-    if (selectedFile.type !== 'application/pdf') {
+
+    const isPdf = selectedFile.type === 'application/pdf' || selectedFile.name.toLowerCase().endsWith('.pdf')
+    if (!isPdf) {
       setError('Hanya file PDF yang diperbolehkan.')
       return
     }
@@ -62,6 +63,29 @@ export default function UploadDocumentPage() {
     const reader = new FileReader()
     reader.onloadend = () => setFileBase64(reader.result as string)
     reader.readAsDataURL(selectedFile)
+  }
+
+  // Handle Pilih PDF
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0]
+    validateAndSetFile(selectedFile)
+    e.target.value = ''
+  }
+
+  const handleDropFile = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsDraggingFile(false)
+    validateAndSetFile(event.dataTransfer.files?.[0] ?? null)
+  }
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsDraggingFile(true)
+  }
+
+  const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsDraggingFile(false)
   }
 
   // Cari Kontak via API
@@ -160,12 +184,17 @@ export default function UploadDocumentPage() {
             {!file ? (
               <div 
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-blue-200 rounded-2xl p-10 text-center cursor-pointer hover:bg-blue-50/50"
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDropFile}
+                className={`border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition ${
+                  isDraggingFile ? 'border-blue-600 bg-blue-50/70' : 'border-blue-200 hover:bg-blue-50/50'
+                }`}
               >
                 <input type="file" ref={fileInputRef} accept="application/pdf" className="hidden" onChange={handleFileChange} />
                 <UploadCloud className="mx-auto w-12 h-12 text-blue-600 mb-3" />
                 <p className="text-sm font-semibold text-slate-700">
-                  Tarik & lepas dokumen di sini, atau <span className="text-blue-600 underline">telusuri berkas</span>
+                  {isDraggingFile ? 'Lepaskan file PDF di sini' : 'Tarik & lepas dokumen di sini, atau '}<span className="text-blue-600 underline">{isDraggingFile ? 'siap diunggah' : 'telusuri berkas'}</span>
                 </p>
                 <p className="text-xs text-slate-400 mt-1">Format PDF maks 25MB</p>
               </div>
@@ -180,7 +209,7 @@ export default function UploadDocumentPage() {
                       <p className="text-[11px] text-blue-200">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
                     </div>
                   </div>
-                  <button onClick={() => { setFile(null); setFileBase64(''); setDraftDocumentId(undefined) }} className="text-red-400 hover:text-red-200">
+                  <button onClick={() => { setFile(null); setFileBase64(''); if (fileInputRef.current) fileInputRef.current.value = '' }} className="text-red-400 hover:text-red-200">
                     <Trash2 className="w-5 h-5" />
                   </button>
                 </div>
