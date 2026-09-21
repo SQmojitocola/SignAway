@@ -4,7 +4,16 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { signOut } from 'next-auth/react'
-import { LayoutDashboard, Users, Upload, Settings, LogOut, FolderOpen, PenTool } from 'lucide-react'
+import { 
+  LayoutDashboard, 
+  Users, 
+  Upload, 
+  Settings, 
+  LogOut, 
+  FolderOpen, 
+  PenTool, 
+  ShieldCheck // 📍 Import ikon Verifikasi
+} from 'lucide-react'
 
 export default function Sidebar() {
   const pathname = usePathname()
@@ -14,8 +23,9 @@ export default function Sidebar() {
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Draft', href: '/drafts', icon: FolderOpen },
     { name: 'Atribut Pengesahan', href: '/specimens', icon: PenTool },
-    { name: 'Daftar Kontak', href: '/contacts', icon: Users }, // 📍 MENGGANTIKAN ALL DOCUMENTS
+    { name: 'Daftar Kontak', href: '/contacts', icon: Users },
     { name: 'Upload', href: '/upload', icon: Upload },
+    { name: 'Verifikasi Dokumen', href: '/verify/check', icon: ShieldCheck }, // 📍 MENU BARU DITAMBAHKAN
   ]
 
   return (
@@ -44,7 +54,8 @@ export default function Sidebar() {
         <nav className="space-y-2 text-sm">
           {menuItems.map((item) => {
             const Icon = item.icon
-            const isActive = pathname === item.href
+            // Menandai menu aktif jika pathname persis sama atau diawali jalur tersebut
+            const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
 
             return (
               <Link
