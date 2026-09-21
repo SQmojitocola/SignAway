@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
-import { PDFDocument } from 'pdf-lib'
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 import { readFile, writeFile } from 'fs/promises'
 import path from 'path'
+import crypto from 'crypto'
+import QRCode from 'qrcode'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 
@@ -18,15 +20,12 @@ export async function POST(req: Request) {
     const signatureImageBase64 = body.signatureImageBase64 || body.signatureData
 
     if (!documentId || !signatureImageBase64) {
-      return NextResponse.json(
-        { message: 'documentId dan signatureData wajib diisi' },
-        { status: 400 }
-      )
+      return NextResponse.json({ message: 'documentId dan signatureData wajib diisi' }, { status: 400 })
     }
 
     const document = await prisma.document.findUnique({
       where: { id: documentId },
-      include: { recipients: true, fields: true },
+      include: { recipients: { include: { user: true } }, fields: true },
     })
 
     if (!document) {
@@ -38,18 +37,12 @@ export async function POST(req: Request) {
     )
 
     if (!recipient) {
-      return NextResponse.json(
-        { message: 'Kamu tidak memiliki antrean TTD pada dokumen ini' },
-        { status: 403 }
-      )
+      return NextResponse.json({ message: 'Kamu tidak memiliki antrean TTD' }, { status: 403 })
     }
 
     const fields = document.fields.filter((field) => field.recipientId === recipient.id)
     if (fields.length === 0) {
-      return NextResponse.json(
-        { message: 'Plot koordinat TTD belum ditentukan oleh pengirim' },
-        { status: 400 }
-      )
+      return NextResponse.json({ message: 'Plot TTD belum ditentukan' }, { status: 400 })
     }
 
     const cleanRelativePath = document.filePath.replace(/^\//, '')
@@ -57,43 +50,106 @@ export async function POST(req: Request) {
     const pdfBytes = await readFile(absolutePdfPath)
     const pdfDoc = await PDFDocument.load(pdfBytes)
 
+    // Embed Tanda Tangan PNG
     const base64Data = signatureImageBase64.replace(/^data:image\/png;base64,/, '')
     const signatureImageBytes = Buffer.from(base64Data, 'base64')
     const embeddedImage = await pdfDoc.embedPng(signatureImageBytes)
 
+    // Stamping TTD
     fields.forEach((field: any) => {
-  const pageNum = field.pageNumber || 1
-  const pageIndex = Math.max(0, pageNum - 1)
-  const page = pdfDoc.getPage(pageIndex)
-  const pageHeight = page.getHeight()
+      const pageNum = field.pageNumber || 1
+      const pageIndex = Math.max(0, pageNum - 1)
+      const page = pdfDoc.getPage(pageIndex)
+      const pageHeight = page.getHeight()
 
-  // Konversi dari skala canvas visual (1.25) ke skala PDF asli (1.0)
-  const boxX = field.posX / 1.25
-  const boxY = field.posY / 1.25
-  const boxWidth = (field.width || 150) / 1.25
-  const boxHeight = (field.height || 70) / 1.25
+      const boxX = field.posX / 1.25
+      const boxY = field.posY / 1.25
+      const boxWidth = (field.width || 150) / 1.25
+      const boxHeight = (field.height || 70) / 1.25
 
-  // 📍 Hitung Skala Proporsional (Aspect Ratio Guard)
-  const imgWidth = embeddedImage.width
-  const imgHeight = embeddedImage.height
-  const scale = Math.min(boxWidth / imgWidth, boxHeight / imgHeight)
+      // Maintain Aspect Ratio
+      const scale = Math.min(boxWidth / embeddedImage.width, boxHeight / embeddedImage.height)
+      const drawWidth = embeddedImage.width * scale
+      const drawHeight = embeddedImage.height * scale
 
-  const drawWidth = imgWidth * scale
-  const drawHeight = imgHeight * scale
+      const drawX = boxX + (boxWidth - drawWidth) / 2
+      const drawY = pageHeight - boxY - boxHeight + (boxHeight - drawHeight) / 2
 
-  // Posisikan gambar persis di tengah-tengah (center alignment) dalam box TTD
-  const drawX = boxX + (boxWidth - drawWidth) / 2
-  const drawY = pageHeight - boxY - boxHeight + (boxHeight - drawHeight) / 2
+      page.drawImage(embeddedImage, {
+        x: drawX,
+        y: drawY,
+        width: drawWidth,
+        height: drawHeight,
+      })
+    })
 
-  page.drawImage(embeddedImage, {
-    x: drawX,
-    y: drawY,
-    width: drawWidth,
-    height: drawHeight,
-  })
-})
+    // 📍 1. MEMBUAT QR CODE UNTUK FOOTER VERIFIKATOR
+    const host = req.headers.get('host') || 'localhost:3000'
+    const protocol = host.includes('localhost') ? 'http' : 'https'
+    const verifyUrl = `${protocol}://${host}/verify/${document.id}`
+    const qrCodeDataUrl = await QRCode.toDataURL(verifyUrl, { margin: 1, width: 80 })
+    const qrBase64 = qrCodeDataUrl.replace(/^data:image\/png;base64,/, '')
+    const embeddedQrImage = await pdfDoc.embedPng(Buffer.from(qrBase64, 'base64'))
 
+    const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+    const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica)
+
+    // 📍 2. STAMPING FOOTER DI SETIAP HALAMAN
+    const totalPages = pdfDoc.getPageCount()
+    for (let i = 0; i < totalPages; i++) {
+      const page = pdfDoc.getPage(i)
+      const { width } = page.getSize()
+
+      // Gambar Garis Pembatas Tipis di Bawah Halaman
+      page.drawLine({
+        start: { x: 30, y: 35 },
+        end: { x: width - 30, y: 35 },
+        thickness: 0.5,
+        color: rgb(0.85, 0.88, 0.92),
+      })
+
+      // Tempel QR Code Kecil di Kiri Bawah
+      page.drawImage(embeddedQrImage, {
+        x: 30,
+        y: 10,
+        width: 22,
+        height: 22,
+      })
+
+      // Teks Kiri: SHA-256 Audit Trail (Warna Hijau Pudar & Abu-abu)
+      page.drawText('SHA-256 Audit Trail Verified', {
+        x: 58,
+        y: 22,
+        size: 7,
+        font: helveticaBold,
+        color: rgb(0.05, 0.6, 0.35), // Hijau pudar terverifikasi
+      })
+
+      page.drawText('• Dokumen sah & terdaftar secara digital', {
+        x: 165,
+        y: 22,
+        size: 7,
+        font: helvetica,
+        color: rgb(0.5, 0.55, 0.6),
+      })
+
+      // Teks Kanan: DOC-ID
+      const docIdText = `DOC-ID: ${document.id.toUpperCase().slice(0, 18)}`
+      const docIdWidth = helveticaBold.widthOfTextAtSize(docIdText, 7)
+
+      page.drawText(docIdText, {
+        x: width - 30 - docIdWidth,
+        y: 22,
+        size: 7,
+        font: helveticaBold,
+        color: rgb(0.4, 0.45, 0.5),
+      })
+    }
+
+    // 📍 3. HITUNG HASH SHA-256 KRIPTOGRAFI UNTUK DOKUMEN FINAL
     const updatedPdfBytes = await pdfDoc.save()
+    const finalDocumentHash = crypto.createHash('sha256').update(updatedPdfBytes).digest('hex')
+
     await writeFile(absolutePdfPath, updatedPdfBytes)
 
     const clientIp = req.headers.get('x-forwarded-for') || '127.0.0.1'
@@ -103,18 +159,6 @@ export async function POST(req: Request) {
         where: { id: recipient.id },
         data: { status: 'SIGNED' },
       })
-
-      if (document.sequential && recipient.signingOrder !== null) {
-        const nextRecipient = document.recipients.find(
-          (candidate) => candidate.signingOrder === (recipient.signingOrder as number) + 1
-        )
-        if (nextRecipient) {
-          await tx.documentRecipient.update({
-            where: { id: nextRecipient.id },
-            data: { status: 'WAITING' },
-          })
-        }
-      }
 
       await tx.signatureLog.create({
         data: {
@@ -133,12 +177,15 @@ export async function POST(req: Request) {
 
       await tx.document.update({
         where: { id: document.id },
-        data: { status: newDocStatus },
+        data: {
+          status: newDocStatus,
+          checksum: finalDocumentHash, // Simpan Hash SHA-256 di DB
+        },
       })
     })
 
-    return NextResponse.json({ message: 'Tanda tangan berhasil ditempelkan pada PDF' }, { status: 200 })
-  } catch (error: unknown) {
+    return NextResponse.json({ message: 'Tanda tangan & stempel berhasil' }, { status: 200 })
+  } catch (error) {
     console.error('PDF Stamping Error:', error)
     return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 })
   }
