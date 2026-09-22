@@ -263,8 +263,9 @@ export default function UploadDocumentPage() {
     <div className="min-h-screen w-full bg-slate-100/80 p-8">
       <div className="mx-auto max-w-6xl space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Unggah Dokumen Baru</h1>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-600">Alur Pengiriman</p>
+          <h1 className="text-2xl font-bold text-slate-900 mt-0.5">Unggah Dokumen Baru</h1>
+          <p className="text-sm font-normal text-slate-500 mt-1">
             Siapkan dokumen Anda untuk ditandatangani secara digital.
           </p>
         </div>
@@ -349,7 +350,7 @@ export default function UploadDocumentPage() {
 
               {/* Form Cari Kontak via Email */}
               <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600">
                   Cari Kontak via Email
                 </label>
                 <div className="flex gap-2">
@@ -416,7 +417,7 @@ export default function UploadDocumentPage() {
               {/* Section KONTAK TERSEDIA */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
                     KONTAK TERSEDIA
                   </p>
                   <button

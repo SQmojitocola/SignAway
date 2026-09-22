@@ -123,7 +123,7 @@ export default function UploadSuccessPage() {
 
         {/* Daftar Penandatangan */}
         <div className="space-y-3 pt-2">
-          <h2 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          <h2 className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
             DAFTAR PENANDATANGAN ({doc.recipients?.length || 0} PIHAK)
           </h2>
 
