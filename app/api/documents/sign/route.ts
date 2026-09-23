@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     )
 
     if (!recipient) {
-      return NextResponse.json({ message: 'Kamu tidak memiliki antrean TTD' }, { status: 403 })
+      return NextResponse.json({ message: 'Kamu tidak memiliki antrean TTD pada dokumen ini' }, { status: 403 })
     }
 
     const fields = document.fields.filter((field) => field.recipientId === recipient.id)
@@ -50,23 +50,25 @@ export async function POST(req: Request) {
     const pdfBytes = await readFile(absolutePdfPath)
     const pdfDoc = await PDFDocument.load(pdfBytes)
 
-    // Embed Gambar Tanda Tangan PNG
+    // Embed Gambar Tanda Tangan PNG Transparan
     const base64Data = signatureImageBase64.replace(/^data:image\/png;base64,/, '')
     const signatureImageBytes = Buffer.from(base64Data, 'base64')
     const embeddedImage = await pdfDoc.embedPng(signatureImageBytes)
 
-    // Stamping TTD dengan Aspect Ratio Protection
+    // 📍 1. STAMPING KOTAK PUTIH & GAMBAR TANDA TANGAN DENGAN ASPECT RATIO
     fields.forEach((field: any) => {
       const pageNum = field.pageNumber || 1
       const pageIndex = Math.max(0, pageNum - 1)
       const page = pdfDoc.getPage(pageIndex)
       const pageHeight = page.getHeight()
 
+      // Konversi Visual Scale (1.25) ke PDF Scale (1.0)
       const boxX = field.posX / 1.25
       const boxY = field.posY / 1.25
       const boxWidth = (field.width || 150) / 1.25
       const boxHeight = (field.height || 70) / 1.25
 
+      // Aspect Ratio Protection
       const scale = Math.min(boxWidth / embeddedImage.width, boxHeight / embeddedImage.height)
       const drawWidth = embeddedImage.width * scale
       const drawHeight = embeddedImage.height * scale
@@ -74,6 +76,18 @@ export async function POST(req: Request) {
       const drawX = boxX + (boxWidth - drawWidth) / 2
       const drawY = pageHeight - boxY - boxHeight + (boxHeight - drawHeight) / 2
 
+      // GAMBAR KOTAK PUTIH SOLID DIBELAKANG TTD (Agar teks dokumen di bawahnya tertutup rapi)
+      page.drawRectangle({
+        x: boxX,
+        y: pageHeight - boxY - boxHeight,
+        width: boxWidth,
+        height: boxHeight,
+        color: rgb(1, 1, 1), // Putih Solid
+        borderColor: rgb(0.85, 0.88, 0.92),
+        borderWidth: 0.5,
+      })
+
+      // GAMBAR TANDA TANGAN DITENGAH KOTAK
       page.drawImage(embeddedImage, {
         x: drawX,
         y: drawY,
@@ -82,15 +96,15 @@ export async function POST(req: Request) {
       })
     })
 
-    // 📍 1. GENERATE QR CODE HIGH RESOLUTION (400px agar tajam & tidak pecah saat discaling)
+    // 📍 2. GENERATE QR CODE HIGH-RESOLUTION ANTI-PECAH (400px)
     const host = req.headers.get('host') || 'localhost:3000'
     const protocol = host.includes('localhost') ? 'http' : 'https'
     const verifyUrl = `${protocol}://${host}/verify/${document.id}`
 
     const qrCodeDataUrl = await QRCode.toDataURL(verifyUrl, {
       margin: 1,
-      width: 400, // Dimensi sumber tinggi untuk efek Retina Display
-      errorCorrectionLevel: 'H', // Presisi bentuk QR tinggi
+      width: 400, // Dimensi sumber piksel tinggi untuk efek Retina Display
+      errorCorrectionLevel: 'H',
     })
 
     const qrBase64 = qrCodeDataUrl.replace(/^data:image\/png;base64,/, '')
@@ -99,59 +113,59 @@ export async function POST(req: Request) {
     const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
     const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica)
 
-    // 📍 2. STAMPING FOOTER DI SETIAP HALAMAN
-const totalPages = pdfDoc.getPageCount()
-for (let i = 0; i < totalPages; i++) {
-  const page = pdfDoc.getPage(i)
-  const { width } = page.getSize()
+    // 📍 3. STAMPING FOOTER MODERN DI SETIAP HALAMAN PDF
+    const totalPages = pdfDoc.getPageCount()
+    for (let i = 0; i < totalPages; i++) {
+      const page = pdfDoc.getPage(i)
+      const { width } = page.getSize()
 
-  // Garis Pembatas Tipis Footer
-  page.drawLine({
-    start: { x: 30, y: 42 },
-    end: { x: width - 30, y: 42 },
-    thickness: 0.5,
-    color: rgb(0.85, 0.88, 0.92),
-  })
+      // Garis Pembatas Tipis Footer
+      page.drawLine({
+        start: { x: 30, y: 42 },
+        end: { x: width - 30, y: 42 },
+        thickness: 0.5,
+        color: rgb(0.85, 0.88, 0.92),
+      })
 
-  // 📍 TEMPEL QR CODE DENGAN UKURAN LEBIH BESAR (32x32 pt)
-  page.drawImage(embeddedQrImage, {
-    x: 30,
-    y: 7,
-    width: 27,  // 👈 Diperbesar dari 22 ke 32
-    height: 27, // 👈 Diperbesar dari 22 ke 32
-  })
+      // Tempel QR Code Tajam & Proporsional (Ukuran 32x32 pt)
+      page.drawImage(embeddedQrImage, {
+        x: 30,
+        y: 7,
+        width: 32,
+        height: 32,
+      })
 
-  // 📍 TEKS KIRI: SHA-256 Audit Trail (Digeser posisi X nya dari 58 ke 70)
-  page.drawText('SHA-256 Tanda Tangan Terverifikasi', {
-    x: 70,      // 👈 Digeser ke kanan agar tidak menabrak QR Code
-    y: 22,
-    size: 7.5,
-    font: helveticaBold,
-    color: rgb(0.05, 0.6, 0.35),
-  })
+      // Teks Kiri: SHA-256 Audit Trail
+      page.drawText('SHA-256 Audit Trail Verified', {
+        x: 70,
+        y: 22,
+        size: 7.5,
+        font: helveticaBold,
+        color: rgb(0.05, 0.6, 0.35), // Warna Hijau Pudar Terverifikasi
+      })
 
-  page.drawText('• Dokumen sah & terdaftar secara digital', {
-    x: 70,
-    y: 12,
-    size: 7.5,
-    font: helvetica,
-    color: rgb(0.5, 0.55, 0.6),
-  })
+      page.drawText('• Dokumen sah & terdaftar secara digital', {
+        x: 182,
+        y: 22,
+        size: 7.5,
+        font: helvetica,
+        color: rgb(0.5, 0.55, 0.6),
+      })
 
-  // Teks Kanan: DOC-ID
-  const docIdText = `DOC-ID: ${document.id.toUpperCase().slice(0, 18)}`
-  const docIdWidth = helveticaBold.widthOfTextAtSize(docIdText, 7.5)
+      // Teks Kanan: DOC-ID
+      const docIdText = `DOC-ID: ${document.id.toUpperCase().slice(0, 18)}`
+      const docIdWidth = helveticaBold.widthOfTextAtSize(docIdText, 7.5)
 
-  page.drawText(docIdText, {
-    x: width - 30 - docIdWidth,
-    y: 22,
-    size: 7.5,
-    font: helveticaBold,
-    color: rgb(0.4, 0.45, 0.5),
-  })
-}
+      page.drawText(docIdText, {
+        x: width - 30 - docIdWidth,
+        y: 22,
+        size: 7.5,
+        font: helveticaBold,
+        color: rgb(0.4, 0.45, 0.5),
+      })
+    }
 
-    // 📍 3. KALKULASI HASH SHA-256 KRIPTOGRAFI DOKUMEN FINAL
+    // 📍 4. HITUNG HASH SHA-256 KRIPTOGRAFI DOKUMEN FINAL
     const updatedPdfBytes = await pdfDoc.save()
     const finalDocumentHash = crypto.createHash('sha256').update(updatedPdfBytes).digest('hex')
 
