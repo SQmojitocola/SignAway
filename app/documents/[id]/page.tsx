@@ -1,10 +1,18 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { useRouter, useParams } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, Eraser, Send, ShieldAlert, PenTool } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import { ArrowLeft, XCircle, Download, CheckCircle2 } from 'lucide-react'
 
-interface Field {
+interface Recipient {
+  id: string
+  userId?: string
+  status: string
+  rejectReason?: string | null
+  user: { id: string; name: string; email: string }
+}
+
+interface DocumentField {
   id: string
   recipientId: string
   pageNumber: number
@@ -12,400 +20,277 @@ interface Field {
   posY: number
   width: number
   height: number
-  status?: string
+  recipient?: {
+    user?: { name: string }
+  }
+}
+
+interface DocumentData {
+  id: string
+  title: string
+  filePath: string
+  status: string
+  rejectReason?: string | null
+  createdAt: string
+  sender: { id: string; name: string; email: string }
+  recipients: Recipient[]
+  fields?: DocumentField[]
 }
 
 const PDF_VIEWPORT_SCALE = 1.25
 
-export default function SignDocumentPage() {
-  const router = useRouter()
+export default function DocumentDetailPage() {
   const params = useParams()
+  const router = useRouter()
   const documentId = params.id as string
 
-  const [documentTitle, setDocumentTitle] = useState('Memuat dokumen...')
-  const [documentPath, setDocumentPath] = useState<string | null>(null)
-  const [fields, setFields] = useState<Field[]>([])
-  const [activeField, setActiveField] = useState<Field | null>(null)
+  const [doc, setDoc] = useState<DocumentData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
+  const [pdfPages, setPdfPages] = useState<
+    Array<{ pageNumber: number; width: number; height: number }>
+  >([])
 
-  // State PDF.js Pages
-  const [pdfPages, setPdfPages] = useState<Array<{ pageNumber: number; width: number; height: number }>>([])
-  const pageCanvasRefs = useRef<Record<number, HTMLCanvasElement | null>>({})
+  const pageRefs = useRef<Record<number, HTMLDivElement | null>>({})
 
-  // State Canvas TTD Pad
-  const padCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const [isDrawing, setIsDrawing] = useState(false)
-  const [hasSignature, setHasSignature] = useState(false)
-  const [bgCropUrl, setBgCropUrl] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-
-  // 1. Load Data Dokumen & Field Milik User Logged In
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const res = await fetch(`/api/documents/${documentId}`)
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.message || 'Gagal memuat dokumen')
-
-        setDocumentTitle(data.document.title)
-        setDocumentPath(data.document.filePath)
-
-        // Ambil field milik user aktif
-        const fieldsRes = await fetch(`/api/documents/fields?documentId=${documentId}`)
-        const fieldsData = await fieldsRes.json()
-        if (fieldsRes.ok && fieldsData.fields) {
-          setFields(fieldsData.fields)
-          if (fieldsData.fields.length > 0) {
-            setActiveField(fieldsData.fields[0])
-          }
-        }
-      } catch (err) {
-        console.error('Load sign page error:', err)
-      }
-    }
-
-    if (documentId) loadData()
+    fetch(`/api/documents/${documentId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        const rawDoc = data.document || data
+        setDoc(rawDoc)
+      })
+      .catch((err) => console.error('Fetch error:', err))
+      .finally(() => setLoading(false))
   }, [documentId])
 
-  // 2. Render PDF Pages via PDF.js
   useEffect(() => {
-    if (!documentPath) return
+    if (!doc?.filePath) return
 
     let cancelled = false
+
     const renderPdf = async () => {
-      const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
-      pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-        'pdfjs-dist/legacy/build/pdf.worker.min.mjs',
-        import.meta.url
-      ).toString()
+      try {
+        const pdfjs = await import('pdfjs-dist/build/pdf.mjs')
+        pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`
 
-      const pdf = await pdfjs.getDocument(documentPath).promise
-      const pages: Array<{ pageNumber: number; width: number; height: number }> = []
+        const pdf = await pdfjs.getDocument(doc.filePath).promise
+        const pages: Array<{ pageNumber: number; width: number; height: number }> = []
 
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i)
-        const viewport = page.getViewport({ scale: PDF_VIEWPORT_SCALE })
-        pages.push({ pageNumber: i, width: viewport.width, height: viewport.height })
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i)
+          const viewport = page.getViewport({ scale: PDF_VIEWPORT_SCALE })
+
+          pages.push({
+            pageNumber: i,
+            width: viewport.width,
+            height: viewport.height,
+          })
+        }
+
+        if (!cancelled) setPdfPages(pages)
+
+        setTimeout(async () => {
+          for (const pageInfo of pages) {
+            if (cancelled) break
+            const page = await pdf.getPage(pageInfo.pageNumber)
+            const pageElement = pageRefs.current[pageInfo.pageNumber]
+            const canvas = pageElement?.querySelector('canvas')
+            const context = canvas?.getContext('2d')
+            if (!canvas || !context) continue
+
+            const viewport = page.getViewport({ scale: PDF_VIEWPORT_SCALE })
+            canvas.width = viewport.width
+            canvas.height = viewport.height
+
+            context.clearRect(0, 0, canvas.width, canvas.height)
+            await page.render({ canvasContext: context, viewport }).promise
+          }
+        }, 100)
+      } catch (err) {
+        console.error('Error rendering PDF:', err)
       }
-
-      if (!cancelled) setPdfPages(pages)
     }
 
     renderPdf()
     return () => {
       cancelled = true
     }
-  }, [documentPath])
+  }, [doc?.filePath])
 
-  // Render Canvas Per Halaman
-  useEffect(() => {
-    if (!documentPath || pdfPages.length === 0) return
-
-    let cancelled = false
-    const renderCanvases = async () => {
-      const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
-      pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-        'pdfjs-dist/legacy/build/pdf.worker.min.mjs',
-        import.meta.url
-      ).toString()
-
-      const pdf = await pdfjs.getDocument(documentPath).promise
-
-      await Promise.all(
-        pdfPages.map(async ({ pageNumber, width, height }) => {
-          const page = await pdf.getPage(pageNumber)
-          const canvas = pageCanvasRefs.current[pageNumber]
-          if (!canvas || cancelled) return
-
-          const context = canvas.getContext('2d')
-          if (!context) return
-
-          canvas.width = width
-          canvas.height = height
-          await page.render({
-            canvasContext: context,
-            viewport: page.getViewport({ scale: PDF_VIEWPORT_SCALE }),
-          }).promise
-        })
-      )
-
-      // Set mirror background untuk activeField pertama kali
-      if (activeField && !cancelled) {
-        captureMirrorBackground(activeField)
-      }
-    }
-
-    renderCanvases()
-    return () => {
-      cancelled = true
-    }
-  }, [documentPath, pdfPages])
-
-  // 📍 3. FUNGSI CROP / MIRRORING BACKGROUND DARI CANVAS PDF
-  const captureMirrorBackground = (field: Field) => {
-    const pdfCanvas = pageCanvasRefs.current[field.pageNumber]
-    if (!pdfCanvas) return
-
+  const handleDownload = async () => {
+    if (!doc) return
+    setDownloading(true)
     try {
-      const cropCanvas = document.createElement('canvas')
-      cropCanvas.width = field.width
-      cropCanvas.height = field.height
-      const ctx = cropCanvas.getContext('2d')
+      const response = await fetch(`/api/documents/${doc.id}/download`)
+      if (!response.ok) throw new Error('Gagal mengunduh dokumen')
 
-      if (ctx) {
-        ctx.drawImage(
-          pdfCanvas,
-          field.posX,
-          field.posY,
-          field.width,
-          field.height,
-          0,
-          0,
-          field.width,
-          field.height
-        )
-        setBgCropUrl(cropCanvas.toDataURL('image/png'))
-      }
-    } catch (e) {
-      console.error('Mirror background error:', e)
-    }
-  }
-
-  // Effect saat activeField berpindah
-  useEffect(() => {
-    if (activeField) {
-      captureMirrorBackground(activeField)
-      clearSignaturePad()
-    }
-  }, [activeField])
-
-  // 📍 4. HANDLER GORESAN PAD TTD (MOUSE & TOUCH)
-  const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
-    const canvas = padCanvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    setIsDrawing(true)
-    const rect = canvas.getBoundingClientRect()
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
-
-    ctx.beginPath()
-    ctx.moveTo(clientX - rect.left, clientY - rect.top)
-    ctx.strokeStyle = '#000000'
-    ctx.lineWidth = 2.5
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-  }
-
-  const draw = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawing) return
-    const canvas = padCanvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const rect = canvas.getBoundingClientRect()
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
-
-    ctx.lineTo(clientX - rect.left, clientY - rect.top)
-    ctx.stroke()
-    setHasSignature(true)
-  }
-
-  const stopDrawing = () => {
-    setIsDrawing(false)
-  }
-
-  const clearSignaturePad = () => {
-    const canvas = padCanvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (ctx) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-    }
-    setHasSignature(false)
-  }
-
-  // 📍 5. SUBMIT HANDLER PENANDATANGANAN
-  const handleSignSubmit = async () => {
-    const padCanvas = padCanvasRef.current
-    if (!padCanvas || !hasSignature || !activeField) {
-      alert('Silakan goreskan tanda tangan Anda terlebih dahulu.')
-      return
-    }
-
-    setSubmitting(true)
-    try {
-      // Export Goresan TTD sebagai PNG Transparan
-      const signatureData = padCanvas.toDataURL('image/png')
-
-      const res = await fetch('/api/documents/sign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          documentId,
-          signatureImageBase64: signatureData,
-        }),
-      })
-
-      const data = await res.json()
-
-      if (res.ok) {
-        alert('Tanda tangan berhasil ditempelkan pada dokumen!')
-        router.push('/dashboard')
-      } else {
-        alert(data.message || 'Gagal memproses tanda tangan.')
-      }
-    } catch (err) {
-      console.error('Submit Sign Error:', err)
-      alert('Terjadi kesalahan koneksi server.')
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = doc.title.endsWith('.pdf') ? doc.title : `${doc.title}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Download error:', error)
+      alert('Gagal mengunduh berkas PDF.')
     } finally {
-      setSubmitting(false)
+      setDownloading(false)
     }
   }
+
+  if (loading) return <div className="p-8 text-center text-slate-500">Memuat detail dokumen...</div>
+  if (!doc) return <div className="p-8 text-center text-slate-500">Dokumen tidak ditemukan.</div>
+
+  const rejectingRecipient = doc.recipients?.find((r) => r.status === 'REJECTED')
+  const rejectReasonText = rejectingRecipient?.rejectReason || doc.rejectReason || 'Alasan penolakan tidak dicantumkan.'
+  const rejecterName = rejectingRecipient?.user?.name || 'Penandatangan'
+
+  const isRejected = doc.status === 'REJECTED' || !!rejectingRecipient
+  const isCompleted = doc.status === 'COMPLETED'
 
   return (
-    <div className="flex h-screen flex-col bg-slate-900 text-slate-100">
-      {/* Header Bar */}
-      <header className="flex h-16 items-center justify-between border-b border-slate-800 bg-slate-950 px-6">
-        <div className="flex items-center gap-3">
+    <div className="flex h-screen w-full flex-col bg-slate-900 text-slate-100 overflow-hidden">
+      <header className="flex h-14 items-center justify-between border-b border-slate-800 bg-slate-950 px-6 shrink-0">
+        <div className="flex items-center gap-4">
           <button
             type="button"
             onClick={() => router.back()}
-            className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"
+            className="rounded-lg p-2 hover:bg-slate-800 text-slate-400 hover:text-white"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div>
-            <h1 className="text-sm font-bold text-white">{documentTitle}</h1>
-            <p className="text-[11px] text-slate-400">Proses Penandatanganan Dokumen Digital</p>
+            <h1 className="text-sm font-bold text-white">{doc.title}</h1>
+            <p className="text-[10px] text-slate-400">Pengirim: {doc.sender?.name || '-'}</p>
           </div>
         </div>
 
-        <button
-          type="button"
-          disabled={!hasSignature || submitting}
-          onClick={handleSignSubmit}
-          className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50 transition-colors shadow-lg shadow-emerald-950/50"
-        >
-          <Send className="h-4 w-4" />
-          {submitting ? 'Memproses...' : 'Kirim Tanda Tangan'}
-        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-slate-400">STATUS:</span>
+          <span
+            className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
+              isRejected
+                ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                : isCompleted
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+            }`}
+          >
+            {isRejected ? 'DITOLAK' : doc.status}
+          </span>
+        </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Panel Kiri: Canvas Viewer PDF */}
-        <main className="flex-1 overflow-y-auto bg-slate-900 p-8 flex justify-center">
-          <div className="flex flex-col gap-6">
+        <main className="flex-1 overflow-auto bg-slate-900/80 p-8 flex justify-center items-start">
+          <div className="flex flex-col items-center gap-8 pb-16">
             {pdfPages.map((page) => (
               <div
                 key={page.pageNumber}
-                className="relative bg-white shadow-2xl rounded-sm overflow-hidden"
+                ref={(el) => {
+                  pageRefs.current[page.pageNumber] = el
+                }}
+                className="relative bg-white shadow-2xl rounded-sm select-none"
                 style={{ width: page.width, height: page.height }}
               >
-                <canvas
-                  ref={(el) => {
-                    pageCanvasRefs.current[page.pageNumber] = el
-                  }}
-                  className="block"
-                />
+                <canvas className="block" width={page.width} height={page.height} />
 
-                {/* Plotting Kotak Field TTD Milik User */}
-                {fields
-                  .filter((f) => f.pageNumber === page.pageNumber)
-                  .map((field) => {
-                    const isActive = activeField?.id === field.id
-                    return (
-                      <div
-                        key={field.id}
-                        onClick={() => setActiveField(field)}
-                        style={{
-                          left: `${field.posX}px`,
-                          top: `${field.posY}px`,
-                          width: `${field.width}px`,
-                          height: `${field.height}px`,
-                        }}
-                        className={`absolute z-10 cursor-pointer rounded-lg border-2 p-2 flex flex-col items-center justify-center transition-all ${
-                          isActive
-                            ? 'border-blue-500 bg-blue-50/80 ring-4 ring-blue-500/30 shadow-lg'
-                            : 'border-amber-500 bg-amber-50/70 hover:bg-amber-100/80'
-                        }`}
-                      >
-                        <PenTool className={`h-4 w-4 mb-1 ${isActive ? 'text-blue-600' : 'text-amber-600'}`} />
-                        <span
-                          className={`text-[10px] font-bold ${
-                            isActive ? 'text-blue-800' : 'text-amber-800'
-                          }`}
-                        >
-                          {isActive ? 'Aktif Menggores' : 'Klik untuk TTD'}
-                        </span>
-                      </div>
-                    )
-                  })}
+                {/* 📍 RENDER OVERLAY FIELD SAMA PERSIS DENGAN CANVAS EDITOR */}
+                {doc.fields
+                  ?.filter((f) => f.pageNumber === page.pageNumber)
+                  .map((field) => (
+                    <div
+                      key={field.id}
+                      className="absolute flex items-center justify-center rounded border-2 border-dashed border-blue-500 bg-blue-500/20 shadow-md backdrop-blur-[1px]"
+                      style={{
+                        left: `${field.posX}px`,
+                        top: `${field.posY}px`,
+                        width: `${field.width}px`,
+                        height: `${field.height}px`,
+                      }}
+                    >
+                      <span className="text-[10px] font-bold text-blue-900 bg-white/80 px-1.5 py-0.5 rounded shadow-sm">
+                        {field.recipient?.user?.name || 'Tanda Tangan'}
+                      </span>
+                    </div>
+                  ))}
               </div>
             ))}
           </div>
         </main>
 
-        {/* Panel Kanan: Papan Tanda Tangan Dengan Mirroring Context Background */}
-        <aside className="w-80 border-l border-slate-800 bg-slate-950 p-6 space-y-6 flex flex-col justify-between">
-          <div className="space-y-4">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800 pb-2">
-              Papan Tanda Tangan
-            </h2>
-
-            <p className="text-xs text-slate-300">
-              Goreskan tanda tangan Anda pada kotak di bawah. Latar belakang memperlihatkan posisi area dokumen asli[cite: 10]:
-            </p>
-
-            {/* 📍 KOTAK CANVAS PAD GORES DENGAN BACKGROUND MIRRORING CROP PDF */}
-            <div
-              className="relative w-full h-48 rounded-2xl border-2 border-slate-700 bg-white overflow-hidden shadow-inner"
-              style={{
-                backgroundImage: bgCropUrl ? `url(${bgCropUrl})` : 'none',
-                backgroundSize: '100% 100%',
-                backgroundPosition: 'center',
-                backgroundRepeat: 'no-repeat',
-              }}
-            >
-              {/* Overlay Transparan agar tulisan PDF redup */}
-              {bgCropUrl && <div className="absolute inset-0 bg-white/65 pointer-events-none" />}
-
-              {/* Canvas Tempat Menggores */}
-              <canvas
-                ref={padCanvasRef}
-                width={280}
-                height={192}
-                onMouseDown={startDrawing}
-                onMouseMove={draw}
-                onMouseUp={stopDrawing}
-                onMouseLeave={stopDrawing}
-                onTouchStart={startDrawing}
-                onTouchMove={draw}
-                onTouchEnd={stopDrawing}
-                className="absolute inset-0 z-10 w-full h-full cursor-crosshair touch-none"
-              />
+        <aside className="w-80 border-l border-slate-800 bg-slate-950 p-5 flex flex-col gap-4 shrink-0 overflow-y-auto">
+          {isRejected && (
+            <div className="rounded-xl border border-red-500/30 bg-red-950/40 p-4 space-y-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-red-400">
+                <XCircle className="h-4 w-4 shrink-0" /> Dokumen Ditolak
+              </div>
+              <div className="space-y-1.5 pt-1 text-xs">
+                <p className="text-[11px] text-slate-400">
+                  Ditolak oleh:{' '}
+                  <span className="font-bold text-white">{rejecterName}</span>
+                </p>
+                <div className="rounded-lg border border-red-900/40 bg-slate-900 p-3 text-[11px] italic text-red-200">
+                  "{rejectReasonText}"
+                </div>
+              </div>
             </div>
+          )}
 
-            <button
-              type="button"
-              onClick={clearSignaturePad}
-              className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-red-400 transition-colors"
-            >
-              <Eraser className="h-3.5 w-3.5" /> Bersihkan Papan
-            </button>
+          <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 space-y-3">
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+              Riwayat Penandatanganan
+            </h3>
+            {doc.recipients?.map((r, idx) => (
+              <div
+                key={r.id}
+                className="flex items-center justify-between border-b border-slate-800/50 pb-2 last:border-0 last:pb-0"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[10px] text-slate-500">#{idx + 1}</span>
+                  <div>
+                    <p className="text-xs font-medium text-slate-300">{r.user?.name}</p>
+                    <p className="text-[9px] text-slate-500">{r.user?.email}</p>
+                  </div>
+                </div>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                    r.status === 'SIGNED'
+                      ? 'bg-emerald-500/10 text-emerald-400'
+                      : r.status === 'REJECTED'
+                      ? 'bg-red-500/10 text-red-400'
+                      : 'bg-slate-800 text-slate-500'
+                  }`}
+                >
+                  {r.status}
+                </span>
+              </div>
+            ))}
           </div>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 space-y-2">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
-              <ShieldAlert className="h-4 w-4 text-emerald-400" /> Keamanan SHA-256
+          {isCompleted && (
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
+                <CheckCircle2 className="h-4 w-4 shrink-0" /> Dokumen Selesai
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Semua pihak telah menandatangani dokumen ini. Anda dapat mengunduh salinan resmi berkas PDF.
+              </p>
+              <button
+                type="button"
+                disabled={downloading}
+                onClick={handleDownload}
+                className="flex items-center justify-center gap-2 w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 py-2.5 text-xs font-bold text-white transition-all shadow-lg shadow-emerald-950/50 disabled:opacity-50"
+              >
+                <Download className="h-4 w-4" />
+                {downloading ? 'Mengunduh...' : 'Unduh Dokumen (PDF)'}
+              </button>
             </div>
-            <p className="text-[10px] text-slate-400 leading-relaxed">
-              Setiap goresan akan dikunci secara kriptografi dan dilengkapi stempel footer verifikasi digital otomatis.
-            </p>
-          </div>
+          )}
         </aside>
       </div>
     </div>

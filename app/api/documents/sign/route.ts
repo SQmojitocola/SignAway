@@ -76,18 +76,7 @@ export async function POST(req: Request) {
       const drawX = boxX + (boxWidth - drawWidth) / 2
       const drawY = pageHeight - boxY - boxHeight + (boxHeight - drawHeight) / 2
 
-      // GAMBAR KOTAK PUTIH SOLID DIBELAKANG TTD (Agar teks dokumen di bawahnya tertutup rapi)
-      page.drawRectangle({
-        x: boxX,
-        y: pageHeight - boxY - boxHeight,
-        width: boxWidth,
-        height: boxHeight,
-        color: rgb(1, 1, 1), // Putih Solid
-        borderColor: rgb(0.85, 0.88, 0.92),
-        borderWidth: 0.5,
-      })
-
-      // GAMBAR TANDA TANGAN DITENGAH KOTAK
+      // TEMPELKAN TANDA TANGAN (Transparan di atas teks/garis dokumen)
       page.drawImage(embeddedImage, {
         x: drawX,
         y: drawY,

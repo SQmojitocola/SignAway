@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, RefreshCw, PenTool, CheckCircle2, XCircle, Check, Image as ImageIcon } from 'lucide-react'
 
@@ -52,7 +52,8 @@ export default function SignDocumentPage() {
   // State TTD & Mode Pilihan
   const [sigMode, setSigMode] = useState<'DRAW' | 'SPECIMEN'>('DRAW')
   const [signatureData, setSignatureData] = useState<string | null>(null)
-  
+  const [bgCropUrl, setBgCropUrl] = useState<string | null>(null)
+
   // State Modal Penolakan
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
@@ -63,6 +64,32 @@ export default function SignDocumentPage() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const [isDrawing, setIsDrawing] = useState(false)
+
+  const recipientsList = useMemo(() => doc?.recipients || [], [doc?.recipients])
+  const fieldsList = useMemo(() => doc?.fields || [], [doc?.fields])
+  
+  const myRecipientInDoc = useMemo(() => {
+    if (!currentUserId) return null
+    return recipientsList.find(
+      (r) =>
+        r.user?.id === currentUserId ||
+        r.userId === currentUserId ||
+        (currentUserEmail && r.user?.email === currentUserEmail)
+    )
+  }, [recipientsList, currentUserId, currentUserEmail])
+
+  const myField = useMemo(() => {
+    return (
+      fieldsList.find((field) => {
+        const recipient = recipientsList.find((r) => r.id === field.recipientId)
+        return (
+          field.recipientId === myRecipientInDoc?.id ||
+          (recipient?.user?.id || recipient?.userId) === currentUserId ||
+          (currentUserEmail && recipient?.user?.email === currentUserEmail)
+        )
+      }) || null
+    )
+  }, [fieldsList, recipientsList, myRecipientInDoc, currentUserId, currentUserEmail])
 
   // 1. Fetch data dokumen & user
   useEffect(() => {
@@ -120,7 +147,41 @@ export default function SignDocumentPage() {
     fetchData()
   }, [documentId])
 
-  // 2. Render PDF
+  // 2. Mirroring Background Crop dari Dokumen
+  const captureMirrorBackground = useCallback(() => {
+    if (!myField) return
+    const pageElement = pageRefs.current[myField.pageNumber]
+    const pdfCanvas = pageElement?.querySelector('canvas')
+    if (!pdfCanvas) return
+
+    try {
+      const cropCanvas = document.createElement('canvas')
+      const targetWidth = myField.width || 150
+      const targetHeight = myField.height || 70
+      cropCanvas.width = targetWidth
+      cropCanvas.height = targetHeight
+
+      const ctx = cropCanvas.getContext('2d')
+      if (ctx) {
+        ctx.drawImage(
+          pdfCanvas,
+          myField.posX,
+          myField.posY,
+          targetWidth,
+          targetHeight,
+          0,
+          0,
+          targetWidth,
+          targetHeight
+        )
+        setBgCropUrl(cropCanvas.toDataURL('image/png'))
+      }
+    } catch (err) {
+      console.error('Mirror background error:', err)
+    }
+  }, [myField])
+
+  // 3. Render PDF
   useEffect(() => {
     if (!doc?.filePath) return
 
@@ -162,6 +223,10 @@ export default function SignDocumentPage() {
               viewport: viewport,
             }).promise
           }
+
+          if (!cancelled) {
+            captureMirrorBackground()
+          }
         }, 100)
       } catch (err) {
         console.error('Error rendering PDF:', err)
@@ -173,29 +238,47 @@ export default function SignDocumentPage() {
     return () => {
       cancelled = true
     }
-  }, [doc?.filePath])
+  }, [doc?.filePath, captureMirrorBackground])
 
-  // Canvas Drawing Handlers
+  // Otomatis refresh crop saat myField atau pdfPages tersedia
+  useEffect(() => {
+    if (myField && pdfPages.length > 0) {
+      const timer = setTimeout(() => {
+        captureMirrorBackground()
+      }, 150)
+      return () => clearTimeout(timer)
+    }
+  }, [myField, pdfPages, captureMirrorBackground])
+
+  // Canvas Drawing Handlers dengan Resolusi & Skalasi Presisi
+  const getCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
+
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
+    }
+  }
+
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const rect = canvas.getBoundingClientRect()
-    let x, y
-    if ('touches' in e) {
-      x = e.touches[0].clientX - rect.left
-      y = e.touches[0].clientY - rect.top
-    } else {
-      x = e.nativeEvent.offsetX
-      y = e.nativeEvent.offsetY
-    }
-
+    const { x, y } = getCoordinates(e)
     ctx.beginPath()
     ctx.moveTo(x, y)
-    ctx.lineWidth = 2
+    ctx.lineWidth = 2.5
     ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
     ctx.strokeStyle = '#000'
     setIsDrawing(true)
   }
@@ -206,17 +289,11 @@ export default function SignDocumentPage() {
     const ctx = canvas?.getContext('2d')
     if (!canvas || !ctx) return
 
-    const rect = canvas.getBoundingClientRect()
-    let x, y
     if ('touches' in e) {
       e.preventDefault()
-      x = e.touches[0].clientX - rect.left
-      y = e.touches[0].clientY - rect.top
-    } else {
-      x = e.nativeEvent.offsetX
-      y = e.nativeEvent.offsetY
     }
 
+    const { x, y } = getCoordinates(e)
     ctx.lineTo(x, y)
     ctx.stroke()
   }
@@ -317,19 +394,6 @@ export default function SignDocumentPage() {
       setRejecting(false)
     }
   }
-
-  const recipientsList = doc?.recipients || []
-  const fieldsList = doc?.fields || []
-  
-  const myRecipientInDoc = useMemo(() => {
-    if (!currentUserId) return null
-    return recipientsList.find(
-      (r) =>
-        r.user?.id === currentUserId ||
-        r.userId === currentUserId ||
-        (currentUserEmail && r.user?.email === currentUserEmail)
-    )
-  }, [recipientsList, currentUserId, currentUserEmail])
 
   // Hak Akses Penandatanganan: Wajib Berurutan
   const isMyTurn = useMemo(() => {
@@ -540,20 +604,40 @@ export default function SignDocumentPage() {
 
               {sigMode === 'DRAW' ? (
                 <>
-                  <p className="text-[11px] text-slate-400 italic">Goreskan tanda tangan Anda di kotak putih:</p>
-                  <canvas
-                    ref={canvasRef}
-                    width={260}
-                    height={160}
-                    onMouseDown={startDrawing}
-                    onMouseMove={draw}
-                    onMouseUp={stopDrawing}
-                    onMouseLeave={stopDrawing}
-                    onTouchStart={startDrawing}
-                    onTouchMove={draw}
-                    onTouchEnd={stopDrawing}
-                    className="w-full rounded-lg bg-white border border-slate-700 cursor-crosshair touch-none"
-                  />
+                  <p className="text-[11px] text-slate-400 italic">
+                    Goreskan tanda tangan Anda di kotak putih (bayangan dokumen menampilkan posisi asli TTD):
+                  </p>
+
+                  {/* Kotak Canvas Pad dengan Background Mirroring Crop Dokumen */}
+                  <div
+                    className="relative w-full rounded-xl border-2 border-slate-700 bg-white overflow-hidden shadow-inner flex items-center justify-center"
+                    style={{
+                      aspectRatio: myField ? `${myField.width} / ${myField.height}` : '260 / 160',
+                      backgroundImage: bgCropUrl ? `url(${bgCropUrl})` : undefined,
+                      backgroundSize: '100% 100%',
+                      backgroundPosition: 'center',
+                      backgroundRepeat: 'no-repeat',
+                    }}
+                  >
+                    {/* Overlay semi-transparan putih agar teks dokumen redup & goresan TTD tajam */}
+                    {bgCropUrl && <div className="absolute inset-0 bg-white/60 pointer-events-none" />}
+
+                    {/* Canvas Foreground Transparan untuk Menggores */}
+                    <canvas
+                      ref={canvasRef}
+                      width={myField ? myField.width * 2 : 520}
+                      height={myField ? myField.height * 2 : 320}
+                      onMouseDown={startDrawing}
+                      onMouseMove={draw}
+                      onMouseUp={stopDrawing}
+                      onMouseLeave={stopDrawing}
+                      onTouchStart={startDrawing}
+                      onTouchMove={draw}
+                      onTouchEnd={stopDrawing}
+                      className="absolute inset-0 w-full h-full cursor-crosshair touch-none z-10"
+                    />
+                  </div>
+
                   <button
                     type="button"
                     onClick={clearCanvas}
