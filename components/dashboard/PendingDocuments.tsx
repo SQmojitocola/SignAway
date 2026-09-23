@@ -149,7 +149,7 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
             >
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{category.title}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">{category.title}</p>
                   <h3 className="mt-2 text-3xl font-extrabold text-slate-800">{counts[category.key]}</h3>
                 </div>
                 <div className={`p-3 rounded-2xl ${category.bgBadgeClass}`}>

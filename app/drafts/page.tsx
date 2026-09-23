@@ -12,51 +12,54 @@ export default async function DraftsPage() {
 
   const userId = session.user.id
 
-  // 1. Fetch Draft milik Pengirim
-  const drafts = await prisma.document.findMany({
-    where: {
-      senderId: userId,
-      status: 'DRAFT',
-    },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      recipients: { include: { user: { select: { id: true, name: true, email: true } } } },
-      fields: true,
-    },
-  })
+  // Fetch paralel: Draft, Dokumen Ditolak, dan Dokumen Selesai
+  const [drafts, rejectedByMe, completedDocs] = await Promise.all([
+    // 1. Fetch Draft milik Pengirim
+    prisma.document.findMany({
+      where: {
+        senderId: userId,
+        status: 'DRAFT',
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        recipients: { include: { user: { select: { id: true, name: true, email: true } } } },
+        fields: true,
+      },
+    }),
 
-  // 2. Fetch Dokumen yang Ditolak oleh Penerima yang Login
-  const rejectedByMe = await prisma.document.findMany({
-    where: {
-      recipients: {
-        some: {
-          userId: userId,
-          status: 'REJECTED',
+    // 2. Fetch Dokumen yang Ditolak oleh Penerima yang Login
+    prisma.document.findMany({
+      where: {
+        recipients: {
+          some: {
+            userId: userId,
+            status: 'REJECTED',
+          },
         },
       },
-    },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      sender: { select: { id: true, name: true, email: true } },
-      recipients: { include: { user: { select: { id: true, name: true, email: true } } } },
-    },
-  })
+      orderBy: { createdAt: 'desc' },
+      include: {
+        sender: { select: { id: true, name: true, email: true } },
+        recipients: { include: { user: { select: { id: true, name: true, email: true } } } },
+      },
+    }),
 
-  // 3. Fetch Dokumen Selesai (COMPLETED) untuk user ini
-  const completedDocs = await prisma.document.findMany({
-    where: {
-      status: 'COMPLETED',
-      OR: [
-        { senderId: userId },
-        { recipients: { some: { userId: userId, status: 'SIGNED' } } },
-      ],
-    },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      sender: { select: { id: true, name: true, email: true } },
-      recipients: { include: { user: { select: { id: true, name: true, email: true } } } },
-    },
-  })
+    // 3. Fetch Dokumen Selesai (COMPLETED) untuk user ini
+    prisma.document.findMany({
+      where: {
+        status: 'COMPLETED',
+        OR: [
+          { senderId: userId },
+          { recipients: { some: { userId: userId, status: 'SIGNED' } } },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        sender: { select: { id: true, name: true, email: true } },
+        recipients: { include: { user: { select: { id: true, name: true, email: true } } } },
+      },
+    }),
+  ])
 
   return (
     <main className="w-full max-w-6xl mx-auto py-8 px-6">

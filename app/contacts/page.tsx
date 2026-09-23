@@ -150,8 +150,9 @@ export default function ContactsPage() {
   return (
     <div className="min-h-screen w-full bg-slate-100/80 p-8 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">Daftar Kontak Penandatangan</h1>
-        <p className="text-xs text-slate-500 mt-1">
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-600">Buku Kontak</p>
+        <h1 className="text-2xl font-bold text-slate-900 mt-0.5">Daftar Kontak Penandatangan</h1>
+        <p className="text-sm font-normal text-slate-500 mt-1">
           Cari email pengguna dan simpan ke daftar kontak untuk mempermudah alur penandatanganan.
         </p>
       </div>

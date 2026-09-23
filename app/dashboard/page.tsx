@@ -69,8 +69,8 @@ export default async function DashboardPage() {
       <div className="max-w-7xl mx-auto w-full flex flex-col gap-8">
         <section className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Halo, {user.name}</h2>
-            <p className="text-sm text-gray-500 mt-1">Berikut adalah ringkasan dokumen yang memerlukan perhatian Anda hari ini.</p>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Halo, {user.name}</h1>
+            <p className="text-sm font-normal text-slate-500 mt-1">Berikut adalah ringkasan dokumen yang memerlukan perhatian Anda hari ini.</p>
           </div>
           <div className="flex items-center gap-4">
             <div className="w-11 h-11 rounded-full border border-gray-200 shadow-sm bg-[#003b73] text-white flex items-center justify-center font-bold text-sm shrink-0">

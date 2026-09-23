@@ -462,14 +462,14 @@ export default function DocumentFieldPlottingPage() {
         {/* Sidebar Kiri: Daftar Penandatangan */}
         <aside className="w-72 border-r bg-white p-4 space-y-6 overflow-y-auto">
           <div>
-            <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Instruksi</h3>
+            <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Instruksi</h3>
             <p className="text-xs text-slate-500">
               Klik <span className="font-semibold text-blue-600">Tempatkan</span> lalu klik area dokumen untuk menaruh kotak TTD.
             </p>
           </div>
 
           <div className="space-y-3">
-            <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Daftar Penandatangan</h3>
+            <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Daftar Penandatangan</h3>
 
             {recipients.map((recipient, idx) => (
               <div

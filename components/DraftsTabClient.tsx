@@ -71,8 +71,9 @@ export default function DraftsTabClient({
       {/* Navigation Sub-Tab */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Manajemen Dokumen</p>
-          <h1 className="text-2xl font-extrabold text-slate-800">Draft, Penolakan & Selesai</h1>
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-600">Manajemen Dokumen</p>
+          <h1 className="text-2xl font-bold text-slate-900 mt-0.5">Draft, Penolakan & Selesai</h1>
+          <p className="text-sm font-normal text-slate-500 mt-1">Pantau dan kelola berkas draf yang belum dikirim, ditolak, serta selesai ditandatangani.</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 bg-slate-100 p-1 rounded-xl">
