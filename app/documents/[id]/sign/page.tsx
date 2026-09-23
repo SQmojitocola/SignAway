@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, RefreshCw, PenTool, CheckCircle2, XCircle, Check, Image as ImageIcon } from 'lucide-react'
+import { ArrowLeft, RefreshCw, PenTool, CheckCircle2, XCircle, Check, Image as ImageIcon, Move, ZoomIn, RotateCcw } from 'lucide-react'
 
 interface Field {
   id: string
@@ -53,6 +53,17 @@ export default function SignDocumentPage() {
   const [sigMode, setSigMode] = useState<'DRAW' | 'SPECIMEN'>('DRAW')
   const [signatureData, setSignatureData] = useState<string | null>(null)
   const [bgCropUrl, setBgCropUrl] = useState<string | null>(null)
+
+  // State Manipulasi Spesimen (Ukuran & Posisi)
+  const [specimenScale, setSpecimenScale] = useState<number>(100) // 40% - 200%
+  const [specimenPos, setSpecimenPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  const isDraggingSpecimenRef = useRef(false)
+  const dragStartRef = useRef<{ startX: number; startY: number; initX: number; initY: number }>({
+    startX: 0,
+    startY: 0,
+    initX: 0,
+    initY: 0,
+  })
 
   // State Modal Penolakan
   const [showRejectModal, setShowRejectModal] = useState(false)
@@ -317,11 +328,108 @@ export default function SignDocumentPage() {
     }
   }
 
+  // Mulai drag spesimen TTD
+  const startSpecimenDrag = (e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation()
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
+
+    isDraggingSpecimenRef.current = true
+    dragStartRef.current = {
+      startX: clientX,
+      startY: clientY,
+      initX: specimenPos.x,
+      initY: specimenPos.y,
+    }
+  }
+
+  // Listener global pointer untuk pergerakan drag spesimen
+  useEffect(() => {
+    const handlePointerMove = (e: MouseEvent | TouchEvent) => {
+      if (!isDraggingSpecimenRef.current) return
+      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
+
+      const deltaX = clientX - dragStartRef.current.startX
+      const deltaY = clientY - dragStartRef.current.startY
+
+      setSpecimenPos({
+        x: Math.round(dragStartRef.current.initX + deltaX),
+        y: Math.round(dragStartRef.current.initY + deltaY),
+      })
+    }
+
+    const handlePointerUp = () => {
+      if (isDraggingSpecimenRef.current) {
+        isDraggingSpecimenRef.current = false
+      }
+    }
+
+    window.addEventListener('mousemove', handlePointerMove)
+    window.addEventListener('mouseup', handlePointerUp)
+    window.addEventListener('touchmove', handlePointerMove)
+    window.addEventListener('touchend', handlePointerUp)
+
+    return () => {
+      window.removeEventListener('mousemove', handlePointerMove)
+      window.removeEventListener('mouseup', handlePointerUp)
+      window.removeEventListener('touchmove', handlePointerMove)
+      window.removeEventListener('touchend', handlePointerUp)
+    }
+  }, [])
+
+  // Render Spesimen TTD ke Canvas dengan Skalasi dan Posisi Offset
+  const updateSpecimenComposite = useCallback(
+    (posX: number, posY: number, scalePercent: number) => {
+      if (!userSpecimen) return
+
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      img.onload = () => {
+        const targetW = myField?.width || 150
+        const targetH = myField?.height || 70
+
+        const canvas = document.createElement('canvas')
+        canvas.width = targetW * 2
+        canvas.height = targetH * 2
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return
+
+        // Skala dasar gambar agar pas di dalam canvas
+        const baseScale = Math.min(
+          (canvas.width * 0.85) / img.width,
+          (canvas.height * 0.85) / img.height
+        )
+        const finalScale = baseScale * (scalePercent / 100)
+        const drawW = img.width * finalScale
+        const drawH = img.height * finalScale
+
+        // Titik tengah canvas + offset posisi (dikalikan 2 karena canvas 2x retina)
+        const centerX = canvas.width / 2 + posX * 2
+        const centerY = canvas.height / 2 + posY * 2
+        const drawX = centerX - drawW / 2
+        const drawY = centerY - drawH / 2
+
+        ctx.drawImage(img, drawX, drawY, drawW, drawH)
+        setSignatureData(canvas.toDataURL('image/png'))
+      }
+      img.src = userSpecimen
+    },
+    [userSpecimen, myField]
+  )
+
+  // Otomatis sinkronisasi composite signatureData saat posisi/skala spesimen berubah
+  useEffect(() => {
+    if (sigMode === 'SPECIMEN' && userSpecimen) {
+      updateSpecimenComposite(specimenPos.x, specimenPos.y, specimenScale)
+    }
+  }, [sigMode, userSpecimen, specimenPos, specimenScale, updateSpecimenComposite])
+
   // Pilih Spesimen TTD
   const selectSpecimen = () => {
     if (userSpecimen) {
       setSigMode('SPECIMEN')
-      setSignatureData(userSpecimen)
+      updateSpecimenComposite(specimenPos.x, specimenPos.y, specimenScale)
     }
   }
 
@@ -542,14 +650,16 @@ export default function SignDocumentPage() {
                           width: `${field.width}px`,
                           height: `${field.height}px`,
                         }}
-                        className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-1 z-10 box-border ${
+                        onMouseDown={isMine && sigMode === 'SPECIMEN' ? startSpecimenDrag : undefined}
+                        onTouchStart={isMine && sigMode === 'SPECIMEN' ? startSpecimenDrag : undefined}
+                        className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-1 z-10 box-border select-none ${
                           isMine 
-                            ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600' 
+                            ? `border-emerald-500 bg-emerald-500/10 text-emerald-600 ${sigMode === 'SPECIMEN' ? 'cursor-grab active:cursor-grabbing ring-2 ring-emerald-500/30' : ''}`
                             : 'border-blue-500 bg-blue-500/10 text-blue-500'
                         }`}
                       >
                         {isMine && signatureData ? (
-                          <img src={signatureData} alt="Preview TTD" className="h-full w-full object-contain pointer-events-none" />
+                          <img src={signatureData} alt="Preview TTD" className="h-full w-full object-contain pointer-events-none select-none" />
                         ) : isSigned ? (
                            <div className="flex flex-col items-center opacity-40">
                              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
@@ -647,12 +757,93 @@ export default function SignDocumentPage() {
                   </button>
                 </>
               ) : (
-                <div className="space-y-2">
-                  <p className="text-[11px] text-slate-400 italic">Spesimen TTD tersimpan Anda:</p>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-[11px] text-slate-400 italic">
+                      Geser tanda tangan untuk memindahkan posisi, atau atur ukuran dengan slider di bawah:
+                    </p>
+                  </div>
+
                   {userSpecimen ? (
-                    <div className="p-3 bg-white rounded-lg border border-slate-700 flex justify-center items-center h-40">
-                      <img src={userSpecimen} alt="Spesimen TTD" className="max-h-full max-w-full object-contain" />
-                    </div>
+                    <>
+                      {/* Box Interaktif dengan Background Mirroring Dokumen */}
+                      <div
+                        className="relative w-full rounded-xl border-2 border-slate-700 bg-white overflow-hidden shadow-inner flex items-center justify-center select-none cursor-grab active:cursor-grabbing"
+                        style={{
+                          aspectRatio: myField ? `${myField.width} / ${myField.height}` : '260 / 160',
+                          backgroundImage: bgCropUrl ? `url(${bgCropUrl})` : undefined,
+                          backgroundSize: '100% 100%',
+                          backgroundPosition: 'center',
+                          backgroundRepeat: 'no-repeat',
+                        }}
+                        onMouseDown={startSpecimenDrag}
+                        onTouchStart={startSpecimenDrag}
+                      >
+                        {/* Overlay semi-transparan putih agar teks dokumen redup */}
+                        {bgCropUrl && <div className="absolute inset-0 bg-white/60 pointer-events-none" />}
+
+                        {/* Gambar Spesimen yang Bisa Digeser & Diatur Ukurannya */}
+                        <div
+                          className="absolute pointer-events-none transition-transform duration-75"
+                          style={{
+                            transform: `translate(${specimenPos.x}px, ${specimenPos.y}px) scale(${specimenScale / 100})`,
+                            maxWidth: '85%',
+                            maxHeight: '85%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <img
+                            src={userSpecimen}
+                            alt="Spesimen TTD"
+                            className="max-h-full max-w-full object-contain drop-shadow-sm select-none"
+                            draggable={false}
+                          />
+                        </div>
+
+                        {/* Indikator Geser di Pojok */}
+                        <div className="absolute bottom-1 right-1.5 rounded bg-slate-900/60 px-1.5 py-0.5 text-[9px] text-slate-300 pointer-events-none flex items-center gap-1 backdrop-blur-xs">
+                          <Move className="h-2.5 w-2.5" /> Geser
+                        </div>
+                      </div>
+
+                      {/* Slider Kontrol Ukuran */}
+                      <div className="space-y-1.5 rounded-lg bg-slate-950/60 p-2.5 border border-slate-800">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-semibold text-slate-300 flex items-center gap-1">
+                            <ZoomIn className="h-3 w-3 text-blue-400" /> Ukuran TTD
+                          </span>
+                          <span className="font-mono text-xs font-bold text-blue-400">{specimenScale}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={40}
+                          max={200}
+                          step={5}
+                          value={specimenScale}
+                          onChange={(e) => setSpecimenScale(Number(e.target.value))}
+                          className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                        />
+                        <div className="flex justify-between text-[9px] text-slate-500">
+                          <span>Kecil (40%)</span>
+                          <span>Standar (100%)</span>
+                          <span>Besar (200%)</span>
+                        </div>
+                      </div>
+
+                      {/* Tombol Reset Posisi & Ukuran */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSpecimenPos({ x: 0, y: 0 })
+                          setSpecimenScale(100)
+                        }}
+                        className="flex items-center justify-center gap-1.5 w-full py-1.5 text-[11px] font-semibold text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-800 rounded-lg transition-colors border border-slate-700/60"
+                      >
+                        <RotateCcw className="h-3 w-3" /> Kembalikan ke Posisi Awal
+                      </button>
+                    </>
                   ) : (
                     <div className="p-4 rounded-lg bg-amber-950/20 border border-amber-900/30 text-center text-amber-300 text-xs">
                       Belum ada spesimen TTD tersimpan di profil Anda.
