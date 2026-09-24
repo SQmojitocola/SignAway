@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ShieldCheck, CheckCircle2, Download, ArrowLeft, UploadCloud, AlertTriangle } from 'lucide-react'
+import { ShieldCheck, CheckCircle2, Download, ArrowLeft, UploadCloud, AlertTriangle, FileCheck } from 'lucide-react'
 
 interface DocumentVerificationData {
   id: string
@@ -142,13 +142,23 @@ export default function PublicVerifierPage() {
                 </div>
               </div>
 
-              <a
-                href={doc.filePath}
-                download
-                className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 shadow transition-colors"
-              >
-                <Download className="h-4 w-4" /> Unduh Dokumen PDF
-              </a>
+              <div className="flex flex-wrap items-center gap-3">
+                <a
+                  href={`/api/documents/${doc.id}/certificate`}
+                  download={`Sertifikat_Valid_${doc.title.replace(/\.pdf$/i, '')}.pdf`}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 shadow transition-colors"
+                >
+                  <FileCheck className="h-4 w-4" /> Unduh Sertifikat Valid
+                </a>
+
+                <a
+                  href={doc.filePath}
+                  download
+                  className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 shadow transition-colors"
+                >
+                  <Download className="h-4 w-4" /> Unduh Dokumen PDF
+                </a>
+              </div>
             </div>
 
             {/* Signing Certificate Card */}
@@ -166,10 +176,7 @@ export default function PublicVerifierPage() {
                 </div>
 
                 {doc.recipients.map((recipient) => {
-                  const log = doc.logs?.find((l) => l.signerId === recipient.user?.name)
-                  const signedDate = recipient.updatedAt
-                    ? new Date(recipient.updatedAt).toISOString().replace('T', ' ').slice(0, 19) + ' (UTC)'
-                    : '-'
+                  const log = doc.logs?.find((l) => l.signerId === recipient.id || l.signerId === recipient.user?.name)
 
                   return (
                     <div
@@ -202,18 +209,18 @@ export default function PublicVerifierPage() {
                         </div>
                       </div>
 
-                      <div className="space-y-1 text-[11px] text-slate-500">
+                      <div className="space-y-1.5 text-[11px] text-slate-500">
                         <p>
                           Sent:{' '}
                           <span className="text-slate-700">
                             {new Date(doc.createdAt).toISOString().replace('T', ' ').slice(0, 19)} (UTC)
                           </span>
                         </p>
-                        <p>
-                          Signed: <span className="text-slate-700">{signedDate}</span>
-                        </p>
-                        <p className="pt-1 italic text-slate-500">
-                          Reason: <span className="text-slate-700 font-medium">I am the owner/signer of this document</span>
+                        <p className="pt-0.5 italic text-slate-500">
+                          Reason:{' '}
+                          <span className="text-slate-700 font-medium">
+                            Persetujuan & Pengesahan Dokumen Digital (Owner/Signer)
+                          </span>
                         </p>
                       </div>
                     </div>

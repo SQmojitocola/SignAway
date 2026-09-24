@@ -69,7 +69,7 @@ export async function POST(req: Request) {
     const newSpecimen = await prisma.userSpecimen.create({
       data: {
         userId,
-        type, // 'SIGNATURE' | 'INITIAL'
+        type, // 'SIGNATURE' | 'PARAF'
         imageUrl,
         isPrimary: setAsPrimary || false,
       },
@@ -112,6 +112,41 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ message: 'Spesimen berhasil dihapus' })
   } catch (error) {
     console.error('Delete specimen error:', error)
+    return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 })
+  }
+}
+
+// PATCH: Ubah spesimen pilihan menjadi Spesimen Utama (Primary)
+export async function PATCH(req: Request) {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+    }
+    const userId = session.user.id
+
+    const body = await req.json()
+    const { id, type } = body
+
+    if (!id || !type) {
+      return NextResponse.json({ message: 'ID dan Tipe spesimen wajib diisi' }, { status: 400 })
+    }
+
+    // 📍 Gunakan Transaction & Model UserSpecimen dengan field isPrimary
+    await prisma.$transaction([
+      prisma.userSpecimen.updateMany({
+        where: { userId, type },
+        data: { isPrimary: false },
+      }),
+      prisma.userSpecimen.update({
+        where: { id, userId },
+        data: { isPrimary: true },
+      }),
+    ])
+
+    return NextResponse.json({ message: 'Spesimen utama berhasil diperbarui' }, { status: 200 })
+  } catch (error) {
+    console.error('Update primary specimen error:', error)
     return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 })
   }
 }
