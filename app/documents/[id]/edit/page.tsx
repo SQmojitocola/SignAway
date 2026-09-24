@@ -2,7 +2,18 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, AlertTriangle, Send, Save, PenTool, X } from 'lucide-react'
+import {
+  ArrowLeft,
+  CheckCircle2,
+  AlertTriangle,
+  Send,
+  Save,
+  PenTool,
+  X,
+  FileCheck,
+  Sliders,
+} from 'lucide-react'
+import { FieldTypeSelectorModal } from '@/components/FieldTypeSelectorModal'
 
 interface Recipient {
   id: string
@@ -39,6 +50,12 @@ interface FieldInteraction {
   currentHeight: number
 }
 
+interface PendingClickPlot {
+  pageNumber: number
+  posX: number
+  posY: number
+}
+
 const PDF_VIEWPORT_SCALE = 1.25
 
 export default function DocumentFieldPlottingPage() {
@@ -55,6 +72,10 @@ export default function DocumentFieldPlottingPage() {
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null)
   const [activeRecipient, setActiveRecipient] = useState<Recipient | null>(null)
   const [selectedRecipientId, setSelectedRecipientId] = useState<string | null>(null)
+
+  // State Pending Plot untuk Pemanggilan Pop-over Modal
+  const [pendingPlot, setPendingPlot] = useState<PendingClickPlot | null>(null)
+
   const [loadingSave, setLoadingSave] = useState(false)
   const [pdfInteractive, setPdfInteractive] = useState(false)
   const [pdfPages, setPdfPages] = useState<Array<{ pageNumber: number; width: number; height: number }>>([])
@@ -221,7 +242,6 @@ export default function DocumentFieldPlottingPage() {
         setDocumentTitle(data.document.title)
         setDocumentPath(data.document.filePath)
 
-        // 📍 AMBIL TERBATAS DARI RESIPIEN YANG DIDAFTARKAN SAAT UPLOAD (DATABASE)
         const validRecipients: Recipient[] = data.document.recipients.map((r: any) => ({
           id: r.id,
           userId: r.userId,
@@ -242,12 +262,12 @@ export default function DocumentFieldPlottingPage() {
             id: field.id,
             recipientId: field.recipientId,
             recipientName: field.recipient?.user?.name || 'Penandatangan',
-            type: 'SIGNATURE',
+            type: field.type || 'SIGNATURE',
             pageNumber: field.pageNumber,
             posX: field.posX,
             posY: field.posY,
-            width: field.width,
-            height: field.height,
+            width: field.width || 150,
+            height: field.height || 70,
           }))
         )
       } catch (error) {
@@ -258,7 +278,7 @@ export default function DocumentFieldPlottingPage() {
     if (documentId) loadDocument()
   }, [documentId])
 
-  // Klik Area Dokumen untuk Menempatkan Kotak TTD
+  // Klik Area Dokumen -> Membuka Modal Pilihan Tipe Plotting
   const handlePdfClick = (e: React.MouseEvent<HTMLDivElement>, pageNumber: number) => {
     if (!activeRecipient) return
     if (!pdfContainerRef.current) return
@@ -266,24 +286,33 @@ export default function DocumentFieldPlottingPage() {
     const pageElement = pageRefs.current[pageNumber]
     if (!pageElement) return
     const rect = pageElement.getBoundingClientRect()
-    const posX = e.clientX - rect.left - 75
-    const posY = e.clientY - rect.top - 35
+    const posX = Math.max(0, e.clientX - rect.left - 75)
+    const posY = Math.max(0, e.clientY - rect.top - 35)
+
+    // Buka Modal Pemilihan Tipe (TTD atau Paraf)
+    setPendingPlot({ pageNumber, posX, posY })
+  }
+
+  // 📍 METODE KONFIRMASI DARI MODAL TERPISAH
+  const handleConfirmFieldType = (type: 'SIGNATURE' | 'PARAF') => {
+    if (!pendingPlot || !activeRecipient) return
 
     const newField: SignatureField = {
       id: `field-${crypto.randomUUID()}`,
       recipientId: activeRecipient.id,
       recipientName: activeRecipient.name,
-      type: 'SIGNATURE',
-      pageNumber,
-      posX: Math.max(0, posX),
-      posY: Math.max(0, posY),
-      width: 150,
-      height: 70,
+      type,
+      pageNumber: pendingPlot.pageNumber,
+      posX: pendingPlot.posX,
+      posY: pendingPlot.posY,
+      width: type === 'PARAF' ? 100 : 150,
+      height: type === 'PARAF' ? 50 : 70,
     }
 
     setHasUnsavedChanges(true)
     setFields((currentFields) => [...currentFields, newField])
     setSelectedFieldId(newField.id)
+    setPendingPlot(null)
     setActiveRecipient(null)
   }
 
@@ -303,6 +332,21 @@ export default function DocumentFieldPlottingPage() {
       setFields((currentFields) => currentFields.filter((f) => f.id !== fieldId))
     }
     setSelectedFieldId(null)
+  }
+
+  const handleUpdateFieldType = (fieldId: string, type: 'SIGNATURE' | 'PARAF') => {
+    setHasUnsavedChanges(true)
+    setFields((current) =>
+      current.map((f) => {
+        if (f.id !== fieldId) return f
+        return {
+          ...f,
+          type,
+          width: type === 'PARAF' ? 100 : 150,
+          height: type === 'PARAF' ? 50 : 70,
+        }
+      })
+    )
   }
 
   const handleLeaveEditor = async (mode: 'save' | 'discard') => {
@@ -349,7 +393,15 @@ export default function DocumentFieldPlottingPage() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-slate-100">
+    <div className="flex h-screen flex-col bg-slate-100 font-sans">
+      {/* 📍 PEMANGGILAN KOMPONEN MODAL POP-OVER TERPISAH */}
+      <FieldTypeSelectorModal
+        isOpen={Boolean(pendingPlot)}
+        recipientName={activeRecipient?.name}
+        onClose={() => setPendingPlot(null)}
+        onConfirm={handleConfirmFieldType}
+      />
+
       {/* Dialog Unsaved Changes */}
       {showLeaveDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4 backdrop-blur-sm">
@@ -389,7 +441,7 @@ export default function DocumentFieldPlottingPage() {
       )}
 
       {/* Header Bar */}
-      <header className="flex h-16 items-center justify-between border-b bg-white px-6">
+      <header className="flex h-16 items-center justify-between border-b bg-white px-6 shadow-xs">
         <div className="flex items-center gap-3">
           <button
             onClick={() => {
@@ -406,7 +458,7 @@ export default function DocumentFieldPlottingPage() {
           </button>
           <div>
             <h1 className="text-sm font-bold text-slate-800">{documentTitle}</h1>
-            <p className="text-[11px] text-slate-400">Penempatan Tanda Tangan</p>
+            <p className="text-[11px] text-slate-400">Penempatan Tanda Tangan & Paraf</p>
           </div>
         </div>
 
@@ -424,7 +476,7 @@ export default function DocumentFieldPlottingPage() {
             {activeRecipient
               ? 'Batal Tempatkan'
               : pdfInteractive
-              ? 'Mode Tempatkan TTD'
+              ? 'Mode Tempatkan Plot'
               : 'Scroll / Zoom PDF'}
           </button>
           <button
@@ -450,7 +502,7 @@ export default function DocumentFieldPlottingPage() {
               })
             }}
             disabled={!canSend || loadingSave}
-            className="flex items-center gap-2 rounded-xl bg-[#1e4273] px-4 py-2 text-xs font-semibold text-white hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex items-center gap-2 rounded-xl bg-[#1e4273] px-4 py-2 text-xs font-semibold text-white hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-50 shadow-sm"
           >
             <Send className="h-4 w-4" /> Kirim untuk Ditandatangani
           </button>
@@ -464,7 +516,7 @@ export default function DocumentFieldPlottingPage() {
           <div>
             <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Instruksi</h3>
             <p className="text-xs text-slate-500">
-              Klik <span className="font-semibold text-blue-600">Tempatkan</span> lalu klik area dokumen untuk menaruh kotak TTD.
+              Klik <span className="font-semibold text-blue-600">Tempatkan</span> lalu klik area dokumen untuk memilih menambah TTD atau Paraf.
             </p>
           </div>
 
@@ -495,7 +547,7 @@ export default function DocumentFieldPlottingPage() {
                     const recipientFieldCount = fields.filter((field) => field.recipientId === recipient.id).length
                     return recipientFieldCount > 0 ? (
                       <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-600">
-                        <CheckCircle2 className="h-3.5 w-3.5" /> {recipientFieldCount} field ditempatkan
+                        <CheckCircle2 className="h-3.5 w-3.5" /> {recipientFieldCount} plot ditempatkan
                       </span>
                     ) : (
                       <span className="flex items-center gap-1 text-[11px] font-medium text-amber-600">
@@ -541,6 +593,8 @@ export default function DocumentFieldPlottingPage() {
                   .filter((field) => field.pageNumber === page.pageNumber)
                   .map((field) => {
                     const isSelected = selectedFieldId === field.id
+                    const isParaf = field.type === 'PARAF'
+
                     return (
                       <div
                         key={field.id}
@@ -577,16 +631,27 @@ export default function DocumentFieldPlottingPage() {
                           width: `${field.width}px`,
                           height: `${field.height}px`,
                         }}
-                        className={`absolute z-10 rounded-lg border-2 border-dashed p-2 transition-[border-color,box-shadow] flex flex-col items-center justify-center bg-blue-50/80 ${
-                          isSelected ? 'border-blue-600 ring-2 ring-blue-400' : 'border-blue-400'
+                        className={`absolute z-10 rounded-lg border-2 border-dashed p-2 transition-all flex flex-col items-center justify-center ${
+                          isParaf
+                            ? isSelected
+                              ? 'border-amber-600 bg-amber-50/90 ring-2 ring-amber-400 shadow-md'
+                              : 'border-amber-500 bg-amber-50/70'
+                            : isSelected
+                            ? 'border-blue-600 bg-blue-50/90 ring-2 ring-blue-400 shadow-md'
+                            : 'border-blue-500 bg-blue-50/70'
                         }`}
                       >
-                        <div className="absolute -top-3 left-2 bg-[#1e4273] text-white text-[9px] font-bold px-2 py-0.5 rounded">
-                          {field.recipientName}
+                        <div
+                          className={`absolute -top-3 left-2 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-xs ${
+                            isParaf ? 'bg-amber-600' : 'bg-[#1e4273]'
+                          }`}
+                        >
+                          {field.recipientName} ({isParaf ? 'Paraf' : 'TTD'})
                         </div>
+
                         <button
                           type="button"
-                          aria-label="Batalkan field tanda tangan"
+                          aria-label="Hapus plot"
                           onPointerDown={(event) => {
                             event.preventDefault()
                             event.stopPropagation()
@@ -596,14 +661,25 @@ export default function DocumentFieldPlottingPage() {
                         >
                           <X className="h-3 w-3" />
                         </button>
-                        <PenTool className="w-4 h-4 text-blue-600 mb-1" />
-                        <span className="text-[10px] font-semibold text-blue-800">
-                          {field.type === 'SIGNATURE' ? 'Tanda tangan di sini' : 'Paraf di sini'}
+
+                        {isParaf ? (
+                          <FileCheck className="w-4 h-4 text-amber-600 mb-0.5" />
+                        ) : (
+                          <PenTool className="w-4 h-4 text-blue-600 mb-0.5" />
+                        )}
+
+                        <span
+                          className={`text-[10px] font-bold ${
+                            isParaf ? 'text-amber-800' : 'text-blue-800'
+                          }`}
+                        >
+                          {isParaf ? 'Paraf di sini' : 'Tanda tangan di sini'}
                         </span>
+
                         {isSelected && !pdfInteractive && (
                           <button
                             type="button"
-                            aria-label="Ubah ukuran field tanda tangan"
+                            aria-label="Ubah ukuran plot"
                             onPointerDown={(event) => {
                               event.preventDefault()
                               event.stopPropagation()
@@ -623,7 +699,9 @@ export default function DocumentFieldPlottingPage() {
                               } satisfies FieldInteraction
                               interactionRef.current = interaction
                             }}
-                            className="absolute bottom-0 right-0 h-4 w-4 cursor-se-resize rounded-tl bg-blue-600"
+                            className={`absolute bottom-0 right-0 h-4 w-4 cursor-se-resize rounded-tl ${
+                              isParaf ? 'bg-amber-600' : 'bg-blue-600'
+                            }`}
                           />
                         )}
                       </div>
@@ -634,13 +712,15 @@ export default function DocumentFieldPlottingPage() {
           </div>
         </main>
 
-        {/* Sidebar Kanan: Properti TTD */}
+        {/* Sidebar Kanan: Properti Field */}
         <aside className="w-64 border-l bg-white p-4 space-y-6">
-          <h3 className="text-xs font-bold text-slate-800 border-b pb-2">Properti Tanda Tangan</h3>
+          <h3 className="text-xs font-bold text-slate-800 border-b pb-2 flex items-center gap-1.5">
+            <Sliders className="h-3.5 w-3.5 text-blue-600" /> Properti Field
+          </h3>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-2">Lokasi Tanda Tangan</label>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-2">Filter Penandatangan</label>
               <select
                 value={selectedRecipientId ?? ''}
                 onChange={(event) => {
@@ -648,7 +728,7 @@ export default function DocumentFieldPlottingPage() {
                   setSelectedRecipientId(recipientId)
                   setSelectedFieldId(null)
                 }}
-                className="mb-3 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs text-slate-700"
+                className="mb-3 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs text-slate-700 focus:ring-2 focus:ring-blue-500/20"
               >
                 <option value="">Semua penandatangan</option>
                 {recipients.map((recipient) => (
@@ -668,21 +748,34 @@ export default function DocumentFieldPlottingPage() {
                         setSelectedFieldId(field.id)
                         setSelectedRecipientId(field.recipientId)
                       }}
-                      className={`w-full rounded-lg border p-2 text-left text-[11px] ${
-                        selectedFieldId === field.id ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-slate-50'
+                      className={`w-full rounded-lg border p-2 text-left text-[11px] transition-all ${
+                        selectedFieldId === field.id
+                          ? 'border-blue-500 bg-blue-50/80 shadow-xs'
+                          : 'border-slate-200 bg-slate-50 hover:bg-slate-100/80'
                       }`}
                     >
-                      <span className="block font-semibold text-slate-700">
-                        {index + 1}. {field.recipientName}
+                      <span className="flex items-center justify-between font-bold text-slate-700">
+                        <span>
+                          {index + 1}. {field.recipientName}
+                        </span>
+                        <span
+                          className={`text-[9px] px-1.5 py-0.5 rounded font-extrabold ${
+                            field.type === 'PARAF'
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-blue-100 text-blue-700'
+                          }`}
+                        >
+                          {field.type}
+                        </span>
                       </span>
-                      <span className="block text-slate-500">
+                      <span className="block text-slate-500 text-[10px] mt-1">
                         Halaman {field.pageNumber} · X: {Math.round(field.posX)} · Y: {Math.round(field.posY)}
                       </span>
                     </button>
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-slate-400 italic">Belum ada field tanda tangan.</p>
+                <p className="text-xs text-slate-400 italic">Belum ada plot ditempatkan.</p>
               )}
             </div>
 
@@ -694,8 +787,38 @@ export default function DocumentFieldPlottingPage() {
                     type="text"
                     disabled
                     value={selectedField.recipientName}
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs font-semibold text-slate-700"
+                    className="w-full rounded-lg border border-slate-200 bg-slate-100 p-2 text-xs font-semibold text-slate-700"
                   />
+                </div>
+
+                {/* Switcher Tipe Field Terpilih */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Tipe Pengesahan</label>
+                  <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateFieldType(selectedField.id, 'SIGNATURE')}
+                      className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        selectedField.type === 'SIGNATURE'
+                          ? 'bg-white text-blue-600 shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      <PenTool className="h-3 w-3" /> TTD
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateFieldType(selectedField.id, 'PARAF')}
+                      className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        selectedField.type === 'PARAF'
+                          ? 'bg-white text-amber-600 shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      <FileCheck className="h-3 w-3" /> Paraf
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : null}
