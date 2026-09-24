@@ -83,6 +83,7 @@ export default function SignDocumentPage() {
 
   // Mode Pengisian TTD
   const [sigMode, setSigMode] = useState<'DRAW' | 'SPECIMEN'>('DRAW')
+  const [penColor, setPenColor] = useState<'#000000' | '#0B5369'>('#000000')
   const [bgCropUrl, setBgCropUrl] = useState<string | null>(null)
 
   // Manipulasi Spesimen (Ukuran & Posisi)
@@ -369,7 +370,7 @@ export default function SignDocumentPage() {
     ctx.lineWidth = 3
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
-    ctx.strokeStyle = '#000'
+    ctx.strokeStyle = penColor
     setIsDrawing(true)
   }
 
@@ -965,6 +966,36 @@ export default function SignDocumentPage() {
                   <p className="text-[11px] text-slate-400 italic">
                     Goreskan {isParafTask ? 'paraf' : 'tanda tangan'} Anda di bawah:
                   </p>
+
+                  <div className="mb-3 flex items-center justify-between rounded-xl border border-slate-700/60 bg-slate-800/60 p-2">
+                    <span className="text-[11px] font-semibold text-slate-300">Warna Tinta:</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPenColor('#000000')}
+                        className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
+                          penColor === '#000000'
+                            ? 'bg-slate-700 text-white ring-2 ring-blue-500'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <span className="h-3 w-3 rounded-full border border-slate-400 bg-black" />
+                        Hitam
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPenColor('#0B5369')}
+                        className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
+                          penColor === '#0B5369'
+                            ? 'bg-slate-700 text-white ring-2 ring-blue-500'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <span className="h-3 w-3 rounded-full border border-blue-300 bg-[#0B5369]" />
+                        Biru
+                      </button>
+                    </div>
+                  </div>
 
                   <div
                     className="relative w-full rounded-xl border-2 border-slate-700 bg-white overflow-hidden shadow-inner flex items-center justify-center select-none"

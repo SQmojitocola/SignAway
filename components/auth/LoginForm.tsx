@@ -14,8 +14,8 @@ import {
   ChevronRight,
 } from 'lucide-react'
 
-// 📍 Data Slide Banner Sesuai Permintaan
-const slides = [
+// Data Slide Asli
+const baseSlides = [
   {
     image: '/assets/bg1.jpeg',
     title: 'Keabsahan Dokumen Digital',
@@ -28,8 +28,7 @@ const slides = [
     title: 'Ruang Kerja Modern & Terintegrasi',
     description:
       'Pengelolaan alur penandatanganan dokumen dari mana saja, kapan saja dengan keamanan kriptografi tingkat tinggi.',
-    credit:
-      'Photo by Nataliya Vaitkevich (Pexels)',
+    credit: 'Photo by Nataliya Vaitkevich (Pexels)',
     creditLink:
       'https://www.pexels.com/photo/overhead-shot-of-a-workspace-8927455/',
   },
@@ -42,6 +41,13 @@ const slides = [
   },
 ]
 
+// Array Infinite Loop (Clone di Awal & Akhir)
+const slides = [
+  baseSlides[baseSlides.length - 1],
+  ...baseSlides,
+  baseSlides[0],
+]
+
 export default function LoginForm() {
   const router = useRouter()
   const [email, setEmail] = useState('')
@@ -50,22 +56,38 @@ export default function LoginForm() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  // 📍 State & Ref Slider
-  const [currentSlide, setCurrentSlide] = useState(0)
+  // State Carousel
+  const [currentIndex, setCurrentIndex] = useState(1)
+  const [isTransitioning, setIsTransitioning] = useState(true)
   const [isDragging, setIsDragging] = useState(false)
   const [startX, setStartX] = useState(0)
   const [dragOffset, setDragOffset] = useState(0)
+
   const autoSlideTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const sliderRef = useRef<HTMLDivElement | null>(null)
 
   const handleNextSlide = useCallback(() => {
-    setCurrentSlide((prev) => (prev + 1) % slides.length)
+    setIsTransitioning(true)
+    setCurrentIndex((prev) => prev + 1)
   }, [])
 
   const handlePrevSlide = useCallback(() => {
-    setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length)
+    setIsTransitioning(true)
+    setCurrentIndex((prev) => prev - 1)
   }, [])
 
-  // 📍 Auto-Slide 5 Detik
+  // Handle Loop Instant (Seamless Transition Jump)
+  const handleTransitionEnd = () => {
+    if (currentIndex === slides.length - 1) {
+      setIsTransitioning(false)
+      setCurrentIndex(1)
+    } else if (currentIndex === 0) {
+      setIsTransitioning(false)
+      setCurrentIndex(slides.length - 2)
+    }
+  }
+
+  // Auto-Slide 5 Detik
   const startAutoSlide = useCallback(() => {
     if (autoSlideTimerRef.current) clearInterval(autoSlideTimerRef.current)
     autoSlideTimerRef.current = setInterval(() => {
@@ -80,31 +102,42 @@ export default function LoginForm() {
     }
   }, [startAutoSlide])
 
-  // Reset Timer saat User Berinteraksi Manual
   const resetAutoSlide = () => {
     startAutoSlide()
   }
 
-  // 📍 Handlers Grab & Drag Gesture
-  const handlePointerDown = (e: React.PointerEvent) => {
+  // Drag Gesture Handlers
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Abaikan drag jika mengklik tombol kontrol
+    if ((e.target as HTMLElement).closest('button')) return
+
     setIsDragging(true)
     setStartX(e.clientX)
     setDragOffset(0)
+
+    if (sliderRef.current) {
+      sliderRef.current.setPointerCapture(e.pointerId)
+    }
+
     if (autoSlideTimerRef.current) clearInterval(autoSlideTimerRef.current)
   }
 
-  const handlePointerMove = (e: React.PointerEvent) => {
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDragging) return
     const currentX = e.clientX
     const diff = currentX - startX
     setDragOffset(diff)
   }
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDragging) return
+
+    if (sliderRef.current && sliderRef.current.hasPointerCapture(e.pointerId)) {
+      sliderRef.current.releasePointerCapture(e.pointerId)
+    }
+
     setIsDragging(false)
 
-    // Ambang batas swipe (threshold 50px)
     if (dragOffset < -50) {
       handleNextSlide()
     } else if (dragOffset > 50) {
@@ -135,6 +168,13 @@ export default function LoginForm() {
     router.push('/dashboard')
     router.refresh()
   }
+
+  const activeDotIndex =
+    currentIndex === 0
+      ? baseSlides.length - 1
+      : currentIndex === slides.length - 1
+      ? 0
+      : currentIndex - 1
 
   return (
     <div className="flex min-h-screen w-full bg-slate-50 font-sans text-slate-800 overflow-hidden">
@@ -256,23 +296,28 @@ export default function LoginForm() {
         </div>
       </div>
 
-      {/* 📍 PANEL KANAN: INTERACTIVE IMAGE SLIDER / CAROUSEL */}
+      {/* 📍 PANEL KANAN: INFINITE LOOPING IMAGE SLIDER */}
       <div className="hidden lg:flex lg:w-1/2 p-6">
         <div
+          ref={sliderRef}
+          style={{ touchAction: 'none' }}
           className="relative h-full w-full overflow-hidden rounded-3xl shadow-2xl select-none cursor-grab active:cursor-grabbing group"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
         >
-          {/* Track Slides (Animated Container) */}
+          {/* Track Slides */}
           <div
             className={`flex h-full w-full ${
-              isDragging ? 'transition-none' : 'transition-transform duration-700 ease-out'
+              isTransitioning && !isDragging
+                ? 'transition-transform duration-700 ease-out'
+                : 'transition-none'
             }`}
             style={{
-              transform: `translateX(calc(-${currentSlide * 100}% + ${dragOffset}px))`,
+              transform: `translateX(calc(-${currentIndex * 100}% + ${dragOffset}px))`,
             }}
+            onTransitionEnd={handleTransitionEnd}
           >
             {slides.map((slide, idx) => (
               <div key={idx} className="relative h-full w-full shrink-0">
@@ -280,13 +325,11 @@ export default function LoginForm() {
                   src={slide.image}
                   alt={slide.title}
                   fill
-                  className="object-cover"
-                  priority={idx === 0}
+                  className="object-cover pointer-events-none"
+                  priority={idx === 1}
                 />
-                {/* Overlay Gradient Gelap */}
-                <div className="absolute inset-0 bg-gradient-to-t from-[#001f3f]/95 via-[#003b73]/40 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#001f3f]/95 via-[#003b73]/40 to-transparent pointer-events-none" />
 
-                {/* Konten Teks & Credit */}
                 <div className="absolute inset-0 flex flex-col justify-end p-12 text-white pointer-events-none">
                   <div className="max-w-lg space-y-3 z-10">
                     <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-tight drop-shadow-md">
@@ -296,7 +339,6 @@ export default function LoginForm() {
                       {slide.description}
                     </p>
 
-                    {/* Credit Sumber Gambar */}
                     <p className="text-[10px] text-slate-300/80 pt-1 italic">
                       cr:{' '}
                       {slide.creditLink ? (
@@ -318,41 +360,48 @@ export default function LoginForm() {
             ))}
           </div>
 
-          {/* Tombol Panah Navigasi Kiri & Kanan */}
+          {/* 📍 TOMBOL PANAH NAVIGASI (DIBERI z-30 DAN STOP PROPAGATION) */}
           <button
             type="button"
-            onClick={() => {
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
               handlePrevSlide()
               resetAutoSlide()
             }}
-            className="absolute left-4 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/40 text-white backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all hover:bg-slate-900/70 z-20"
+            className="absolute left-4 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/50 text-white backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all hover:bg-slate-900/80 z-30 cursor-pointer"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
 
           <button
             type="button"
-            onClick={() => {
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
               handleNextSlide()
               resetAutoSlide()
             }}
-            className="absolute right-4 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/40 text-white backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all hover:bg-slate-900/70 z-20"
+            className="absolute right-4 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/50 text-white backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all hover:bg-slate-900/80 z-30 cursor-pointer"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
 
-          {/* Indikator Dots Slider (Bawah) */}
-          <div className="absolute bottom-6 left-12 flex items-center gap-2 z-20">
-            {slides.map((_, idx) => (
+          {/* 📍 INDIKATOR DOTS NAVIGASI (DIBERI z-30 DAN STOP PROPAGATION) */}
+          <div className="absolute bottom-6 left-12 flex items-center gap-2 z-30">
+            {baseSlides.map((_, idx) => (
               <button
                 key={idx}
                 type="button"
-                onClick={() => {
-                  setCurrentSlide(idx)
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setIsTransitioning(true)
+                  setCurrentIndex(idx + 1)
                   resetAutoSlide()
                 }}
-                className={`h-2 rounded-full transition-all ${
-                  currentSlide === idx
+                className={`h-2 rounded-full transition-all cursor-pointer ${
+                  activeDotIndex === idx
                     ? 'w-8 bg-white'
                     : 'w-2 bg-white/40 hover:bg-white/70'
                 }`}
