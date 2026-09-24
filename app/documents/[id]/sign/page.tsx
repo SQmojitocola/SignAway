@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, RefreshCw, PenTool, CheckCircle2, XCircle, Move, ZoomIn, RotateCcw, Star } from 'lucide-react'
+import { ArrowLeft, RefreshCw, PenTool, CheckCircle2, XCircle, Move, ZoomIn, RotateCcw, Star, FileCheck } from 'lucide-react'
 
 interface Field {
   id: string
@@ -59,7 +59,7 @@ export default function SignDocumentPage() {
   const [userSpecimens, setUserSpecimens] = useState<UserSpecimenItem[]>([])
   const [activeSpecimenUrl, setActiveSpecimenUrl] = useState<string | null>(null)
 
-  // State TTD & Mode Pilihan
+  // State Mode TTD (Gores atau Pakai Spesimen)
   const [sigMode, setSigMode] = useState<'DRAW' | 'SPECIMEN'>('DRAW')
   const [signatureData, setSignatureData] = useState<string | null>(null)
   const [bgCropUrl, setBgCropUrl] = useState<string | null>(null)
@@ -99,6 +99,7 @@ export default function SignDocumentPage() {
     )
   }, [recipientsList, currentUserId, currentUserEmail])
 
+  // Field spesifik milik user yang login
   const myField = useMemo(() => {
     return (
       fieldsList.find((field) => {
@@ -111,6 +112,12 @@ export default function SignDocumentPage() {
       }) || null
     )
   }, [fieldsList, recipientsList, myRecipientInDoc, currentUserId, currentUserEmail])
+
+  // 📍 PILIH OTOMATIS SPESIMEN DENGAN TIPE SESUAI TUGAS (SIGNATURE / PARAF)
+  const matchedSpecimens = useMemo(() => {
+    if (!myField) return []
+    return userSpecimens.filter((s) => s.type === myField.type)
+  }, [userSpecimens, myField])
 
   // 1. Fetch data dokumen, user, dan pustaka spesimen
   useEffect(() => {
@@ -143,7 +150,7 @@ export default function SignDocumentPage() {
               id: f.id,
               recipientId: matchedRecipient?.id || f.recipientId,
               recipientName: matchedRecipient?.user?.name || f.recipient?.user?.name || 'Penandatangan',
-              type: f.type || 'SIGNATURE',
+              type: f.type || 'SIGNATURE', // Ambil tipe resmi yang ditentukan Sender saat edit
               pageNumber: f.pageNumber || f.page || 1,
               posX: f.posX,
               posY: f.posY,
@@ -158,17 +165,9 @@ export default function SignDocumentPage() {
           })
         }
 
-        // Ambil Pustaka UserSpecimen
         if (specRes.ok) {
           const specData = await specRes.json()
-          const specimensList = specData.specimens || []
-          setUserSpecimens(specimensList)
-
-          // Set default active specimen (Primary)
-          const primarySpec = specimensList.find((s: UserSpecimenItem) => s.isPrimary) || specimensList[0]
-          if (primarySpec) {
-            setActiveSpecimenUrl(primarySpec.imageUrl)
-          }
+          setUserSpecimens(specData.specimens || [])
         }
       } catch (err) {
         console.error('Failed fetching data:', err)
@@ -178,6 +177,16 @@ export default function SignDocumentPage() {
     }
     fetchData()
   }, [documentId])
+
+  // 📍 OTOMATIS BERI SPESIMEN UTAMA SESUAI TIPE SENDER
+  useEffect(() => {
+    if (myField && matchedSpecimens.length > 0) {
+      const primarySpec = matchedSpecimens.find((s) => s.isPrimary) || matchedSpecimens[0]
+      if (primarySpec) {
+        setActiveSpecimenUrl(primarySpec.imageUrl)
+      }
+    }
+  }, [myField, matchedSpecimens])
 
   // 2. Mirroring Background Crop dari Dokumen
   const captureMirrorBackground = useCallback(() => {
@@ -348,7 +357,7 @@ export default function SignDocumentPage() {
     }
   }
 
-  // Mulai drag spesimen TTD
+  // Drag spesimen TTD
   const startSpecimenDrag = (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation()
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
@@ -397,7 +406,7 @@ export default function SignDocumentPage() {
     }
   }, [])
 
-  // Render Spesimen TTD ke Canvas
+  // Render Spesimen ke Canvas
   const updateSpecimenComposite = useCallback(
     (posX: number, posY: number, scalePercent: number, specimenUrl: string | null) => {
       if (!specimenUrl) return
@@ -451,7 +460,7 @@ export default function SignDocumentPage() {
   // Submit Penandatanganan
   const handleSign = async () => {
     if (!signatureData) {
-      alert('Silakan buat atau pilih tanda tangan terlebih dahulu.')
+      alert(`Silakan buat atau pilih ${myField?.type === 'PARAF' ? 'paraf' : 'tanda tangan'} terlebih dahulu.`)
       return
     }
 
@@ -548,6 +557,8 @@ export default function SignDocumentPage() {
   if (loading) return <div className="p-8 text-center text-slate-500">Memuat dokumen...</div>
   if (!doc) return <div className="p-8 text-center text-slate-500">Dokumen tidak ditemukan.</div>
 
+  const isParafTask = myField?.type === 'PARAF'
+
   return (
     <div className="flex h-screen w-full flex-col bg-slate-900 text-slate-100 overflow-hidden">
       {/* Modal Penolakan Dokumen */}
@@ -622,7 +633,7 @@ export default function SignDocumentPage() {
             disabled={submitting || !signatureData || !isMyTurn}
             className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {submitting ? 'Memproses...' : 'Kirim Tanda Tangan'}
+            {submitting ? 'Memproses...' : isParafTask ? 'Kirim Paraf' : 'Kirim Tanda Tangan'}
           </button>
         </div>
       </header>
@@ -651,6 +662,7 @@ export default function SignDocumentPage() {
                       (recipient?.user?.id || recipient?.userId) === currentUserId ||
                       (currentUserEmail && recipient?.user?.email === currentUserEmail)
                     const isSigned = recipient?.status === 'SIGNED'
+                    const isParaf = field.type === 'PARAF'
 
                     return (
                       <div
@@ -666,7 +678,9 @@ export default function SignDocumentPage() {
                         onTouchStart={isMine && sigMode === 'SPECIMEN' ? startSpecimenDrag : undefined}
                         className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-1 z-10 box-border select-none ${
                           isMine 
-                            ? `border-emerald-500 bg-emerald-500/10 text-emerald-600 ${sigMode === 'SPECIMEN' ? 'cursor-grab active:cursor-grabbing ring-2 ring-emerald-500/30' : ''}`
+                            ? isParaf
+                              ? `border-amber-500 bg-amber-500/10 text-amber-600 ${sigMode === 'SPECIMEN' ? 'cursor-grab active:cursor-grabbing ring-2 ring-amber-500/30' : ''}`
+                              : `border-emerald-500 bg-emerald-500/10 text-emerald-600 ${sigMode === 'SPECIMEN' ? 'cursor-grab active:cursor-grabbing ring-2 ring-emerald-500/30' : ''}`
                             : 'border-blue-500 bg-blue-500/10 text-blue-500'
                         }`}
                       >
@@ -679,9 +693,9 @@ export default function SignDocumentPage() {
                            </div>
                         ) : (
                           <div className="flex flex-col items-center justify-center text-center overflow-hidden p-0.5 w-full h-full">
-                            <PenTool className="h-4 w-4 shrink-0 mb-0.5" />
+                            {isParaf ? <FileCheck className="h-4 w-4 shrink-0 mb-0.5 text-amber-600" /> : <PenTool className="h-4 w-4 shrink-0 mb-0.5" />}
                             <p className="text-[10px] font-bold uppercase truncate w-full">
-                              {field.recipientName}
+                              {field.recipientName} ({isParaf ? 'PARAF' : 'TTD'})
                             </p>
                           </div>
                         )}
@@ -695,7 +709,26 @@ export default function SignDocumentPage() {
 
         {/* Sidebar Kanan Papan TTD */}
         <aside className="w-80 border-l border-slate-800 bg-slate-950 p-5 flex flex-col gap-4 shrink-0 overflow-y-auto">
-          <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Papan Tanda Tangan</h2>
+          {/* Header Tanda Tangan / Paraf dikunci sesuai myField.type */}
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+              {isParafTask ? (
+                <>
+                  <FileCheck className="h-4 w-4 text-amber-500" /> Papan Paraf
+                </>
+              ) : (
+                <>
+                  <PenTool className="h-4 w-4 text-blue-500" /> Papan Tanda Tangan
+                </>
+              )}
+            </h2>
+
+            <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded ${
+              isParafTask ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+            }`}>
+              {isParafTask ? 'TUGAS: PARAF' : 'TUGAS: TTD'}
+            </span>
+          </div>
 
           {isMyTurn ? (
             <div className="rounded-xl border border-slate-800 bg-slate-900 p-3 space-y-3">
@@ -711,7 +744,7 @@ export default function SignDocumentPage() {
                     sigMode === 'DRAW' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
                   }`}
                 >
-                  Gores TTD
+                  Gores {isParafTask ? 'Paraf' : 'TTD'}
                 </button>
                 <button
                   type="button"
@@ -727,7 +760,7 @@ export default function SignDocumentPage() {
               {sigMode === 'DRAW' ? (
                 <>
                   <p className="text-[11px] text-slate-400 italic">
-                    Goreskan tanda tangan Anda di kotak putih (bayangan dokumen menampilkan posisi asli TTD):
+                    Goreskan {isParafTask ? 'paraf' : 'tanda tangan'} Anda di kotak putih (bayangan dokumen menampilkan posisi asli):
                   </p>
 
                   <div
@@ -768,13 +801,13 @@ export default function SignDocumentPage() {
               ) : (
                 <div className="space-y-3">
                   <p className="text-[11px] text-slate-400 italic">
-                    Geser tanda tangan untuk memindahkan posisi, atau atur ukuran dengan slider di bawah:
+                    Pilih spesimen {isParafTask ? 'paraf' : 'tanda tangan'} tersimpan Anda:
                   </p>
 
-                  {/* Pilihan Pustaka Spesimen User */}
-                  {userSpecimens.length > 0 && (
+                  {/* 📍 Pilihan Pustaka Spesimen yang DI-FILTER otomatis oleh myField.type */}
+                  {matchedSpecimens.length > 0 ? (
                     <div className="flex gap-2 overflow-x-auto pb-1">
-                      {userSpecimens.map((item) => {
+                      {matchedSpecimens.map((item) => {
                         const isSelected = activeSpecimenUrl === item.imageUrl
                         return (
                           <div
@@ -794,6 +827,10 @@ export default function SignDocumentPage() {
                           </div>
                         )
                       })}
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-center text-slate-400 text-[10px]">
+                      Belum ada spesimen {isParafTask ? 'Paraf' : 'Tanda Tangan'} tersimpan di Atribut Pengesahan.
                     </div>
                   )}
 
@@ -840,7 +877,7 @@ export default function SignDocumentPage() {
                       <div className="space-y-1.5 rounded-lg bg-slate-950/60 p-2.5 border border-slate-800">
                         <div className="flex items-center justify-between text-[11px]">
                           <span className="font-semibold text-slate-300 flex items-center gap-1">
-                            <ZoomIn className="h-3 w-3 text-blue-400" /> Ukuran TTD
+                            <ZoomIn className="h-3 w-3 text-blue-400" /> Ukuran {isParafTask ? 'Paraf' : 'TTD'}
                           </span>
                           <span className="font-mono text-xs font-bold text-blue-400">{specimenScale}%</span>
                         </div>
@@ -866,11 +903,7 @@ export default function SignDocumentPage() {
                         <RotateCcw className="h-3 w-3" /> Kembalikan ke Posisi Awal
                       </button>
                     </>
-                  ) : (
-                    <div className="p-4 rounded-lg bg-amber-950/20 border border-amber-900/30 text-center text-amber-300 text-xs">
-                      Belum ada spesimen tersimpan di profil Anda.
-                    </div>
-                  )}
+                  ) : null}
                 </div>
               )}
             </div>
