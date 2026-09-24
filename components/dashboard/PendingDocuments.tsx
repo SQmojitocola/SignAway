@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, Clock3, FileText, Search, SlidersHorizontal, Upload, XCircle } from 'lucide-react'
+import {
+  CheckCircle2,
+  Clock3,
+  FileText,
+  Search,
+  Upload,
+  XCircle,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react'
 
 export interface DashboardDocument {
   id: string
@@ -51,9 +60,24 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
   const [selectedCategory, setSelectedCategory] = useState<DashboardCategory>('waiting')
   const [seenDocs, setSeenDocs] = useState<Record<string, boolean>>({})
 
+  // 📍 STATE LIMIT DISPLAY & PAGINATION
+  const [pageSize, setPageSize] = useState<number>(5)
+  const [currentPage, setCurrentPage] = useState<number>(1)
+
   useEffect(() => {
     setSeenDocs(readSeenDocs())
   }, [])
+
+  // Reset ke halaman 1 setiap kali ganti kategori atau pencarian
+  const handleCategoryChange = (cat: DashboardCategory) => {
+    setSelectedCategory(cat)
+    setCurrentPage(1)
+  }
+
+  const handleSearchChange = (val: string) => {
+    setSearch(val)
+    setCurrentPage(1)
+  }
 
   const markDocAsSeen = (docId: string) => {
     const next = { ...seenDocs, [docId]: true }
@@ -71,7 +95,6 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
 
     const uploaded = documents.filter((doc) => doc.sender.id === userId && doc.status !== 'DRAFT').length
 
-    // Statcard Ditolak: Khusus dokumen milik pengirim yang ditolak
     const rejected = documents.filter((doc) => doc.sender.id === userId && doc.status === 'REJECTED').length
 
     const completed = documents.filter((doc) =>
@@ -113,6 +136,17 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
     }
   }, [documents, search, selectedCategory, userId])
 
+  // 📍 PAGINATED / SLICED DOCUMENTS UNTUK DITAMPILKAN PADA TABEL
+  const totalItems = filteredDocs.length
+  const totalPages = Math.ceil(totalItems / pageSize) || 1
+  const startItem = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1
+  const endItem = Math.min(currentPage * pageSize, totalItems)
+
+  const paginatedDocs = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredDocs.slice(start, start + pageSize)
+  }, [filteredDocs, currentPage, pageSize])
+
   const panelTitle = {
     waiting: 'Dokumen Menunggu Tanda Tangan',
     uploaded: 'Dokumen Saya Upload',
@@ -142,7 +176,7 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
             <button
               key={category.key}
               type="button"
-              onClick={() => setSelectedCategory(category.key)}
+              onClick={() => handleCategoryChange(category.key)}
               className={`relative w-full bg-white p-5 rounded-2xl border text-left transition-all ${
                 selectedCategory === category.key ? 'border-blue-500 ring-1 ring-blue-500 shadow-sm' : 'border-slate-200 shadow-sm hover:border-slate-300'
               }`}
@@ -173,7 +207,7 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
                 type="text"
                 placeholder="Cari dokumen..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 className="w-full pl-8 pr-3 py-1.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600"
               />
             </div>
@@ -193,14 +227,14 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredDocs.length === 0 ? (
+              {paginatedDocs.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="p-10 text-center text-slate-400">
                     Tidak ada dokumen di kategori ini.
                   </td>
                 </tr>
               ) : (
-                filteredDocs.map((doc) => {
+                paginatedDocs.map((doc) => {
                   const formattedDate = new Date(doc.createdAt).toLocaleDateString('id-ID', {
                     day: 'numeric',
                     month: 'short',
@@ -277,6 +311,62 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* 📍 FOOTER CONTROL: DROPDOWN LIMIT & NAVIGASI PAGINATION */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-slate-100 bg-slate-50/50 px-5 py-3.5">
+          {/* Selector Jumlah Tampilan Per Halaman */}
+          <div className="flex items-center gap-2 text-xs text-slate-600">
+            <span>Tampilkan</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value))
+                setCurrentPage(1)
+              }}
+              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+            <span>dokumen per halaman</span>
+          </div>
+
+          {/* Status & Navigasi Tombol Prev/Next */}
+          <div className="flex items-center justify-between sm:justify-end gap-4">
+            <span className="text-xs text-slate-500">
+              Menampilkan <strong className="text-slate-700">{startItem}</strong> -{' '}
+              <strong className="text-slate-700">{endItem}</strong> dari{' '}
+              <strong className="text-slate-700">{totalItems}</strong> dokumen
+            </span>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+
+              <span className="px-2 text-xs font-bold text-slate-700">
+                {currentPage} / {totalPages}
+              </span>
+
+              <button
+                type="button"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

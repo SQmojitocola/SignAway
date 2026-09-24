@@ -48,6 +48,7 @@ interface FieldInteraction {
   currentY: number
   currentWidth: number
   currentHeight: number
+  pointerId: number
 }
 
 interface PendingClickPlot {
@@ -173,7 +174,7 @@ export default function DocumentFieldPlottingPage() {
     }
   }, [hasUnsavedChanges])
 
-  // 4. Drag & Resize Interaction Listener
+  // 📍 4. OPTIMIZED DRAG & RESIZE INTERACTION LISTENER (INSTANT & PRECISE)
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
       const interaction = interactionRef.current
@@ -187,6 +188,7 @@ export default function DocumentFieldPlottingPage() {
       if (interaction.mode === 'drag') {
         interaction.currentX = Math.max(0, interaction.initialX + deltaX)
         interaction.currentY = Math.max(0, interaction.initialY + deltaY)
+        // Transform GPU langsung tanpa delay
         element.style.transform = `translate3d(${deltaX}px, ${deltaY}px, 0)`
       } else {
         interaction.currentWidth = Math.max(80, interaction.initialWidth + deltaX)
@@ -196,38 +198,50 @@ export default function DocumentFieldPlottingPage() {
       }
     }
 
-    const handlePointerUp = () => {
+    const handlePointerUp = (event: PointerEvent) => {
       const interaction = interactionRef.current
       if (!interaction) return
 
+      const element = fieldElementsRef.current[interaction.fieldId]
+      if (element && element.hasPointerCapture(interaction.pointerId)) {
+        element.releasePointerCapture(interaction.pointerId)
+      }
+
       const nextX = interaction.currentX
       const nextY = interaction.currentY
-      const element = fieldElementsRef.current[interaction.fieldId]
+      const mode = interaction.mode
+      const fieldId = interaction.fieldId
+      const nextW = interaction.currentWidth
+      const nextH = interaction.currentHeight
+
+      interactionRef.current = null
+
+      if (element) {
+        element.style.removeProperty('transform')
+      }
 
       setHasUnsavedChanges(true)
       setFields((currentFields) =>
         currentFields.map((field) => {
-          if (field.id !== interaction.fieldId) return field
-          return interaction.mode === 'drag'
+          if (field.id !== fieldId) return field
+          return mode === 'drag'
             ? { ...field, posX: nextX, posY: nextY }
             : {
                 ...field,
-                width: interaction.currentWidth,
-                height: interaction.currentHeight,
+                width: nextW,
+                height: nextH,
               }
         })
       )
-      interactionRef.current = null
-      window.requestAnimationFrame(() => {
-        element?.style.removeProperty('transform')
-      })
     }
 
     window.addEventListener('pointermove', handlePointerMove)
     window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointercancel', handlePointerUp)
     return () => {
       window.removeEventListener('pointermove', handlePointerMove)
       window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('pointercancel', handlePointerUp)
     }
   }, [])
 
@@ -293,7 +307,7 @@ export default function DocumentFieldPlottingPage() {
     setPendingPlot({ pageNumber, posX, posY })
   }
 
-  // 📍 METODE KONFIRMASI DARI MODAL TERPISAH
+  // METODE KONFIRMASI DARI MODAL TERPISAH
   const handleConfirmFieldType = (type: 'SIGNATURE' | 'PARAF') => {
     if (!pendingPlot || !activeRecipient) return
 
@@ -394,7 +408,7 @@ export default function DocumentFieldPlottingPage() {
 
   return (
     <div className="flex h-screen flex-col bg-slate-100 font-sans">
-      {/* 📍 PEMANGGILAN KOMPONEN MODAL POP-OVER TERPISAH */}
+      {/* PEMANGGILAN KOMPONEN MODAL POP-OVER TERPISAH */}
       <FieldTypeSelectorModal
         isOpen={Boolean(pendingPlot)}
         recipientName={activeRecipient?.name}
@@ -604,8 +618,15 @@ export default function DocumentFieldPlottingPage() {
                         onPointerDown={(event) => {
                           if (pdfInteractive || activeRecipient) return
                           event.preventDefault()
+                          event.stopPropagation()
+
+                          const el = fieldElementsRef.current[field.id]
+                          if (el) {
+                            el.setPointerCapture(event.pointerId)
+                          }
+
                           setSelectedFieldId(field.id)
-                          const interaction = {
+                          const interaction: FieldInteraction = {
                             mode: 'drag',
                             fieldId: field.id,
                             startX: event.clientX,
@@ -618,7 +639,8 @@ export default function DocumentFieldPlottingPage() {
                             currentY: field.posY,
                             currentWidth: field.width,
                             currentHeight: field.height,
-                          } satisfies FieldInteraction
+                            pointerId: event.pointerId,
+                          }
                           interactionRef.current = interaction
                         }}
                         onClick={(e) => {
@@ -631,7 +653,8 @@ export default function DocumentFieldPlottingPage() {
                           width: `${field.width}px`,
                           height: `${field.height}px`,
                         }}
-                        className={`absolute z-10 rounded-lg border-2 border-dashed p-2 transition-all flex flex-col items-center justify-center ${
+                        /* 📍 Menghapus `transition-all` agar pergerakan drag instan & tidak lag */
+                        className={`absolute z-10 rounded-lg border-2 border-dashed p-2 flex flex-col items-center justify-center select-none cursor-move ${
                           isParaf
                             ? isSelected
                               ? 'border-amber-600 bg-amber-50/90 ring-2 ring-amber-400 shadow-md'
@@ -642,7 +665,7 @@ export default function DocumentFieldPlottingPage() {
                         }`}
                       >
                         <div
-                          className={`absolute -top-3 left-2 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-xs ${
+                          className={`absolute -top-3 left-2 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-xs pointer-events-none ${
                             isParaf ? 'bg-amber-600' : 'bg-[#1e4273]'
                           }`}
                         >
@@ -663,13 +686,13 @@ export default function DocumentFieldPlottingPage() {
                         </button>
 
                         {isParaf ? (
-                          <FileCheck className="w-4 h-4 text-amber-600 mb-0.5" />
+                          <FileCheck className="w-4 h-4 text-amber-600 mb-0.5 pointer-events-none" />
                         ) : (
-                          <PenTool className="w-4 h-4 text-blue-600 mb-0.5" />
+                          <PenTool className="w-4 h-4 text-blue-600 mb-0.5 pointer-events-none" />
                         )}
 
                         <span
-                          className={`text-[10px] font-bold ${
+                          className={`text-[10px] font-bold pointer-events-none ${
                             isParaf ? 'text-amber-800' : 'text-blue-800'
                           }`}
                         >
@@ -683,7 +706,13 @@ export default function DocumentFieldPlottingPage() {
                             onPointerDown={(event) => {
                               event.preventDefault()
                               event.stopPropagation()
-                              const interaction = {
+
+                              const el = fieldElementsRef.current[field.id]
+                              if (el) {
+                                el.setPointerCapture(event.pointerId)
+                              }
+
+                              const interaction: FieldInteraction = {
                                 mode: 'resize',
                                 fieldId: field.id,
                                 startX: event.clientX,
@@ -696,7 +725,8 @@ export default function DocumentFieldPlottingPage() {
                                 currentY: field.posY,
                                 currentWidth: field.width,
                                 currentHeight: field.height,
-                              } satisfies FieldInteraction
+                                pointerId: event.pointerId,
+                              }
                               interactionRef.current = interaction
                             }}
                             className={`absolute bottom-0 right-0 h-4 w-4 cursor-se-resize rounded-tl ${

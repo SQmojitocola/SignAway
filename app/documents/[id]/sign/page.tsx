@@ -78,7 +78,7 @@ export default function SignDocumentPage() {
   const [signaturesMap, setSignaturesMap] = useState<Record<string, string>>({})
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null)
 
-  // 📍 STATE CHECKLIST: Terapkan Spesimen ke Semua Plot
+  // 📍 STATE CHECKLIST: Terapkan ke Semua Plot (Berlaku untuk DRAW & SPECIMEN)
   const [applyToAll, setApplyToAll] = useState<boolean>(false)
 
   // Mode Pengisian TTD
@@ -260,6 +260,8 @@ export default function SignDocumentPage() {
     if (!doc?.filePath) return
 
     let cancelled = false
+    let renderTimer: ReturnType<typeof setTimeout> | undefined
+    const renderTasks: Array<{ cancel: () => void }> = []
 
     const renderPdf = async () => {
       try {
@@ -275,35 +277,46 @@ export default function SignDocumentPage() {
           pages.push({ pageNumber: i, width: viewport.width, height: viewport.height })
         }
 
-        if (!cancelled) setPdfPages(pages)
+        if (cancelled) {
+          await pdf.destroy()
+          return
+        }
 
-        setTimeout(async () => {
-          for (const pageInfo of pages) {
-            if (cancelled) break
-            const page = await pdf.getPage(pageInfo.pageNumber)
-            const pageElement = pageRefs.current[pageInfo.pageNumber]
-            const canvas = pageElement?.querySelector('canvas')
-            const context = canvas?.getContext('2d')
-            if (!canvas || !context) continue
+        setPdfPages(pages)
 
-            const viewport = page.getViewport({ scale: PDF_VIEWPORT_SCALE })
-            canvas.width = viewport.width
-            canvas.height = viewport.height
+        renderTimer = setTimeout(async () => {
+          try {
+            for (const pageInfo of pages) {
+              if (cancelled) break
+              const page = await pdf.getPage(pageInfo.pageNumber)
+              const pageElement = pageRefs.current[pageInfo.pageNumber]
+              const canvas = pageElement?.querySelector('canvas')
+              const context = canvas?.getContext('2d')
+              if (!canvas || !context) continue
 
-            context.clearRect(0, 0, canvas.width, canvas.height)
+              const viewport = page.getViewport({ scale: PDF_VIEWPORT_SCALE })
+              canvas.width = viewport.width
+              canvas.height = viewport.height
 
-            await page.render({
-              canvasContext: context,
-              viewport: viewport,
-            }).promise
-          }
+              context.clearRect(0, 0, canvas.width, canvas.height)
 
-          if (!cancelled) {
-            captureMirrorBackground()
+              const renderTask = page.render({
+                canvasContext: context,
+                viewport: viewport,
+              })
+              renderTasks.push(renderTask)
+              await renderTask.promise
+            }
+          } catch (err) {
+            if (!cancelled) {
+              console.error('Error rendering PDF page:', err)
+            }
           }
         }, 100)
       } catch (err) {
-        console.error('Error rendering PDF:', err)
+        if (!cancelled) {
+          console.error('Error rendering PDF:', err)
+        }
       }
     }
 
@@ -311,8 +324,10 @@ export default function SignDocumentPage() {
 
     return () => {
       cancelled = true
+      if (renderTimer) clearTimeout(renderTimer)
+      renderTasks.forEach((renderTask) => renderTask.cancel())
     }
-  }, [doc?.filePath, captureMirrorBackground])
+  }, [doc?.filePath])
 
   useEffect(() => {
     if (activeField && pdfPages.length > 0) {
@@ -324,58 +339,91 @@ export default function SignDocumentPage() {
   }, [activeField, pdfPages, captureMirrorBackground])
 
   // Drawing Canvas Handlers
-  const getCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+  const getPointerCoordinates = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
     if (!canvas) return { x: 0, y: 0 }
     const rect = canvas.getBoundingClientRect()
     const scaleX = canvas.width / rect.width
     const scaleY = canvas.height / rect.height
 
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
-
     return {
-      x: (clientX - rect.left) * scaleX,
-      y: (clientY - rect.top) * scaleY,
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY,
     }
   }
 
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+  const startDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const { x, y } = getCoordinates(e)
+    canvas.setPointerCapture(e.pointerId)
+
+    const { x, y } = getPointerCoordinates(e)
     ctx.beginPath()
     ctx.moveTo(x, y)
-    ctx.lineWidth = 2.5
+    ctx.lineWidth = 3
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
     ctx.strokeStyle = '#000'
     setIsDrawing(true)
   }
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+  const draw = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return
+    e.preventDefault()
+    e.stopPropagation()
+
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
     if (!canvas || !ctx) return
 
-    if ('touches' in e) e.preventDefault()
-
-    const { x, y } = getCoordinates(e)
+    const { x, y } = getPointerCoordinates(e)
     ctx.lineTo(x, y)
     ctx.stroke()
   }
 
-  const stopDrawing = () => {
+  // 📍 FUNGSI MENYIMPAN HASIL GORES (TERAPKAN SEMENTARA ATAU KE SEMUA PLOT BERDASARKAN CHECKLIST)
+  const applyDrawResult = useCallback(
+    (base64: string, applyAll: boolean) => {
+      if (!activeField) return
+
+      const targetFields = applyAll
+        ? myFields.filter((f) => f.type === activeField.type)
+        : [activeField]
+
+      const newEntries: Record<string, string> = {}
+      targetFields.forEach((f) => {
+        newEntries[f.id] = base64
+      })
+
+      setSignaturesMap((prev) => ({
+        ...prev,
+        ...newEntries,
+      }))
+    },
+    [activeField, myFields]
+  )
+
+  const stopDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return
-    setIsDrawing(false)
+
     const canvas = canvasRef.current
+    if (canvas) {
+      e.preventDefault()
+      if (canvas.hasPointerCapture(e.pointerId)) {
+        canvas.releasePointerCapture(e.pointerId)
+      }
+    }
+
+    setIsDrawing(false)
     if (canvas && activeField) {
       const base64 = canvas.toDataURL('image/png')
-      setSignaturesMap((prev) => ({ ...prev, [activeField.id]: base64 }))
+      applyDrawResult(base64, applyToAll)
     }
   }
 
@@ -385,9 +433,16 @@ export default function SignDocumentPage() {
     const ctx = canvas.getContext('2d')
     if (ctx) {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+      const targetFields = applyToAll
+        ? myFields.filter((f) => f.type === activeField.type)
+        : [activeField]
+
       setSignaturesMap((prev) => {
         const copy = { ...prev }
-        delete copy[activeField.id]
+        targetFields.forEach((f) => {
+          delete copy[f.id]
+        })
         return copy
       })
     }
@@ -861,6 +916,50 @@ export default function SignDocumentPage() {
                 </button>
               </div>
 
+              {/* 📍 COMPONENT CHECKLIST SWITCHER TERAPKAN KE SEMUA PLOT (BERLAKU UNTUK DRAW & SPECIMEN) */}
+              <div
+                onClick={() => {
+                  const nextState = !applyToAll
+                  setApplyToAll(nextState)
+
+                  // Jika sedang di mode Spesimen, langsung perbarui hasil penempatan
+                  if (sigMode === 'SPECIMEN' && activeSpecimenUrl && activeField) {
+                    applySpecimenToFields(activeSpecimenUrl, activeField.type, nextState)
+                  }
+                  // Jika sedang di mode Gores, jika ada isi di kanvas, langsung terapkan
+                  else if (sigMode === 'DRAW' && canvasRef.current && activeField) {
+                    const base64 = canvasRef.current.toDataURL('image/png')
+                    if (signaturesMap[activeField.id]) {
+                      applyDrawResult(base64, nextState)
+                    }
+                  }
+                }}
+                className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer select-none transition-all ${
+                  applyToAll
+                    ? 'border-blue-500 bg-blue-950/40 text-blue-300 ring-2 ring-blue-500/20'
+                    : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  {applyToAll ? (
+                    <CheckSquare className="h-4 w-4 text-blue-400 shrink-0" />
+                  ) : (
+                    <Square className="h-4 w-4 text-slate-500 shrink-0" />
+                  )}
+                  <div>
+                    <p className="text-xs font-bold">Terapkan ke semua plot {isParafTask ? 'Paraf' : 'TTD'}</p>
+                    <p className="text-[9px] text-slate-400">
+                      {applyToAll
+                        ? `Aksi ini akan mengisi ${
+                            myFields.filter((f) => f.type === activeField.type).length
+                          } plot ${isParafTask ? 'PARAF' : 'SIGNATURE'} sekaligus`
+                        : 'Hanya mengisi plot yang sedang dipilih'}
+                    </p>
+                  </div>
+                </div>
+                {applyToAll && <Sparkles className="h-3.5 w-3.5 text-blue-400 animate-pulse shrink-0" />}
+              </div>
+
               {sigMode === 'DRAW' ? (
                 <>
                   <p className="text-[11px] text-slate-400 italic">
@@ -868,7 +967,7 @@ export default function SignDocumentPage() {
                   </p>
 
                   <div
-                    className="relative w-full rounded-xl border-2 border-slate-700 bg-white overflow-hidden shadow-inner flex items-center justify-center"
+                    className="relative w-full rounded-xl border-2 border-slate-700 bg-white overflow-hidden shadow-inner flex items-center justify-center select-none"
                     style={{
                       aspectRatio: `${activeField.width} / ${activeField.height}`,
                       backgroundImage: bgCropUrl ? `url(${bgCropUrl})` : undefined,
@@ -883,14 +982,12 @@ export default function SignDocumentPage() {
                       ref={canvasRef}
                       width={activeField.width * 2}
                       height={activeField.height * 2}
-                      onMouseDown={startDrawing}
-                      onMouseMove={draw}
-                      onMouseUp={stopDrawing}
-                      onMouseLeave={stopDrawing}
-                      onTouchStart={startDrawing}
-                      onTouchMove={draw}
-                      onTouchEnd={stopDrawing}
-                      className="absolute inset-0 w-full h-full cursor-crosshair touch-none z-10"
+                      onPointerDown={startDrawing}
+                      onPointerMove={draw}
+                      onPointerUp={stopDrawing}
+                      onPointerCancel={stopDrawing}
+                      style={{ touchAction: 'none', userSelect: 'none' }}
+                      className="absolute inset-0 w-full h-full cursor-crosshair select-none z-10"
                     />
                   </div>
 
@@ -904,41 +1001,6 @@ export default function SignDocumentPage() {
                 </>
               ) : (
                 <div className="space-y-3">
-                  {/* 📍 COMPONENT CHECKLIST SWITCHER TERAPKAN KE SEMUA PLOT */}
-                  <div
-                    onClick={() => {
-                      const nextState = !applyToAll
-                      setApplyToAll(nextState)
-                      if (activeSpecimenUrl && activeField) {
-                        applySpecimenToFields(activeSpecimenUrl, activeField.type, nextState)
-                      }
-                    }}
-                    className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer select-none transition-all ${
-                      applyToAll
-                        ? 'border-blue-500 bg-blue-950/40 text-blue-300 ring-2 ring-blue-500/20'
-                        : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      {applyToAll ? (
-                        <CheckSquare className="h-4 w-4 text-blue-400 shrink-0" />
-                      ) : (
-                        <Square className="h-4 w-4 text-slate-500 shrink-0" />
-                      )}
-                      <div>
-                        <p className="text-xs font-bold">Terapkan ke semua plot {isParafTask ? 'Paraf' : 'TTD'}</p>
-                        <p className="text-[9px] text-slate-400">
-                          {applyToAll
-                            ? `Spesimen ini akan mengisi ${
-                                myFields.filter((f) => f.type === activeField.type).length
-                              } plot ${isParafTask ? 'PARAF' : 'SIGNATURE'} sekaligus`
-                            : 'Hanya mengisi plot yang sedang dipilih'}
-                        </p>
-                      </div>
-                    </div>
-                    {applyToAll && <Sparkles className="h-3.5 w-3.5 text-blue-400 animate-pulse shrink-0" />}
-                  </div>
-
                   <p className="text-[11px] text-slate-400 italic">
                     Pilih spesimen khusus bertipe <strong className="text-white">{isParafTask ? 'PARAF' : 'SIGNATURE'}</strong>:
                   </p>
