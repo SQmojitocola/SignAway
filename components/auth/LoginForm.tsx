@@ -1,10 +1,46 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react'
+import {
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react'
+
+// 📍 Data Slide Banner Sesuai Permintaan
+const slides = [
+  {
+    image: '/assets/bg1.jpeg',
+    title: 'Keabsahan Dokumen Digital',
+    description:
+      'Digitalisasi layanan pengesahan dokumen dan persetujuan resmi untuk tingkatkan efisiensi alur kerja.',
+    credit: 'PT Surveyor Indonesia',
+  },
+  {
+    image: '/assets/bg7.jpg',
+    title: 'Ruang Kerja Modern & Terintegrasi',
+    description:
+      'Pengelolaan alur penandatanganan dokumen dari mana saja, kapan saja dengan keamanan kriptografi tingkat tinggi.',
+    credit:
+      'Photo by Nataliya Vaitkevich (Pexels)',
+    creditLink:
+      'https://www.pexels.com/photo/overhead-shot-of-a-workspace-8927455/',
+  },
+  {
+    image: '/assets/bg6.jpeg',
+    title: 'Transformasi Layanan Umum',
+    description:
+      'Solusi modern terpadu bagi produktivitas, integritas data, dan efisiensi manajemen berkas perusahaan.',
+    credit: 'PT Surveyor Indonesia',
+  },
+]
 
 export default function LoginForm() {
   const router = useRouter()
@@ -13,6 +49,71 @@ export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // 📍 State & Ref Slider
+  const [currentSlide, setCurrentSlide] = useState(0)
+  const [isDragging, setIsDragging] = useState(false)
+  const [startX, setStartX] = useState(0)
+  const [dragOffset, setDragOffset] = useState(0)
+  const autoSlideTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  const handleNextSlide = useCallback(() => {
+    setCurrentSlide((prev) => (prev + 1) % slides.length)
+  }, [])
+
+  const handlePrevSlide = useCallback(() => {
+    setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length)
+  }, [])
+
+  // 📍 Auto-Slide 5 Detik
+  const startAutoSlide = useCallback(() => {
+    if (autoSlideTimerRef.current) clearInterval(autoSlideTimerRef.current)
+    autoSlideTimerRef.current = setInterval(() => {
+      handleNextSlide()
+    }, 5000)
+  }, [handleNextSlide])
+
+  useEffect(() => {
+    startAutoSlide()
+    return () => {
+      if (autoSlideTimerRef.current) clearInterval(autoSlideTimerRef.current)
+    }
+  }, [startAutoSlide])
+
+  // Reset Timer saat User Berinteraksi Manual
+  const resetAutoSlide = () => {
+    startAutoSlide()
+  }
+
+  // 📍 Handlers Grab & Drag Gesture
+  const handlePointerDown = (e: React.PointerEvent) => {
+    setIsDragging(true)
+    setStartX(e.clientX)
+    setDragOffset(0)
+    if (autoSlideTimerRef.current) clearInterval(autoSlideTimerRef.current)
+  }
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDragging) return
+    const currentX = e.clientX
+    const diff = currentX - startX
+    setDragOffset(diff)
+  }
+
+  const handlePointerUp = () => {
+    if (!isDragging) return
+    setIsDragging(false)
+
+    // Ambang batas swipe (threshold 50px)
+    if (dragOffset < -50) {
+      handleNextSlide()
+    } else if (dragOffset > 50) {
+      handlePrevSlide()
+    }
+
+    setDragOffset(0)
+    resetAutoSlide()
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -36,12 +137,12 @@ export default function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-screen w-full bg-slate-50 font-sans text-slate-800">
+    <div className="flex min-h-screen w-full bg-slate-50 font-sans text-slate-800 overflow-hidden">
       {/* 📍 PANEL KIRI: FORM LOGIN */}
       <div className="flex flex-1 flex-col justify-between p-6 sm:p-10 lg:p-14">
         {/* Header Bar */}
         <div className="flex items-center justify-between gap-6 w-full">
-          {/* Logo E-Sign (Kiri): Diberi min-w & pr-8 agar ekor tulisan sambung longgar dan tidak terpotong */}
+          {/* Logo E-Sign (Kiri) */}
           <div className="flex items-center select-none shrink-0 min-w-[220px] pr-8 overflow-visible py-2">
             <span className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight bg-gradient-to-r from-cyan-500 via-teal-400 to-blue-600 bg-clip-text text-transparent drop-shadow-xs">
               E-
@@ -155,30 +256,108 @@ export default function LoginForm() {
         </div>
       </div>
 
-      {/* 📍 PANEL KANAN: BANNER VISUAL PERKANTORAN */}
+      {/* 📍 PANEL KANAN: INTERACTIVE IMAGE SLIDER / CAROUSEL */}
       <div className="hidden lg:flex lg:w-1/2 p-6">
         <div
-          className="relative flex h-full w-full flex-col justify-end overflow-hidden rounded-3xl p-12 text-white shadow-2xl"
-          style={{
-            backgroundImage: `linear-gradient(to top, rgba(0, 31, 63, 0.92), rgba(0, 59, 115, 0.45)), url('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=1200&auto=format&fit=crop')`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-          }}
+          className="relative h-full w-full overflow-hidden rounded-3xl shadow-2xl select-none cursor-grab active:cursor-grabbing group"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
         >
-          <div className="relative z-10 max-w-lg space-y-3">
-            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-tight">
-              Layanan Umum Digital
-            </h2>
-            <p className="text-xs text-slate-200 leading-relaxed opacity-90">
-              Digitalisasi layanan umum dan pengesahan dokumen untuk produktivitas kerja maksimal.
-            </p>
+          {/* Track Slides (Animated Container) */}
+          <div
+            className={`flex h-full w-full ${
+              isDragging ? 'transition-none' : 'transition-transform duration-700 ease-out'
+            }`}
+            style={{
+              transform: `translateX(calc(-${currentSlide * 100}% + ${dragOffset}px))`,
+            }}
+          >
+            {slides.map((slide, idx) => (
+              <div key={idx} className="relative h-full w-full shrink-0">
+                <Image
+                  src={slide.image}
+                  alt={slide.title}
+                  fill
+                  className="object-cover"
+                  priority={idx === 0}
+                />
+                {/* Overlay Gradient Gelap */}
+                <div className="absolute inset-0 bg-gradient-to-t from-[#001f3f]/95 via-[#003b73]/40 to-transparent" />
 
-            {/* Indikator Dots Slider */}
-            <div className="pt-4 flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-white"></span>
-              <span className="h-2 w-2 rounded-full bg-white/40"></span>
-              <span className="h-2 w-2 rounded-full bg-white/40"></span>
-            </div>
+                {/* Konten Teks & Credit */}
+                <div className="absolute inset-0 flex flex-col justify-end p-12 text-white pointer-events-none">
+                  <div className="max-w-lg space-y-3 z-10">
+                    <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-tight drop-shadow-md">
+                      {slide.title}
+                    </h2>
+                    <p className="text-xs text-slate-200 leading-relaxed opacity-90 drop-shadow-xs">
+                      {slide.description}
+                    </p>
+
+                    {/* Credit Sumber Gambar */}
+                    <p className="text-[10px] text-slate-300/80 pt-1 italic">
+                      cr:{' '}
+                      {slide.creditLink ? (
+                        <a
+                          href={slide.creditLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline hover:text-white pointer-events-auto"
+                        >
+                          {slide.credit}
+                        </a>
+                      ) : (
+                        <span>{slide.credit}</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Tombol Panah Navigasi Kiri & Kanan */}
+          <button
+            type="button"
+            onClick={() => {
+              handlePrevSlide()
+              resetAutoSlide()
+            }}
+            className="absolute left-4 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/40 text-white backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all hover:bg-slate-900/70 z-20"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              handleNextSlide()
+              resetAutoSlide()
+            }}
+            className="absolute right-4 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/40 text-white backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all hover:bg-slate-900/70 z-20"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+
+          {/* Indikator Dots Slider (Bawah) */}
+          <div className="absolute bottom-6 left-12 flex items-center gap-2 z-20">
+            {slides.map((_, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => {
+                  setCurrentSlide(idx)
+                  resetAutoSlide()
+                }}
+                className={`h-2 rounded-full transition-all ${
+                  currentSlide === idx
+                    ? 'w-8 bg-white'
+                    : 'w-2 bg-white/40 hover:bg-white/70'
+                }`}
+              />
+            ))}
           </div>
         </div>
       </div>
