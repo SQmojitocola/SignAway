@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, RefreshCw, PenTool, CheckCircle2, XCircle, Check, Image as ImageIcon, Move, ZoomIn, RotateCcw } from 'lucide-react'
+import { ArrowLeft, RefreshCw, PenTool, CheckCircle2, XCircle, Move, ZoomIn, RotateCcw, Star } from 'lucide-react'
 
 interface Field {
   id: string
   recipientId: string
   recipientName: string
-  type: string
+  type: 'SIGNATURE' | 'PARAF'
   pageNumber: number
   posX: number
   posY: number
@@ -35,6 +35,13 @@ interface DocumentData {
   recipients: Recipient[]
 }
 
+interface UserSpecimenItem {
+  id: string
+  type: 'SIGNATURE' | 'PARAF'
+  imageUrl: string
+  isPrimary: boolean
+}
+
 const PDF_VIEWPORT_SCALE = 1.25
 
 export default function SignDocumentPage() {
@@ -47,15 +54,18 @@ export default function SignDocumentPage() {
   const [submitting, setSubmitting] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null)
-  const [userSpecimen, setUserSpecimen] = useState<string | null>(null)
   
+  // State Pustaka Spesimen User
+  const [userSpecimens, setUserSpecimens] = useState<UserSpecimenItem[]>([])
+  const [activeSpecimenUrl, setActiveSpecimenUrl] = useState<string | null>(null)
+
   // State TTD & Mode Pilihan
   const [sigMode, setSigMode] = useState<'DRAW' | 'SPECIMEN'>('DRAW')
   const [signatureData, setSignatureData] = useState<string | null>(null)
   const [bgCropUrl, setBgCropUrl] = useState<string | null>(null)
 
   // State Manipulasi Spesimen (Ukuran & Posisi)
-  const [specimenScale, setSpecimenScale] = useState<number>(100) // 40% - 200%
+  const [specimenScale, setSpecimenScale] = useState<number>(100)
   const [specimenPos, setSpecimenPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const isDraggingSpecimenRef = useRef(false)
   const dragStartRef = useRef<{ startX: number; startY: number; initX: number; initY: number }>({
@@ -78,7 +88,7 @@ export default function SignDocumentPage() {
 
   const recipientsList = useMemo(() => doc?.recipients || [], [doc?.recipients])
   const fieldsList = useMemo(() => doc?.fields || [], [doc?.fields])
-  
+
   const myRecipientInDoc = useMemo(() => {
     if (!currentUserId) return null
     return recipientsList.find(
@@ -102,13 +112,14 @@ export default function SignDocumentPage() {
     )
   }, [fieldsList, recipientsList, myRecipientInDoc, currentUserId, currentUserEmail])
 
-  // 1. Fetch data dokumen & user
+  // 1. Fetch data dokumen, user, dan pustaka spesimen
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [docRes, userRes] = await Promise.all([
+        const [docRes, userRes, specRes] = await Promise.all([
           fetch(`/api/documents/${documentId}`),
           fetch('/api/users?me=true'),
+          fetch('/api/specimens'),
         ])
 
         if (docRes.ok && userRes.ok) {
@@ -118,9 +129,6 @@ export default function SignDocumentPage() {
           const activeUser = userData.user || userData
           setCurrentUserId(activeUser.id)
           setCurrentUserEmail(activeUser.email)
-          if (activeUser.signatureSpecimen) {
-            setUserSpecimen(activeUser.signatureSpecimen)
-          }
 
           const rawDoc = docData.document || docData
           const recipients = rawDoc.recipients || []
@@ -135,7 +143,7 @@ export default function SignDocumentPage() {
               id: f.id,
               recipientId: matchedRecipient?.id || f.recipientId,
               recipientName: matchedRecipient?.user?.name || f.recipient?.user?.name || 'Penandatangan',
-              type: 'SIGNATURE',
+              type: f.type || 'SIGNATURE',
               pageNumber: f.pageNumber || f.page || 1,
               posX: f.posX,
               posY: f.posY,
@@ -148,6 +156,19 @@ export default function SignDocumentPage() {
             ...rawDoc,
             fields: normalizedFields
           })
+        }
+
+        // Ambil Pustaka UserSpecimen
+        if (specRes.ok) {
+          const specData = await specRes.json()
+          const specimensList = specData.specimens || []
+          setUserSpecimens(specimensList)
+
+          // Set default active specimen (Primary)
+          const primarySpec = specimensList.find((s: UserSpecimenItem) => s.isPrimary) || specimensList[0]
+          if (primarySpec) {
+            setActiveSpecimenUrl(primarySpec.imageUrl)
+          }
         }
       } catch (err) {
         console.error('Failed fetching data:', err)
@@ -251,7 +272,6 @@ export default function SignDocumentPage() {
     }
   }, [doc?.filePath, captureMirrorBackground])
 
-  // Otomatis refresh crop saat myField atau pdfPages tersedia
   useEffect(() => {
     if (myField && pdfPages.length > 0) {
       const timer = setTimeout(() => {
@@ -261,7 +281,7 @@ export default function SignDocumentPage() {
     }
   }, [myField, pdfPages, captureMirrorBackground])
 
-  // Canvas Drawing Handlers dengan Resolusi & Skalasi Presisi
+  // Canvas Drawing Handlers
   const getCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
     if (!canvas) return { x: 0, y: 0 }
@@ -343,7 +363,6 @@ export default function SignDocumentPage() {
     }
   }
 
-  // Listener global pointer untuk pergerakan drag spesimen
   useEffect(() => {
     const handlePointerMove = (e: MouseEvent | TouchEvent) => {
       if (!isDraggingSpecimenRef.current) return
@@ -378,10 +397,10 @@ export default function SignDocumentPage() {
     }
   }, [])
 
-  // Render Spesimen TTD ke Canvas dengan Skalasi dan Posisi Offset
+  // Render Spesimen TTD ke Canvas
   const updateSpecimenComposite = useCallback(
-    (posX: number, posY: number, scalePercent: number) => {
-      if (!userSpecimen) return
+    (posX: number, posY: number, scalePercent: number, specimenUrl: string | null) => {
+      if (!specimenUrl) return
 
       const img = new Image()
       img.crossOrigin = 'anonymous'
@@ -395,7 +414,6 @@ export default function SignDocumentPage() {
         const ctx = canvas.getContext('2d')
         if (!ctx) return
 
-        // Skala dasar gambar agar pas di dalam canvas
         const baseScale = Math.min(
           (canvas.width * 0.85) / img.width,
           (canvas.height * 0.85) / img.height
@@ -404,7 +422,6 @@ export default function SignDocumentPage() {
         const drawW = img.width * finalScale
         const drawH = img.height * finalScale
 
-        // Titik tengah canvas + offset posisi (dikalikan 2 karena canvas 2x retina)
         const centerX = canvas.width / 2 + posX * 2
         const centerY = canvas.height / 2 + posY * 2
         const drawX = centerX - drawW / 2
@@ -413,23 +430,21 @@ export default function SignDocumentPage() {
         ctx.drawImage(img, drawX, drawY, drawW, drawH)
         setSignatureData(canvas.toDataURL('image/png'))
       }
-      img.src = userSpecimen
+      img.src = specimenUrl
     },
-    [userSpecimen, myField]
+    [myField]
   )
 
-  // Otomatis sinkronisasi composite signatureData saat posisi/skala spesimen berubah
   useEffect(() => {
-    if (sigMode === 'SPECIMEN' && userSpecimen) {
-      updateSpecimenComposite(specimenPos.x, specimenPos.y, specimenScale)
+    if (sigMode === 'SPECIMEN' && activeSpecimenUrl) {
+      updateSpecimenComposite(specimenPos.x, specimenPos.y, specimenScale, activeSpecimenUrl)
     }
-  }, [sigMode, userSpecimen, specimenPos, specimenScale, updateSpecimenComposite])
+  }, [sigMode, activeSpecimenUrl, specimenPos, specimenScale, updateSpecimenComposite])
 
-  // Pilih Spesimen TTD
   const selectSpecimen = () => {
-    if (userSpecimen) {
-      setSigMode('SPECIMEN')
-      updateSpecimenComposite(specimenPos.x, specimenPos.y, specimenScale)
+    setSigMode('SPECIMEN')
+    if (activeSpecimenUrl) {
+      updateSpecimenComposite(specimenPos.x, specimenPos.y, specimenScale, activeSpecimenUrl)
     }
   }
 
@@ -467,7 +482,7 @@ export default function SignDocumentPage() {
     }
   }
 
-  // Submit Penolakan Dokumen
+  // Submit Penolakan
   const handleRejectDocument = async () => {
     if (!rejectReason.trim()) {
       alert('Silakan isi alasan penolakan dokumen.')
@@ -503,7 +518,6 @@ export default function SignDocumentPage() {
     }
   }
 
-  // Hak Akses Penandatanganan: Wajib Berurutan
   const isMyTurn = useMemo(() => {
     if (!currentUserId || !myRecipientInDoc) return false
 
@@ -593,7 +607,6 @@ export default function SignDocumentPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Tombol Tolak */}
           <button
             type="button"
             onClick={() => setShowRejectModal(true)}
@@ -603,7 +616,6 @@ export default function SignDocumentPage() {
             <XCircle className="h-4 w-4" /> Tolak Dokumen
           </button>
 
-          {/* Tombol Kirim Tanda Tangan */}
           <button
             type="button"
             onClick={handleSign}
@@ -681,7 +693,7 @@ export default function SignDocumentPage() {
           </div>
         </main>
 
-        {/* Sidebar Kanan untuk Papan TTD */}
+        {/* Sidebar Kanan Papan TTD */}
         <aside className="w-80 border-l border-slate-800 bg-slate-950 p-5 flex flex-col gap-4 shrink-0 overflow-y-auto">
           <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Papan Tanda Tangan</h2>
 
@@ -718,7 +730,6 @@ export default function SignDocumentPage() {
                     Goreskan tanda tangan Anda di kotak putih (bayangan dokumen menampilkan posisi asli TTD):
                   </p>
 
-                  {/* Kotak Canvas Pad dengan Background Mirroring Crop Dokumen */}
                   <div
                     className="relative w-full rounded-xl border-2 border-slate-700 bg-white overflow-hidden shadow-inner flex items-center justify-center"
                     style={{
@@ -729,10 +740,8 @@ export default function SignDocumentPage() {
                       backgroundRepeat: 'no-repeat',
                     }}
                   >
-                    {/* Overlay semi-transparan putih agar teks dokumen redup & goresan TTD tajam */}
                     {bgCropUrl && <div className="absolute inset-0 bg-white/60 pointer-events-none" />}
 
-                    {/* Canvas Foreground Transparan untuk Menggores */}
                     <canvas
                       ref={canvasRef}
                       width={myField ? myField.width * 2 : 520}
@@ -758,15 +767,38 @@ export default function SignDocumentPage() {
                 </>
               ) : (
                 <div className="space-y-3">
-                  <div>
-                    <p className="text-[11px] text-slate-400 italic">
-                      Geser tanda tangan untuk memindahkan posisi, atau atur ukuran dengan slider di bawah:
-                    </p>
-                  </div>
+                  <p className="text-[11px] text-slate-400 italic">
+                    Geser tanda tangan untuk memindahkan posisi, atau atur ukuran dengan slider di bawah:
+                  </p>
 
-                  {userSpecimen ? (
+                  {/* Pilihan Pustaka Spesimen User */}
+                  {userSpecimens.length > 0 && (
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {userSpecimens.map((item) => {
+                        const isSelected = activeSpecimenUrl === item.imageUrl
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => {
+                              setActiveSpecimenUrl(item.imageUrl)
+                              updateSpecimenComposite(specimenPos.x, specimenPos.y, specimenScale, item.imageUrl)
+                            }}
+                            className={`relative shrink-0 h-12 w-20 rounded-lg border-2 p-1 bg-white cursor-pointer transition-all ${
+                              isSelected ? 'border-blue-500 ring-2 ring-blue-500/30' : 'border-slate-700 opacity-70 hover:opacity-100'
+                            }`}
+                          >
+                            <img src={item.imageUrl} alt="Spesimen" className="h-full w-full object-contain" />
+                            {item.isPrimary && (
+                              <Star className="absolute top-0.5 right-0.5 h-3 w-3 fill-amber-400 text-amber-500" />
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {activeSpecimenUrl ? (
                     <>
-                      {/* Box Interaktif dengan Background Mirroring Dokumen */}
                       <div
                         className="relative w-full rounded-xl border-2 border-slate-700 bg-white overflow-hidden shadow-inner flex items-center justify-center select-none cursor-grab active:cursor-grabbing"
                         style={{
@@ -779,10 +811,8 @@ export default function SignDocumentPage() {
                         onMouseDown={startSpecimenDrag}
                         onTouchStart={startSpecimenDrag}
                       >
-                        {/* Overlay semi-transparan putih agar teks dokumen redup */}
                         {bgCropUrl && <div className="absolute inset-0 bg-white/60 pointer-events-none" />}
 
-                        {/* Gambar Spesimen yang Bisa Digeser & Diatur Ukurannya */}
                         <div
                           className="absolute pointer-events-none transition-transform duration-75"
                           style={{
@@ -795,20 +825,18 @@ export default function SignDocumentPage() {
                           }}
                         >
                           <img
-                            src={userSpecimen}
+                            src={activeSpecimenUrl}
                             alt="Spesimen TTD"
                             className="max-h-full max-w-full object-contain drop-shadow-sm select-none"
                             draggable={false}
                           />
                         </div>
 
-                        {/* Indikator Geser di Pojok */}
                         <div className="absolute bottom-1 right-1.5 rounded bg-slate-900/60 px-1.5 py-0.5 text-[9px] text-slate-300 pointer-events-none flex items-center gap-1 backdrop-blur-xs">
                           <Move className="h-2.5 w-2.5" /> Geser
                         </div>
                       </div>
 
-                      {/* Slider Kontrol Ukuran */}
                       <div className="space-y-1.5 rounded-lg bg-slate-950/60 p-2.5 border border-slate-800">
                         <div className="flex items-center justify-between text-[11px]">
                           <span className="font-semibold text-slate-300 flex items-center gap-1">
@@ -825,14 +853,8 @@ export default function SignDocumentPage() {
                           onChange={(e) => setSpecimenScale(Number(e.target.value))}
                           className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
                         />
-                        <div className="flex justify-between text-[9px] text-slate-500">
-                          <span>Kecil (40%)</span>
-                          <span>Standar (100%)</span>
-                          <span>Besar (200%)</span>
-                        </div>
                       </div>
 
-                      {/* Tombol Reset Posisi & Ukuran */}
                       <button
                         type="button"
                         onClick={() => {
@@ -846,7 +868,7 @@ export default function SignDocumentPage() {
                     </>
                   ) : (
                     <div className="p-4 rounded-lg bg-amber-950/20 border border-amber-900/30 text-center text-amber-300 text-xs">
-                      Belum ada spesimen TTD tersimpan di profil Anda.
+                      Belum ada spesimen tersimpan di profil Anda.
                     </div>
                   )}
                 </div>
@@ -860,7 +882,7 @@ export default function SignDocumentPage() {
                   : myRecipientInDoc.status === 'SIGNED'
                   ? 'Anda telah selesai menandatangani dokumen ini.'
                   : 'Belum giliran Anda untuk menandatangani dokumen ini.'}
-             </p>
+              </p>
             </div>
           )}
 
