@@ -2,6 +2,7 @@
 
 import Sidebar from '@/components/Sidebar' // <-- Ubah 'sidebar' menjadi 'Sidebar' (S besar)
 import { usePathname } from 'next/navigation'
+import { SessionProvider } from 'next-auth/react'
 import '@/app/globals.css'
 
 export default function RootLayout({
@@ -22,14 +23,16 @@ export default function RootLayout({
   return (
     <html lang="id">
       <body className="bg-slate-100 min-h-screen">
-        {isHideSidebar ? (
-          <main className="w-full min-h-screen">{children}</main>
-        ) : (
-          <div className="flex min-h-screen">
-            <Sidebar />
-            <main className="flex-1 p-8">{children}</main>
-          </div>
-        )}
+        <SessionProvider>
+          {isHideSidebar ? (
+            <main className="w-full min-h-screen">{children}</main>
+          ) : (
+            <div className="flex min-h-screen">
+              <Sidebar />
+              <main className="flex-1 p-8">{children}</main>
+            </div>
+          )}
+        </SessionProvider>
       </body>
     </html>
   )

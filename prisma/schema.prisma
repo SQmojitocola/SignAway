@@ -10,6 +10,7 @@ generator client {
 enum Role {
   STAFF
   ATASAN
+  ADMIN
 }
 
 //Status Dokumen

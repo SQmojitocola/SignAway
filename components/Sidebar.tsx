@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { signOut } from 'next-auth/react'
+import { useSession, signOut } from 'next-auth/react'
 import { 
   LayoutDashboard, 
   Users, 
@@ -12,12 +12,16 @@ import {
   LogOut, 
   FolderOpen, 
   PenTool, 
-  ShieldCheck // 📍 Import ikon Verifikasi
+  ShieldCheck,
+  FileText,
+  ScrollText,
 } from 'lucide-react'
 
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
+  const { data: session } = useSession()
+  const isAdmin = session?.user?.role === 'ADMIN'
 
   const menuItems = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -25,7 +29,13 @@ export default function Sidebar() {
     { name: 'Atribut Pengesahan', href: '/specimens', icon: PenTool },
     { name: 'Daftar Kontak', href: '/contacts', icon: Users },
     { name: 'Upload', href: '/upload', icon: Upload },
-    { name: 'Verifikasi Dokumen', href: '/verify/check', icon: ShieldCheck }, // 📍 MENU BARU DITAMBAHKAN
+    { name: 'Verifikasi Dokumen', href: '/verify/check', icon: ShieldCheck },
+  ]
+
+  const adminMenuItems = [
+    { name: 'Manajemen Pengguna', href: '/admin/users', icon: Users },
+    { name: 'Monitoring Dokumen', href: '/admin/documents', icon: FileText },
+    { name: 'Audit Trail Log', href: '/admin/logs', icon: ScrollText },
   ]
 
   return (
@@ -50,11 +60,10 @@ export default function Sidebar() {
           </div>
         </div>
 
-        {/* Menu Navigasi */}
+        {/* Menu Navigasi Utama */}
         <nav className="space-y-2 text-sm">
           {menuItems.map((item) => {
             const Icon = item.icon
-            // Menandai menu aktif jika pathname persis sama atau diawali jalur tersebut
             const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
 
             return (
@@ -72,6 +81,35 @@ export default function Sidebar() {
               </Link>
             )
           })}
+
+          {/* Menu Admin — Hanya tampil untuk role ADMIN */}
+          {isAdmin && (
+            <div className="pt-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-blue-300 px-4 mb-2">
+                Administrator
+              </p>
+              <div className="h-px bg-blue-700/50 mb-2" />
+              {adminMenuItems.map((item) => {
+                const Icon = item.icon
+                const isActive = pathname.startsWith(item.href)
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
+                      isActive
+                        ? 'bg-blue-600 font-semibold text-white shadow-md'
+                        : 'text-blue-100 hover:bg-blue-800/50'
+                    }`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    {item.name}
+                  </Link>
+                )
+              })}
+            </div>
+          )}
         </nav>
       </div>
 
