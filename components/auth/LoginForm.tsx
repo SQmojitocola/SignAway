@@ -17,7 +17,7 @@ export default function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    setLoading(false)
+    setLoading(true)
 
     const res = await signIn('credentials', {
       email,
@@ -38,28 +38,36 @@ export default function LoginForm() {
   return (
     <div className="flex min-h-screen w-full bg-slate-50 font-sans text-slate-800">
       {/* 📍 PANEL KIRI: FORM LOGIN */}
-      <div className="flex flex-1 flex-col justify-between p-8 sm:p-12 lg:p-16">
-        {/* Header Logo */}
-        <div className="flex items-center justify-between">
-          <div className="relative h-12 w-48 sm:w-56">
+      <div className="flex flex-1 flex-col justify-between p-6 sm:p-10 lg:p-14">
+        {/* Header Bar */}
+        <div className="flex items-center justify-between gap-6 w-full">
+          {/* Logo E-Sign (Kiri): Diberi min-w & pr-8 agar ekor tulisan sambung longgar dan tidak terpotong */}
+          <div className="flex items-center select-none shrink-0 min-w-[220px] pr-8 overflow-visible py-2">
+            <span className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight bg-gradient-to-r from-cyan-500 via-teal-400 to-blue-600 bg-clip-text text-transparent drop-shadow-xs">
+              E-
+            </span>
+            <span
+              style={{ fontFamily: 'var(--font-dancing-script), cursive, sans-serif' }}
+              className="text-4xl sm:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-teal-400 to-blue-600 bg-clip-text text-transparent italic -ml-1 pr-4 leading-normal"
+            >
+              Sign
+            </span>
+          </div>
+
+          {/* Logo PT Surveyor Indonesia (Kanan) */}
+          <div className="relative h-14 w-48 sm:w-60 shrink-0">
             <Image
               src="/assets/logo-surveyor-indonesia-png-svg-removebg-preview.png"
               alt="Logo Surveyor Indonesia"
               fill
-              className="object-contain object-left"
+              className="object-contain object-right"
               priority
             />
-          </div>
-
-          <div className="hidden sm:flex items-center gap-3 text-xs font-bold text-slate-400">
-            <span>Danantara Indonesia</span>
-            <span>•</span>
-            <span>ID Survey</span>
           </div>
         </div>
 
         {/* Form Content */}
-        <div className="mx-auto w-full max-w-md my-auto py-8">
+        <div className="mx-auto w-full max-w-md my-auto py-6">
           <h1 className="text-3xl font-extrabold text-[#003b73] tracking-tight">
             Selamat Datang
           </h1>
@@ -134,7 +142,7 @@ export default function LoginForm() {
             </button>
           </form>
 
-          {/* Pengganti Tombol Register */}
+          {/* Info Administrator */}
           <p className="mt-8 text-center text-xs text-slate-400">
             Belum memiliki akun?{' '}
             <span className="font-semibold text-slate-600">Hubungi Administrator</span>
