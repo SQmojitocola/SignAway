@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { useRouter, usePathname } from "next/navigation";
-import { Download, FileText, FolderOpen, LayoutDashboard, LogOut, Settings, Upload } from "lucide-react";
+import { FilePenLine, FileText, FolderOpen, Landmark, LayoutDashboard, Settings, Upload } from "lucide-react";
 
 export default function Sidebar() {
   const router = useRouter();
@@ -22,9 +22,7 @@ export default function Sidebar() {
       <div className="px-6 pb-6 border-b border-white/10 mb-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shrink-0 shadow-sm">
-            <span className="material-symbols-outlined text-[#003b73] text-[24px]">
-              assured_workload
-            </span>
+            <Landmark className="h-6 w-6 text-[#003b73]" aria-hidden="true" />
           </div>
           <div>
             <h1 className="text-lg font-bold text-white leading-tight">E-Sign</h1>
@@ -36,7 +34,7 @@ export default function Sidebar() {
       {/* CTA Button */}
       <div className="px-6 mb-6">
         <button className="w-full bg-[#003b73] hover:bg-[#002d58] text-white transition-colors h-11 rounded-lg flex items-center justify-center gap-2 text-sm font-semibold shadow-sm">
-          <span className="material-symbols-outlined text-[20px]">edit_document</span>
+          <FilePenLine className="h-5 w-5" aria-hidden="true" />
           Sign Document
         </button>
       </div>
@@ -66,8 +64,8 @@ export default function Sidebar() {
 
       {/* Footer / Bottom Links */}
       <div className="flex flex-col gap-1 mt-auto pb-2 border-t border-white/10 pt-4">
-        <Link href="/settings" className="flex items-center gap-3 px-6 py-2.5 text-blue-100 hover:text-white hover:bg-white/5 transition-all border-l-4 border-transparent font-medium text-sm">
-          <span className="material-symbols-outlined text-[20px]">settings</span>
+        <Link href="/setting" className="flex items-center gap-3 px-6 py-2.5 text-blue-100 hover:text-white hover:bg-white/5 transition-all border-l-4 border-transparent font-medium text-sm">
+          <Settings className="h-5 w-5" aria-hidden="true" />
           Settings
         </Link>
         <button
