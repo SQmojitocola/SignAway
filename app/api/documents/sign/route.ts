@@ -17,10 +17,21 @@ export async function POST(req: Request) {
 
     const body = await req.json()
     const documentId = body.documentId
-    const signatureImageBase64 = body.signatureImageBase64 || body.signatureData
+    
+    // 📍 Ambil signaturesMap (multi-plot per field ID) atau fallback single signature
+    const signaturesMap: Record<string, string> | undefined = body.signaturesMap
+    const fallbackSignatureBase64: string | undefined = body.signatureImageBase64 || body.signatureData
 
-    if (!documentId || !signatureImageBase64) {
-      return NextResponse.json({ message: 'documentId dan signatureData wajib diisi' }, { status: 400 })
+    // Validasi input
+    if (!documentId) {
+      return NextResponse.json({ message: 'documentId wajib diisi' }, { status: 400 })
+    }
+
+    if (!fallbackSignatureBase64 && (!signaturesMap || Object.keys(signaturesMap).length === 0)) {
+      return NextResponse.json(
+        { message: 'Silakan lengkapi tanda tangan / paraf sebelum mengirim.' },
+        { status: 400 }
+      )
     }
 
     const document = await prisma.document.findUnique({
@@ -42,7 +53,7 @@ export async function POST(req: Request) {
 
     const fields = document.fields.filter((field) => field.recipientId === recipient.id)
     if (fields.length === 0) {
-      return NextResponse.json({ message: 'Plot TTD belum ditentukan' }, { status: 400 })
+      return NextResponse.json({ message: 'Plot TTD/Paraf belum ditentukan' }, { status: 400 })
     }
 
     const cleanRelativePath = document.filePath.replace(/^\//, '')
@@ -50,13 +61,30 @@ export async function POST(req: Request) {
     const pdfBytes = await readFile(absolutePdfPath)
     const pdfDoc = await PDFDocument.load(pdfBytes)
 
-    // Embed Gambar Tanda Tangan PNG Transparan
-    const base64Data = signatureImageBase64.replace(/^data:image\/png;base64,/, '')
-    const signatureImageBytes = Buffer.from(base64Data, 'base64')
-    const embeddedImage = await pdfDoc.embedPng(signatureImageBytes)
+    // Cache image embedding agar gambar spesimen yang sama tidak di-embed berulang kali
+    const embeddedImageCache: Record<string, any> = {}
 
-    // 📍 1. STAMPING KOTAK PUTIH & GAMBAR TANDA TANGAN DENGAN ASPECT RATIO
-    fields.forEach((field: any) => {
+    // Helper function untuk mendapatkan PDFImage dari string base64
+    const getEmbeddedImage = async (base64Str: string) => {
+      if (embeddedImageCache[base64Str]) {
+        return embeddedImageCache[base64Str]
+      }
+      const cleanBase64 = base64Str.replace(/^data:image\/png;base64,/, '')
+      const imageBytes = Buffer.from(cleanBase64, 'base64')
+      const embedded = await pdfDoc.embedPng(imageBytes)
+      embeddedImageCache[base64Str] = embedded
+      return embedded
+    }
+
+    // 📍 1. STAMPING MASING-MASING FIELD DENGAN SPESIMEN YANG SESUAI (TTD vs PARAF)
+    for (const field of fields) {
+      // Prioritaskan spesimen dari signaturesMap per field ID, jika tidak ada baru gunakan fallback
+      const rawImageBase64 = (signaturesMap && signaturesMap[field.id]) || fallbackSignatureBase64
+
+      if (!rawImageBase64) continue
+
+      const embeddedImage = await getEmbeddedImage(rawImageBase64)
+
       const pageNum = field.pageNumber || 1
       const pageIndex = Math.max(0, pageNum - 1)
       const page = pdfDoc.getPage(pageIndex)
@@ -76,14 +104,14 @@ export async function POST(req: Request) {
       const drawX = boxX + (boxWidth - drawWidth) / 2
       const drawY = pageHeight - boxY - boxHeight + (boxHeight - drawHeight) / 2
 
-      // TEMPELKAN TANDA TANGAN (Transparan di atas teks/garis dokumen)
+      // TEMPELKAN GAMBAR (Transparan di atas teks/garis dokumen)
       page.drawImage(embeddedImage, {
         x: drawX,
         y: drawY,
         width: drawWidth,
         height: drawHeight,
       })
-    })
+    }
 
     // 📍 2. GENERATE QR CODE HIGH-RESOLUTION ANTI-PECAH (400px)
     const host = req.headers.get('host') || 'localhost:3000'

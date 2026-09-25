@@ -51,22 +51,22 @@ model User {
 
 enum SpecimenType {
   SIGNATURE
-  INITIAL
+  PARAF
 }
 
 model UserSpecimen {
   id        String       @id @default(uuid())
   userId    String       @map("user_id")
   type      SpecimenType @default(SIGNATURE)
-  imageUrl  String       @map("image_url") // simpan Base64 atau path gambar
+  imageUrl  String       @map("image_url") // Menyimpan Base64 data gambar atau path file
   isPrimary Boolean      @default(false) @map("is_primary")
   createdAt DateTime     @default(now()) @map("created_at")
 
+  // Relasi ke tabel User
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_specimens")
 }
-
 //tabel Dokumen
 model Document {
   id            String         @id @default(uuid())

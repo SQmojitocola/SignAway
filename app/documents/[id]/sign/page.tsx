@@ -2,13 +2,28 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, RefreshCw, PenTool, CheckCircle2, XCircle, Check, Image as ImageIcon, Move, ZoomIn, RotateCcw } from 'lucide-react'
+import {
+  ArrowLeft,
+  RefreshCw,
+  PenTool,
+  CheckCircle2,
+  XCircle,
+  Move,
+  ZoomIn,
+  RotateCcw,
+  Star,
+  FileCheck,
+  Check,
+  CheckSquare,
+  Square,
+  Sparkles,
+} from 'lucide-react'
 
 interface Field {
   id: string
   recipientId: string
   recipientName: string
-  type: string
+  type: 'SIGNATURE' | 'PARAF'
   pageNumber: number
   posX: number
   posY: number
@@ -35,6 +50,13 @@ interface DocumentData {
   recipients: Recipient[]
 }
 
+interface UserSpecimenItem {
+  id: string
+  type: 'SIGNATURE' | 'PARAF'
+  imageUrl: string
+  isPrimary: boolean
+}
+
 const PDF_VIEWPORT_SCALE = 1.25
 
 export default function SignDocumentPage() {
@@ -47,15 +69,25 @@ export default function SignDocumentPage() {
   const [submitting, setSubmitting] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null)
-  const [userSpecimen, setUserSpecimen] = useState<string | null>(null)
-  
-  // State TTD & Mode Pilihan
+
+  // Pustaka Spesimen User
+  const [userSpecimens, setUserSpecimens] = useState<UserSpecimenItem[]>([])
+  const [activeSpecimenUrl, setActiveSpecimenUrl] = useState<string | null>(null)
+
+  // MAP PENAMPUNG TTD/PARAF PER FIELD ID
+  const [signaturesMap, setSignaturesMap] = useState<Record<string, string>>({})
+  const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null)
+
+  // 📍 STATE CHECKLIST: Terapkan ke Semua Plot (Berlaku untuk DRAW & SPECIMEN)
+  const [applyToAll, setApplyToAll] = useState<boolean>(false)
+
+  // Mode Pengisian TTD
   const [sigMode, setSigMode] = useState<'DRAW' | 'SPECIMEN'>('DRAW')
-  const [signatureData, setSignatureData] = useState<string | null>(null)
+  const [penColor, setPenColor] = useState<'#000000' | '#0B5369'>('#000000')
   const [bgCropUrl, setBgCropUrl] = useState<string | null>(null)
 
-  // State Manipulasi Spesimen (Ukuran & Posisi)
-  const [specimenScale, setSpecimenScale] = useState<number>(100) // 40% - 200%
+  // Manipulasi Spesimen (Ukuran & Posisi)
+  const [specimenScale, setSpecimenScale] = useState<number>(100)
   const [specimenPos, setSpecimenPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const isDraggingSpecimenRef = useRef(false)
   const dragStartRef = useRef<{ startX: number; startY: number; initX: number; initY: number }>({
@@ -65,7 +97,7 @@ export default function SignDocumentPage() {
     initY: 0,
   })
 
-  // State Modal Penolakan
+  // Modal Penolakan
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
   const [rejecting, setRejecting] = useState(false)
@@ -78,7 +110,7 @@ export default function SignDocumentPage() {
 
   const recipientsList = useMemo(() => doc?.recipients || [], [doc?.recipients])
   const fieldsList = useMemo(() => doc?.fields || [], [doc?.fields])
-  
+
   const myRecipientInDoc = useMemo(() => {
     if (!currentUserId) return null
     return recipientsList.find(
@@ -89,38 +121,46 @@ export default function SignDocumentPage() {
     )
   }, [recipientsList, currentUserId, currentUserEmail])
 
-  const myField = useMemo(() => {
-    return (
-      fieldsList.find((field) => {
-        const recipient = recipientsList.find((r) => r.id === field.recipientId)
-        return (
-          field.recipientId === myRecipientInDoc?.id ||
-          (recipient?.user?.id || recipient?.userId) === currentUserId ||
-          (currentUserEmail && recipient?.user?.email === currentUserEmail)
-        )
-      }) || null
-    )
+  // Semua Field milik user ini
+  const myFields = useMemo(() => {
+    return fieldsList.filter((field) => {
+      const recipient = recipientsList.find((r) => r.id === field.recipientId)
+      return (
+        field.recipientId === myRecipientInDoc?.id ||
+        (recipient?.user?.id || recipient?.userId) === currentUserId ||
+        (currentUserEmail && recipient?.user?.email === currentUserEmail)
+      )
+    })
   }, [fieldsList, recipientsList, myRecipientInDoc, currentUserId, currentUserEmail])
 
-  // 1. Fetch data dokumen & user
+  // Field Aktif yang Sedang Dipilih User di Sidebar
+  const activeField = useMemo(() => {
+    return myFields.find((f) => f.id === selectedFieldId) || myFields[0] || null
+  }, [myFields, selectedFieldId])
+
+  // Spesimen yang COCOK KETAT dengan Tipe Field Aktif (SIGNATURE vs PARAF)
+  const matchedSpecimens = useMemo(() => {
+    if (!activeField) return []
+    return userSpecimens.filter((s) => s.type === activeField.type)
+  }, [userSpecimens, activeField])
+
+  // Fetch data awal
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [docRes, userRes] = await Promise.all([
+        const [docRes, userRes, specRes] = await Promise.all([
           fetch(`/api/documents/${documentId}`),
           fetch('/api/users?me=true'),
+          fetch('/api/specimens'),
         ])
 
         if (docRes.ok && userRes.ok) {
           const docData = await docRes.json()
           const userData = await userRes.json()
-          
+
           const activeUser = userData.user || userData
           setCurrentUserId(activeUser.id)
           setCurrentUserEmail(activeUser.email)
-          if (activeUser.signatureSpecimen) {
-            setUserSpecimen(activeUser.signatureSpecimen)
-          }
 
           const rawDoc = docData.document || docData
           const recipients = rawDoc.recipients || []
@@ -135,7 +175,7 @@ export default function SignDocumentPage() {
               id: f.id,
               recipientId: matchedRecipient?.id || f.recipientId,
               recipientName: matchedRecipient?.user?.name || f.recipient?.user?.name || 'Penandatangan',
-              type: 'SIGNATURE',
+              type: f.type || 'SIGNATURE',
               pageNumber: f.pageNumber || f.page || 1,
               posX: f.posX,
               posY: f.posY,
@@ -146,8 +186,13 @@ export default function SignDocumentPage() {
 
           setDoc({
             ...rawDoc,
-            fields: normalizedFields
+            fields: normalizedFields,
           })
+        }
+
+        if (specRes.ok) {
+          const specData = await specRes.json()
+          setUserSpecimens(specData.specimens || [])
         }
       } catch (err) {
         console.error('Failed fetching data:', err)
@@ -158,17 +203,36 @@ export default function SignDocumentPage() {
     fetchData()
   }, [documentId])
 
-  // 2. Mirroring Background Crop dari Dokumen
+  // Auto-select field pertama saat data dimuat
+  useEffect(() => {
+    if (myFields.length > 0 && !selectedFieldId) {
+      setSelectedFieldId(myFields[0].id)
+    }
+  }, [myFields, selectedFieldId])
+
+  // Auto-select Spesimen Utama yang COCOK TIPE
+  useEffect(() => {
+    if (activeField && matchedSpecimens.length > 0) {
+      const primarySpec = matchedSpecimens.find((s) => s.isPrimary) || matchedSpecimens[0]
+      if (primarySpec) {
+        setActiveSpecimenUrl(primarySpec.imageUrl)
+      }
+    } else {
+      setActiveSpecimenUrl(null)
+    }
+  }, [activeField, matchedSpecimens])
+
+  // Background Crop
   const captureMirrorBackground = useCallback(() => {
-    if (!myField) return
-    const pageElement = pageRefs.current[myField.pageNumber]
+    if (!activeField) return
+    const pageElement = pageRefs.current[activeField.pageNumber]
     const pdfCanvas = pageElement?.querySelector('canvas')
     if (!pdfCanvas) return
 
     try {
       const cropCanvas = document.createElement('canvas')
-      const targetWidth = myField.width || 150
-      const targetHeight = myField.height || 70
+      const targetWidth = activeField.width || 150
+      const targetHeight = activeField.height || 70
       cropCanvas.width = targetWidth
       cropCanvas.height = targetHeight
 
@@ -176,8 +240,8 @@ export default function SignDocumentPage() {
       if (ctx) {
         ctx.drawImage(
           pdfCanvas,
-          myField.posX,
-          myField.posY,
+          activeField.posX,
+          activeField.posY,
           targetWidth,
           targetHeight,
           0,
@@ -190,19 +254,21 @@ export default function SignDocumentPage() {
     } catch (err) {
       console.error('Mirror background error:', err)
     }
-  }, [myField])
+  }, [activeField])
 
-  // 3. Render PDF
+  // Render PDF Pages
   useEffect(() => {
     if (!doc?.filePath) return
 
     let cancelled = false
+    let renderTimer: ReturnType<typeof setTimeout> | undefined
+    const renderTasks: Array<{ cancel: () => void }> = []
 
     const renderPdf = async () => {
       try {
         const pdfjs = await import('pdfjs-dist/build/pdf.mjs')
         pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`
-        
+
         const pdf = await pdfjs.getDocument(doc.filePath).promise
         const pages: Array<{ pageNumber: number; width: number; height: number }> = []
 
@@ -212,35 +278,46 @@ export default function SignDocumentPage() {
           pages.push({ pageNumber: i, width: viewport.width, height: viewport.height })
         }
 
-        if (!cancelled) setPdfPages(pages)
+        if (cancelled) {
+          await pdf.destroy()
+          return
+        }
 
-        setTimeout(async () => {
-          for (const pageInfo of pages) {
-            if (cancelled) break
-            const page = await pdf.getPage(pageInfo.pageNumber)
-            const pageElement = pageRefs.current[pageInfo.pageNumber]
-            const canvas = pageElement?.querySelector('canvas')
-            const context = canvas?.getContext('2d')
-            if (!canvas || !context) continue
+        setPdfPages(pages)
 
-            const viewport = page.getViewport({ scale: PDF_VIEWPORT_SCALE })
-            canvas.width = viewport.width
-            canvas.height = viewport.height
+        renderTimer = setTimeout(async () => {
+          try {
+            for (const pageInfo of pages) {
+              if (cancelled) break
+              const page = await pdf.getPage(pageInfo.pageNumber)
+              const pageElement = pageRefs.current[pageInfo.pageNumber]
+              const canvas = pageElement?.querySelector('canvas')
+              const context = canvas?.getContext('2d')
+              if (!canvas || !context) continue
 
-            context.clearRect(0, 0, canvas.width, canvas.height)
-            
-            await page.render({
-              canvasContext: context,
-              viewport: viewport,
-            }).promise
-          }
+              const viewport = page.getViewport({ scale: PDF_VIEWPORT_SCALE })
+              canvas.width = viewport.width
+              canvas.height = viewport.height
 
-          if (!cancelled) {
-            captureMirrorBackground()
+              context.clearRect(0, 0, canvas.width, canvas.height)
+
+              const renderTask = page.render({
+                canvasContext: context,
+                viewport: viewport,
+              })
+              renderTasks.push(renderTask)
+              await renderTask.promise
+            }
+          } catch (err) {
+            if (!cancelled) {
+              console.error('Error rendering PDF page:', err)
+            }
           }
         }, 100)
       } catch (err) {
-        console.error('Error rendering PDF:', err)
+        if (!cancelled) {
+          console.error('Error rendering PDF:', err)
+        }
       }
     }
 
@@ -248,87 +325,131 @@ export default function SignDocumentPage() {
 
     return () => {
       cancelled = true
+      if (renderTimer) clearTimeout(renderTimer)
+      renderTasks.forEach((renderTask) => renderTask.cancel())
     }
-  }, [doc?.filePath, captureMirrorBackground])
+  }, [doc?.filePath])
 
-  // Otomatis refresh crop saat myField atau pdfPages tersedia
   useEffect(() => {
-    if (myField && pdfPages.length > 0) {
+    if (activeField && pdfPages.length > 0) {
       const timer = setTimeout(() => {
         captureMirrorBackground()
       }, 150)
       return () => clearTimeout(timer)
     }
-  }, [myField, pdfPages, captureMirrorBackground])
+  }, [activeField, pdfPages, captureMirrorBackground])
 
-  // Canvas Drawing Handlers dengan Resolusi & Skalasi Presisi
-  const getCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+  // Drawing Canvas Handlers
+  const getPointerCoordinates = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
     if (!canvas) return { x: 0, y: 0 }
     const rect = canvas.getBoundingClientRect()
     const scaleX = canvas.width / rect.width
     const scaleY = canvas.height / rect.height
 
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
-
     return {
-      x: (clientX - rect.left) * scaleX,
-      y: (clientY - rect.top) * scaleY,
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY,
     }
   }
 
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+  const startDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const { x, y } = getCoordinates(e)
+    canvas.setPointerCapture(e.pointerId)
+
+    const { x, y } = getPointerCoordinates(e)
     ctx.beginPath()
     ctx.moveTo(x, y)
-    ctx.lineWidth = 2.5
+    ctx.lineWidth = 3
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
-    ctx.strokeStyle = '#000'
+    ctx.strokeStyle = penColor
     setIsDrawing(true)
   }
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+  const draw = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return
+    e.preventDefault()
+    e.stopPropagation()
+
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
     if (!canvas || !ctx) return
 
-    if ('touches' in e) {
-      e.preventDefault()
-    }
-
-    const { x, y } = getCoordinates(e)
+    const { x, y } = getPointerCoordinates(e)
     ctx.lineTo(x, y)
     ctx.stroke()
   }
 
-  const stopDrawing = () => {
+  // 📍 FUNGSI MENYIMPAN HASIL GORES (TERAPKAN SEMENTARA ATAU KE SEMUA PLOT BERDASARKAN CHECKLIST)
+  const applyDrawResult = useCallback(
+    (base64: string, applyAll: boolean) => {
+      if (!activeField) return
+
+      const targetFields = applyAll
+        ? myFields.filter((f) => f.type === activeField.type)
+        : [activeField]
+
+      const newEntries: Record<string, string> = {}
+      targetFields.forEach((f) => {
+        newEntries[f.id] = base64
+      })
+
+      setSignaturesMap((prev) => ({
+        ...prev,
+        ...newEntries,
+      }))
+    },
+    [activeField, myFields]
+  )
+
+  const stopDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return
-    setIsDrawing(false)
+
     const canvas = canvasRef.current
     if (canvas) {
-      setSignatureData(canvas.toDataURL('image/png'))
+      e.preventDefault()
+      if (canvas.hasPointerCapture(e.pointerId)) {
+        canvas.releasePointerCapture(e.pointerId)
+      }
+    }
+
+    setIsDrawing(false)
+    if (canvas && activeField) {
+      const base64 = canvas.toDataURL('image/png')
+      applyDrawResult(base64, applyToAll)
     }
   }
 
   const clearCanvas = () => {
     const canvas = canvasRef.current
-    if (!canvas) return
+    if (!canvas || !activeField) return
     const ctx = canvas.getContext('2d')
     if (ctx) {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
-      setSignatureData(null)
+
+      const targetFields = applyToAll
+        ? myFields.filter((f) => f.type === activeField.type)
+        : [activeField]
+
+      setSignaturesMap((prev) => {
+        const copy = { ...prev }
+        targetFields.forEach((f) => {
+          delete copy[f.id]
+        })
+        return copy
+      })
     }
   }
 
-  // Mulai drag spesimen TTD
+  // Drag Spesimen
   const startSpecimenDrag = (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation()
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
@@ -343,7 +464,6 @@ export default function SignDocumentPage() {
     }
   }
 
-  // Listener global pointer untuk pergerakan drag spesimen
   useEffect(() => {
     const handlePointerMove = (e: MouseEvent | TouchEvent) => {
       if (!isDraggingSpecimenRef.current) return
@@ -378,65 +498,70 @@ export default function SignDocumentPage() {
     }
   }, [])
 
-  // Render Spesimen TTD ke Canvas dengan Skalasi dan Posisi Offset
-  const updateSpecimenComposite = useCallback(
-    (posX: number, posY: number, scalePercent: number) => {
-      if (!userSpecimen) return
-
+  // 📍 LOGIKA CEK / TERAPKAN SPESIMEN KE SEMUA PLOT
+  const applySpecimenToFields = useCallback(
+    (specimenUrl: string, targetType: 'SIGNATURE' | 'PARAF', applyAll: boolean) => {
       const img = new Image()
       img.crossOrigin = 'anonymous'
       img.onload = () => {
-        const targetW = myField?.width || 150
-        const targetH = myField?.height || 70
+        const targetFields = applyAll
+          ? myFields.filter((f) => f.type === targetType)
+          : activeField
+          ? [activeField]
+          : []
 
-        const canvas = document.createElement('canvas')
-        canvas.width = targetW * 2
-        canvas.height = targetH * 2
-        const ctx = canvas.getContext('2d')
-        if (!ctx) return
+        const newMapEntries: Record<string, string> = {}
 
-        // Skala dasar gambar agar pas di dalam canvas
-        const baseScale = Math.min(
-          (canvas.width * 0.85) / img.width,
-          (canvas.height * 0.85) / img.height
-        )
-        const finalScale = baseScale * (scalePercent / 100)
-        const drawW = img.width * finalScale
-        const drawH = img.height * finalScale
+        targetFields.forEach((field) => {
+          const targetW = field.width || 150
+          const targetH = field.height || 70
 
-        // Titik tengah canvas + offset posisi (dikalikan 2 karena canvas 2x retina)
-        const centerX = canvas.width / 2 + posX * 2
-        const centerY = canvas.height / 2 + posY * 2
-        const drawX = centerX - drawW / 2
-        const drawY = centerY - drawH / 2
+          const canvas = document.createElement('canvas')
+          canvas.width = targetW * 2
+          canvas.height = targetH * 2
+          const ctx = canvas.getContext('2d')
+          if (!ctx) return
 
-        ctx.drawImage(img, drawX, drawY, drawW, drawH)
-        setSignatureData(canvas.toDataURL('image/png'))
+          const baseScale = Math.min((canvas.width * 0.85) / img.width, (canvas.height * 0.85) / img.height)
+          const finalScale = baseScale * (specimenScale / 100)
+          const drawW = img.width * finalScale
+          const drawH = img.height * finalScale
+
+          const centerX = canvas.width / 2 + specimenPos.x * 2
+          const centerY = canvas.height / 2 + specimenPos.y * 2
+          const drawX = centerX - drawW / 2
+          const drawY = centerY - drawH / 2
+
+          ctx.drawImage(img, drawX, drawY, drawW, drawH)
+          newMapEntries[field.id] = canvas.toDataURL('image/png')
+        })
+
+        setSignaturesMap((prev) => ({
+          ...prev,
+          ...newMapEntries,
+        }))
       }
-      img.src = userSpecimen
+      img.src = specimenUrl
     },
-    [userSpecimen, myField]
+    [myFields, activeField, specimenScale, specimenPos]
   )
 
-  // Otomatis sinkronisasi composite signatureData saat posisi/skala spesimen berubah
   useEffect(() => {
-    if (sigMode === 'SPECIMEN' && userSpecimen) {
-      updateSpecimenComposite(specimenPos.x, specimenPos.y, specimenScale)
+    if (sigMode === 'SPECIMEN' && activeSpecimenUrl && activeField) {
+      applySpecimenToFields(activeSpecimenUrl, activeField.type, applyToAll)
     }
-  }, [sigMode, userSpecimen, specimenPos, specimenScale, updateSpecimenComposite])
+  }, [sigMode, activeSpecimenUrl, specimenPos, specimenScale, applySpecimenToFields, activeField, applyToAll])
 
-  // Pilih Spesimen TTD
-  const selectSpecimen = () => {
-    if (userSpecimen) {
-      setSigMode('SPECIMEN')
-      updateSpecimenComposite(specimenPos.x, specimenPos.y, specimenScale)
-    }
-  }
+  // Cek Kelengkapan Pengisian Semua Plot
+  const isAllFieldsFilled = useMemo(() => {
+    if (myFields.length === 0) return false
+    return myFields.every((f) => Boolean(signaturesMap[f.id]))
+  }, [myFields, signaturesMap])
 
   // Submit Penandatanganan
   const handleSign = async () => {
-    if (!signatureData) {
-      alert('Silakan buat atau pilih tanda tangan terlebih dahulu.')
+    if (!isAllFieldsFilled) {
+      alert('Silakan lengkapi seluruh plot tanda tangan dan paraf Anda sebelum mengirim.')
       return
     }
 
@@ -447,7 +572,7 @@ export default function SignDocumentPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           documentId,
-          signatureImageBase64: signatureData,
+          signaturesMap,
         }),
       })
 
@@ -467,7 +592,7 @@ export default function SignDocumentPage() {
     }
   }
 
-  // Submit Penolakan Dokumen
+  // Submit Penolakan
   const handleRejectDocument = async () => {
     if (!rejectReason.trim()) {
       alert('Silakan isi alasan penolakan dokumen.')
@@ -503,7 +628,6 @@ export default function SignDocumentPage() {
     }
   }
 
-  // Hak Akses Penandatanganan: Wajib Berurutan
   const isMyTurn = useMemo(() => {
     if (!currentUserId || !myRecipientInDoc) return false
 
@@ -517,9 +641,7 @@ export default function SignDocumentPage() {
       return orderA - orderB
     })
 
-    const currentActiveSigner = sortedRecipients.find(
-      (r) => r.status !== 'SIGNED' && r.status !== 'REJECTED'
-    )
+    const currentActiveSigner = sortedRecipients.find((r) => r.status !== 'SIGNED' && r.status !== 'REJECTED')
 
     if (!currentActiveSigner) return false
 
@@ -534,9 +656,11 @@ export default function SignDocumentPage() {
   if (loading) return <div className="p-8 text-center text-slate-500">Memuat dokumen...</div>
   if (!doc) return <div className="p-8 text-center text-slate-500">Dokumen tidak ditemukan.</div>
 
+  const isParafTask = activeField?.type === 'PARAF'
+
   return (
     <div className="flex h-screen w-full flex-col bg-slate-900 text-slate-100 overflow-hidden">
-      {/* Modal Penolakan Dokumen */}
+      {/* Modal Penolakan */}
       {showRejectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
@@ -593,7 +717,6 @@ export default function SignDocumentPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Tombol Tolak */}
           <button
             type="button"
             onClick={() => setShowRejectModal(true)}
@@ -603,14 +726,13 @@ export default function SignDocumentPage() {
             <XCircle className="h-4 w-4" /> Tolak Dokumen
           </button>
 
-          {/* Tombol Kirim Tanda Tangan */}
           <button
             type="button"
             onClick={handleSign}
-            disabled={submitting || !signatureData || !isMyTurn}
-            className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={submitting || !isAllFieldsFilled || !isMyTurn}
+            className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
           >
-            {submitting ? 'Memproses...' : 'Kirim Tanda Tangan'}
+            {submitting ? 'Memproses...' : 'Kirim Penandatanganan'}
           </button>
         </div>
       </header>
@@ -623,26 +745,32 @@ export default function SignDocumentPage() {
             {pdfPages.map((page) => (
               <div
                 key={page.pageNumber}
-                ref={(el) => { pageRefs.current[page.pageNumber] = el }}
+                ref={(el) => {
+                  pageRefs.current[page.pageNumber] = el
+                }}
                 className="relative bg-white shadow-2xl rounded-sm select-none"
                 style={{ width: page.width, height: page.height }}
               >
                 <canvas className="block" width={page.width} height={page.height} />
-                
+
                 {/* Overlay Fields */}
                 {fieldsList
-                  .filter(f => f.pageNumber === page.pageNumber)
-                  .map(field => {
-                    const recipient = recipientsList.find(r => r.id === field.recipientId)
+                  .filter((f) => f.pageNumber === page.pageNumber)
+                  .map((field) => {
+                    const recipient = recipientsList.find((r) => r.id === field.recipientId)
                     const isMine =
                       field.recipientId === myRecipientInDoc?.id ||
                       (recipient?.user?.id || recipient?.userId) === currentUserId ||
                       (currentUserEmail && recipient?.user?.email === currentUserEmail)
                     const isSigned = recipient?.status === 'SIGNED'
+                    const isParaf = field.type === 'PARAF'
+                    const isSelectedPlot = selectedFieldId === field.id
+                    const filledData = signaturesMap[field.id]
 
                     return (
                       <div
                         key={field.id}
+                        onClick={() => isMine && setSelectedFieldId(field.id)}
                         style={{
                           position: 'absolute',
                           left: `${field.posX}px`,
@@ -650,26 +778,38 @@ export default function SignDocumentPage() {
                           width: `${field.width}px`,
                           height: `${field.height}px`,
                         }}
-                        onMouseDown={isMine && sigMode === 'SPECIMEN' ? startSpecimenDrag : undefined}
-                        onTouchStart={isMine && sigMode === 'SPECIMEN' ? startSpecimenDrag : undefined}
-                        className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-1 z-10 box-border select-none ${
-                          isMine 
-                            ? `border-emerald-500 bg-emerald-500/10 text-emerald-600 ${sigMode === 'SPECIMEN' ? 'cursor-grab active:cursor-grabbing ring-2 ring-emerald-500/30' : ''}`
+                        className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-1 z-10 box-border select-none transition-all cursor-pointer ${
+                          isMine
+                            ? isSelectedPlot
+                              ? 'border-blue-500 bg-blue-500/20 ring-4 ring-blue-500/30'
+                              : isParaf
+                              ? 'border-amber-500 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20'
+                              : 'border-emerald-500 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20'
                             : 'border-blue-500 bg-blue-500/10 text-blue-500'
                         }`}
                       >
-                        {isMine && signatureData ? (
-                          <img src={signatureData} alt="Preview TTD" className="h-full w-full object-contain pointer-events-none select-none" />
+                        {filledData ? (
+                          <img
+                            src={filledData}
+                            alt="Preview"
+                            className="h-full w-full object-contain pointer-events-none select-none"
+                          />
                         ) : isSigned ? (
-                           <div className="flex flex-col items-center opacity-40">
-                             <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                             <span className="text-[8px] font-bold text-emerald-800 uppercase">{field.recipientName}</span>
-                           </div>
+                          <div className="flex flex-col items-center opacity-40">
+                            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                            <span className="text-[8px] font-bold text-emerald-800 uppercase">
+                              {field.recipientName}
+                            </span>
+                          </div>
                         ) : (
                           <div className="flex flex-col items-center justify-center text-center overflow-hidden p-0.5 w-full h-full">
-                            <PenTool className="h-4 w-4 shrink-0 mb-0.5" />
+                            {isParaf ? (
+                              <FileCheck className="h-4 w-4 shrink-0 mb-0.5 text-amber-500" />
+                            ) : (
+                              <PenTool className="h-4 w-4 shrink-0 mb-0.5 text-emerald-500" />
+                            )}
                             <p className="text-[10px] font-bold uppercase truncate w-full">
-                              {field.recipientName}
+                              {field.recipientName} ({isParaf ? 'PARAF' : 'TTD'})
                             </p>
                           </div>
                         )}
@@ -681,12 +821,77 @@ export default function SignDocumentPage() {
           </div>
         </main>
 
-        {/* Sidebar Kanan untuk Papan TTD */}
+        {/* Sidebar Kanan Papan TTD */}
         <aside className="w-80 border-l border-slate-800 bg-slate-950 p-5 flex flex-col gap-4 shrink-0 overflow-y-auto">
-          <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Papan Tanda Tangan</h2>
+          {/* List Plot Milik User */}
+          <div className="space-y-2">
+            <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              Daftar Tugas Plot Anda ({myFields.length})
+            </h3>
 
-          {isMyTurn ? (
+            <div className="grid gap-1.5">
+              {myFields.map((f, idx) => {
+                const isFilled = Boolean(signaturesMap[f.id])
+                const isSelected = selectedFieldId === f.id
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setSelectedFieldId(f.id)}
+                    className={`flex items-center justify-between p-2 rounded-lg border text-xs font-semibold transition-all ${
+                      isSelected
+                        ? 'border-blue-500 bg-blue-950/40 text-white'
+                        : 'border-slate-800 bg-slate-900 text-slate-400 hover:bg-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[10px] text-slate-500">#{idx + 1}</span>
+                      <span>Hlm {f.pageNumber}</span>
+                      <span
+                        className={`text-[9px] px-1.5 py-0.5 rounded font-extrabold ${
+                          f.type === 'PARAF'
+                            ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                            : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                        }`}
+                      >
+                        {f.type}
+                      </span>
+                    </div>
+
+                    {isFilled ? (
+                      <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-bold">
+                        <Check className="h-3 w-3" /> Terisi
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-amber-400 font-bold">Belum</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Area Pengisian TTD / Paraf */}
+          {isMyTurn && activeField ? (
             <div className="rounded-xl border border-slate-800 bg-slate-900 p-3 space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                  {isParafTask ? (
+                    <>
+                      <FileCheck className="h-4 w-4 text-amber-500" /> Isi Paraf
+                    </>
+                  ) : (
+                    <>
+                      <PenTool className="h-4 w-4 text-emerald-500" /> Isi Tanda Tangan
+                    </>
+                  )}
+                </h2>
+
+                <span className="text-[9px] text-slate-400 font-mono">
+                  Halaman {activeField.pageNumber}
+                </span>
+              </div>
+
               {/* Selector Mode TTD */}
               <div className="flex gap-2 border-b border-slate-800 pb-2">
                 <button
@@ -699,11 +904,11 @@ export default function SignDocumentPage() {
                     sigMode === 'DRAW' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
                   }`}
                 >
-                  Gores TTD
+                  Gores {isParafTask ? 'Paraf' : 'TTD'}
                 </button>
                 <button
                   type="button"
-                  onClick={selectSpecimen}
+                  onClick={() => setSigMode('SPECIMEN')}
                   className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-colors ${
                     sigMode === 'SPECIMEN' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
                   }`}
@@ -712,39 +917,108 @@ export default function SignDocumentPage() {
                 </button>
               </div>
 
+              {/* 📍 COMPONENT CHECKLIST SWITCHER TERAPKAN KE SEMUA PLOT (BERLAKU UNTUK DRAW & SPECIMEN) */}
+              <div
+                onClick={() => {
+                  const nextState = !applyToAll
+                  setApplyToAll(nextState)
+
+                  // Jika sedang di mode Spesimen, langsung perbarui hasil penempatan
+                  if (sigMode === 'SPECIMEN' && activeSpecimenUrl && activeField) {
+                    applySpecimenToFields(activeSpecimenUrl, activeField.type, nextState)
+                  }
+                  // Jika sedang di mode Gores, jika ada isi di kanvas, langsung terapkan
+                  else if (sigMode === 'DRAW' && canvasRef.current && activeField) {
+                    const base64 = canvasRef.current.toDataURL('image/png')
+                    if (signaturesMap[activeField.id]) {
+                      applyDrawResult(base64, nextState)
+                    }
+                  }
+                }}
+                className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer select-none transition-all ${
+                  applyToAll
+                    ? 'border-blue-500 bg-blue-950/40 text-blue-300 ring-2 ring-blue-500/20'
+                    : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  {applyToAll ? (
+                    <CheckSquare className="h-4 w-4 text-blue-400 shrink-0" />
+                  ) : (
+                    <Square className="h-4 w-4 text-slate-500 shrink-0" />
+                  )}
+                  <div>
+                    <p className="text-xs font-bold">Terapkan ke semua plot {isParafTask ? 'Paraf' : 'TTD'}</p>
+                    <p className="text-[9px] text-slate-400">
+                      {applyToAll
+                        ? `Aksi ini akan mengisi ${
+                            myFields.filter((f) => f.type === activeField.type).length
+                          } plot ${isParafTask ? 'PARAF' : 'SIGNATURE'} sekaligus`
+                        : 'Hanya mengisi plot yang sedang dipilih'}
+                    </p>
+                  </div>
+                </div>
+                {applyToAll && <Sparkles className="h-3.5 w-3.5 text-blue-400 animate-pulse shrink-0" />}
+              </div>
+
               {sigMode === 'DRAW' ? (
                 <>
                   <p className="text-[11px] text-slate-400 italic">
-                    Goreskan tanda tangan Anda di kotak putih (bayangan dokumen menampilkan posisi asli TTD):
+                    Goreskan {isParafTask ? 'paraf' : 'tanda tangan'} Anda di bawah:
                   </p>
 
-                  {/* Kotak Canvas Pad dengan Background Mirroring Crop Dokumen */}
+                  <div className="mb-3 flex items-center justify-between rounded-xl border border-slate-700/60 bg-slate-800/60 p-2">
+                    <span className="text-[11px] font-semibold text-slate-300">Warna Tinta:</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPenColor('#000000')}
+                        className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
+                          penColor === '#000000'
+                            ? 'bg-slate-700 text-white ring-2 ring-blue-500'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <span className="h-3 w-3 rounded-full border border-slate-400 bg-black" />
+                        Hitam
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPenColor('#0B5369')}
+                        className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
+                          penColor === '#0B5369'
+                            ? 'bg-slate-700 text-white ring-2 ring-blue-500'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <span className="h-3 w-3 rounded-full border border-blue-300 bg-[#0B5369]" />
+                        Biru
+                      </button>
+                    </div>
+                  </div>
+
                   <div
-                    className="relative w-full rounded-xl border-2 border-slate-700 bg-white overflow-hidden shadow-inner flex items-center justify-center"
+                    className="relative w-full rounded-xl border-2 border-slate-700 bg-white overflow-hidden shadow-inner flex items-center justify-center select-none"
                     style={{
-                      aspectRatio: myField ? `${myField.width} / ${myField.height}` : '260 / 160',
+                      aspectRatio: `${activeField.width} / ${activeField.height}`,
                       backgroundImage: bgCropUrl ? `url(${bgCropUrl})` : undefined,
                       backgroundSize: '100% 100%',
                       backgroundPosition: 'center',
                       backgroundRepeat: 'no-repeat',
                     }}
                   >
-                    {/* Overlay semi-transparan putih agar teks dokumen redup & goresan TTD tajam */}
                     {bgCropUrl && <div className="absolute inset-0 bg-white/60 pointer-events-none" />}
 
-                    {/* Canvas Foreground Transparan untuk Menggores */}
                     <canvas
                       ref={canvasRef}
-                      width={myField ? myField.width * 2 : 520}
-                      height={myField ? myField.height * 2 : 320}
-                      onMouseDown={startDrawing}
-                      onMouseMove={draw}
-                      onMouseUp={stopDrawing}
-                      onMouseLeave={stopDrawing}
-                      onTouchStart={startDrawing}
-                      onTouchMove={draw}
-                      onTouchEnd={stopDrawing}
-                      className="absolute inset-0 w-full h-full cursor-crosshair touch-none z-10"
+                      width={activeField.width * 2}
+                      height={activeField.height * 2}
+                      onPointerDown={startDrawing}
+                      onPointerMove={draw}
+                      onPointerUp={stopDrawing}
+                      onPointerCancel={stopDrawing}
+                      style={{ touchAction: 'none', userSelect: 'none' }}
+                      className="absolute inset-0 w-full h-full cursor-crosshair select-none z-10"
                     />
                   </div>
 
@@ -758,19 +1032,48 @@ export default function SignDocumentPage() {
                 </>
               ) : (
                 <div className="space-y-3">
-                  <div>
-                    <p className="text-[11px] text-slate-400 italic">
-                      Geser tanda tangan untuk memindahkan posisi, atau atur ukuran dengan slider di bawah:
-                    </p>
-                  </div>
+                  <p className="text-[11px] text-slate-400 italic">
+                    Pilih spesimen khusus bertipe <strong className="text-white">{isParafTask ? 'PARAF' : 'SIGNATURE'}</strong>:
+                  </p>
 
-                  {userSpecimen ? (
+                  {/* Pilihan Spesimen Sesuai Tipe */}
+                  {matchedSpecimens.length > 0 ? (
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {matchedSpecimens.map((item) => {
+                        const isSelected = activeSpecimenUrl === item.imageUrl
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => {
+                              setActiveSpecimenUrl(item.imageUrl)
+                              applySpecimenToFields(item.imageUrl, activeField.type, applyToAll)
+                            }}
+                            className={`relative shrink-0 h-12 w-20 rounded-lg border-2 p-1 bg-white cursor-pointer transition-all ${
+                              isSelected
+                                ? 'border-blue-500 ring-2 ring-blue-500/30'
+                                : 'border-slate-700 opacity-70 hover:opacity-100'
+                            }`}
+                          >
+                            <img src={item.imageUrl} alt="Spesimen" className="h-full w-full object-contain" />
+                            {item.isPrimary && (
+                              <Star className="absolute top-0.5 right-0.5 h-3 w-3 fill-amber-400 text-amber-500" />
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-center text-slate-400 text-[10px]">
+                      Belum ada spesimen {isParafTask ? 'Paraf' : 'Tanda Tangan'} tersimpan di Atribut Pengesahan.
+                    </div>
+                  )}
+
+                  {activeSpecimenUrl ? (
                     <>
-                      {/* Box Interaktif dengan Background Mirroring Dokumen */}
                       <div
                         className="relative w-full rounded-xl border-2 border-slate-700 bg-white overflow-hidden shadow-inner flex items-center justify-center select-none cursor-grab active:cursor-grabbing"
                         style={{
-                          aspectRatio: myField ? `${myField.width} / ${myField.height}` : '260 / 160',
+                          aspectRatio: `${activeField.width} / ${activeField.height}`,
                           backgroundImage: bgCropUrl ? `url(${bgCropUrl})` : undefined,
                           backgroundSize: '100% 100%',
                           backgroundPosition: 'center',
@@ -779,10 +1082,8 @@ export default function SignDocumentPage() {
                         onMouseDown={startSpecimenDrag}
                         onTouchStart={startSpecimenDrag}
                       >
-                        {/* Overlay semi-transparan putih agar teks dokumen redup */}
                         {bgCropUrl && <div className="absolute inset-0 bg-white/60 pointer-events-none" />}
 
-                        {/* Gambar Spesimen yang Bisa Digeser & Diatur Ukurannya */}
                         <div
                           className="absolute pointer-events-none transition-transform duration-75"
                           style={{
@@ -795,24 +1096,22 @@ export default function SignDocumentPage() {
                           }}
                         >
                           <img
-                            src={userSpecimen}
-                            alt="Spesimen TTD"
+                            src={activeSpecimenUrl}
+                            alt="Spesimen"
                             className="max-h-full max-w-full object-contain drop-shadow-sm select-none"
                             draggable={false}
                           />
                         </div>
 
-                        {/* Indikator Geser di Pojok */}
                         <div className="absolute bottom-1 right-1.5 rounded bg-slate-900/60 px-1.5 py-0.5 text-[9px] text-slate-300 pointer-events-none flex items-center gap-1 backdrop-blur-xs">
                           <Move className="h-2.5 w-2.5" /> Geser
                         </div>
                       </div>
 
-                      {/* Slider Kontrol Ukuran */}
                       <div className="space-y-1.5 rounded-lg bg-slate-950/60 p-2.5 border border-slate-800">
                         <div className="flex items-center justify-between text-[11px]">
                           <span className="font-semibold text-slate-300 flex items-center gap-1">
-                            <ZoomIn className="h-3 w-3 text-blue-400" /> Ukuran TTD
+                            <ZoomIn className="h-3 w-3 text-blue-400" /> Ukuran {isParafTask ? 'Paraf' : 'TTD'}
                           </span>
                           <span className="font-mono text-xs font-bold text-blue-400">{specimenScale}%</span>
                         </div>
@@ -825,14 +1124,8 @@ export default function SignDocumentPage() {
                           onChange={(e) => setSpecimenScale(Number(e.target.value))}
                           className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
                         />
-                        <div className="flex justify-between text-[9px] text-slate-500">
-                          <span>Kecil (40%)</span>
-                          <span>Standar (100%)</span>
-                          <span>Besar (200%)</span>
-                        </div>
                       </div>
 
-                      {/* Tombol Reset Posisi & Ukuran */}
                       <button
                         type="button"
                         onClick={() => {
@@ -844,11 +1137,7 @@ export default function SignDocumentPage() {
                         <RotateCcw className="h-3 w-3" /> Kembalikan ke Posisi Awal
                       </button>
                     </>
-                  ) : (
-                    <div className="p-4 rounded-lg bg-amber-950/20 border border-amber-900/30 text-center text-amber-300 text-xs">
-                      Belum ada spesimen TTD tersimpan di profil Anda.
-                    </div>
-                  )}
+                  ) : null}
                 </div>
               )}
             </div>
@@ -860,10 +1149,11 @@ export default function SignDocumentPage() {
                   : myRecipientInDoc.status === 'SIGNED'
                   ? 'Anda telah selesai menandatangani dokumen ini.'
                   : 'Belum giliran Anda untuk menandatangani dokumen ini.'}
-             </p>
+              </p>
             </div>
           )}
 
+          {/* Status Alur Dokumen */}
           <div className="mt-auto rounded-xl border border-slate-800 bg-slate-900/40 p-4 space-y-3">
             <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Status Alur Dokumen</h3>
             {recipientsList.map((r, idx) => {
@@ -873,16 +1163,25 @@ export default function SignDocumentPage() {
                 (currentUserEmail && r.user?.email === currentUserEmail)
 
               return (
-                <div key={r.id} className="flex items-center justify-between border-b border-slate-800/50 pb-2 last:border-0 last:pb-0">
+                <div
+                  key={r.id}
+                  className="flex items-center justify-between border-b border-slate-800/50 pb-2 last:border-0 last:pb-0"
+                >
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-slate-500 font-mono">#{idx+1}</span>
+                    <span className="text-[10px] text-slate-500 font-mono">#{idx + 1}</span>
                     <span className={`text-xs ${isCurrentUser ? 'font-bold text-white' : 'text-slate-300'}`}>
                       {r.user?.name || 'User'}
                     </span>
                   </div>
-                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                    r.status === 'SIGNED' ? 'bg-emerald-500/10 text-emerald-400' : r.status === 'REJECTED' ? 'bg-red-500/10 text-red-400' : 'bg-slate-800 text-slate-500'
-                  }`}>
+                  <span
+                    className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                      r.status === 'SIGNED'
+                        ? 'bg-emerald-500/10 text-emerald-400'
+                        : r.status === 'REJECTED'
+                        ? 'bg-red-500/10 text-red-400'
+                        : 'bg-slate-800 text-slate-500'
+                    }`}
+                  >
                     {r.status}
                   </span>
                 </div>

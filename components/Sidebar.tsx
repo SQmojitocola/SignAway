@@ -38,6 +38,7 @@ export default function Sidebar() {
               src="/assets/logo-dashboard.png"
               alt="Logo Surveyor Indonesia"
               fill
+              sizes="3rem"
               className="object-contain"
               priority
             />
