@@ -1,18 +1,25 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
 }
 
-enum Role {
-  STAFF
-  ATASAN
+datasource db {
+  provider = "postgresql"
 }
 
-//Status Dokumen
+// Role Pengguna
+enum Role {
+  ADMIN
+  KARYAWAN
+}
+
+// Status Proxy Delegasi
+enum ProxyStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Status Dokumen
 enum DocumentStatus {
   DRAFT
   PENDING
@@ -21,7 +28,7 @@ enum DocumentStatus {
   REJECTED
 }
 
-//Status Recipient
+// Status Recipient
 enum RecipientStatus {
   WAITING
   PENDING
@@ -29,62 +36,68 @@ enum RecipientStatus {
   REJECTED
 }
 
-
-model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  name         String
-  role         Role     @default(STAFF)
-  passwordHash String   @map("password_hash")
-  signatureSpecimen String?             @map("signature_specimen")
-  createdAt    DateTime @default(now()) @map("signed_at")
-
-  sentDocuments Document[]          @relation("SenderRelation")
-  signatureLogs SignatureLog[]
-  recipients    DocumentRecipient[]
-
-  specimens UserSpecimen[]
-  contacts  Contact[]
-
-  @@map("users")
-}
-
 enum SpecimenType {
   SIGNATURE
   PARAF
+}
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  name              String
+  role              Role      @default(KARYAWAN)
+  nip               String?   @unique
+  department        String?
+  isActive          Boolean   @default(true) @map("is_active")
+  passwordHash      String    @map("password_hash")
+  signatureSpecimen String?   @map("signature_specimen")
+  createdAt         DateTime  @default(now()) @map("signed_at")
+
+  sentDocuments     Document[]          @relation("SenderRelation")
+  signatureLogs     SignatureLog[]
+  recipients        DocumentRecipient[]
+  specimens         UserSpecimen[]
+  contacts          Contact[]
+
+  // Relasi Delegasi / Proxy TTD
+  proxyRequestsMade     ProxySignRequest[] @relation("RequestedBy")
+  proxyRequestsTarget   ProxySignRequest[] @relation("TargetUser")
+  proxyRequestsApproved ProxySignRequest[] @relation("ApprovedBy")
+
+  @@map("users")
 }
 
 model UserSpecimen {
   id        String       @id @default(uuid())
   userId    String       @map("user_id")
   type      SpecimenType @default(SIGNATURE)
-  imageUrl  String       @map("image_url") // Menyimpan Base64 data gambar atau path file
+  imageUrl  String       @map("image_url")
   isPrimary Boolean      @default(false) @map("is_primary")
   createdAt DateTime     @default(now()) @map("created_at")
 
-  // Relasi ke tabel User
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_specimens")
 }
-//tabel Dokumen
-model Document {
-  id            String         @id @default(uuid())
-  title         String
-  filePath      String         @map("file_path")
-  fileSize      Int            @default(0) @map("file_size")
-  senderId      String         @map("sender_id")
-  status        DocumentStatus @default(PENDING)
-  sequential    Boolean        @default(false)
-  rejectReason  String?        @map("reject_reason")
-  checksum      String?
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at")
 
-  sender     User                @relation("SenderRelation", fields: [senderId], references: [id])
-  recipients DocumentRecipient[]
-  fields     DocumentField[]
-  logs       SignatureLog[]
+model Document {
+  id           String         @id @default(uuid())
+  title        String
+  filePath     String         @map("file_path")
+  fileSize     Int            @default(0) @map("file_size")
+  senderId     String         @map("sender_id")
+  status       DocumentStatus @default(PENDING)
+  sequential   Boolean        @default(false)
+  rejectReason String?        @map("reject_reason")
+  checksum     String?
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @default(now()) @updatedAt @map("updated_at")
+
+  sender        User                @relation("SenderRelation", fields: [senderId], references: [id])
+  recipients    DocumentRecipient[]
+  fields        DocumentField[]
+  logs          SignatureLog[]
+  proxyRequests ProxySignRequest[]
 
   @@map("documents")
 }
@@ -135,16 +148,35 @@ model DocumentField {
   @@map("document_fields")
 }
 
-datasource db {
-  provider = "postgresql"
-}
-
 model Contact {
   id        String   @id @default(cuid())
-  userId    String   // ID pemilik kontak
+  userId    String   @map("user_id")
   name      String
   email     String
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("contacts")
+}
+
+// Tabel Pengajuan Proxy / Perwakilan TTD
+model ProxySignRequest {
+  id            String      @id @default(uuid())
+  documentId    String      @map("document_id")
+  requestedById String      @map("requested_by_id")
+  targetUserId  String      @map("target_user_id")
+  approvedById  String?     @map("approved_by_id")
+  reason        String
+  status        ProxyStatus @default(PENDING)
+  rejectionNote String?     @map("rejection_note")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  requestedBy User     @relation("RequestedBy", fields: [requestedById], references: [id])
+  targetUser  User     @relation("TargetUser", fields: [targetUserId], references: [id])
+  approvedBy  User?    @relation("ApprovedBy", fields: [approvedById], references: [id])
+
+  @@map("proxy_sign_requests")
 }
