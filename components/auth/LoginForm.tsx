@@ -68,20 +68,20 @@ export default function LoginForm() {
 
   const handleNextSlide = useCallback(() => {
     setIsTransitioning(true)
-    setCurrentIndex((prev) => prev + 1)
+    setCurrentIndex((prev) => Math.min(prev + 1, slides.length - 1))
   }, [])
 
   const handlePrevSlide = useCallback(() => {
     setIsTransitioning(true)
-    setCurrentIndex((prev) => prev - 1)
+    setCurrentIndex((prev) => Math.max(prev - 1, 0))
   }, [])
 
   // Handle Loop Instant (Seamless Transition Jump)
   const handleTransitionEnd = () => {
-    if (currentIndex === slides.length - 1) {
+    if (currentIndex >= slides.length - 1) {
       setIsTransitioning(false)
       setCurrentIndex(1)
-    } else if (currentIndex === 0) {
+    } else if (currentIndex <= 0) {
       setIsTransitioning(false)
       setCurrentIndex(slides.length - 2)
     }
