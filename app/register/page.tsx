@@ -101,6 +101,7 @@ export default function RegisterPage() {
               src="/assets/logo-surveyor-indonesia-png-svg-removebg-preview.png"
               alt="Logo Surveyor Indonesia"
               fill
+              sizes="16rem"
               className="object-contain"
               priority
             />

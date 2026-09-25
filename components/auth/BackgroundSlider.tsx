@@ -44,7 +44,9 @@ export default function BackgroundSlider() {
                 src={src}
                 alt="Background Slide"
                 fill
+                sizes="100vw"
                 priority={index === 0}
+                loading={index === 0 ? 'eager' : 'lazy'}
                 className="object-cover"
               />
             </div>

@@ -201,6 +201,7 @@ export default function LoginForm() {
               src="/assets/logo-surveyor-indonesia-png-svg-removebg-preview.png"
               alt="Logo Surveyor Indonesia"
               fill
+              sizes="(min-width: 1024px) 15rem, 12rem"
               className="object-contain object-right"
               priority
             />
@@ -325,8 +326,10 @@ export default function LoginForm() {
                   src={slide.image}
                   alt={slide.title}
                   fill
+                  sizes="(min-width: 1024px) 50vw, 0px"
                   className="object-cover pointer-events-none"
                   priority={idx === 1}
+                  loading={idx === 1 ? 'eager' : 'lazy'}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#001f3f]/95 via-[#003b73]/40 to-transparent pointer-events-none" />
 

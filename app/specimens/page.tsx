@@ -278,6 +278,7 @@ export default function SpecimensPage() {
                   src={item.imageUrl}
                   alt="Spesimen TTD"
                   fill
+                  sizes="(min-width: 1024px) 20rem, 100vw"
                   className="object-contain p-2"
                 />
               </div>
