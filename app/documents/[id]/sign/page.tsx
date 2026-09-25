@@ -17,6 +17,7 @@ import {
   CheckSquare,
   Square,
   Sparkles,
+  ShieldCheck,
 } from 'lucide-react'
 
 interface Field {
@@ -69,6 +70,10 @@ export default function SignDocumentPage() {
   const [submitting, setSubmitting] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null)
+  const [approvedProxy, setApprovedProxy] = useState<{
+    id: string
+    targetUser: { id: string; name: string }
+  } | null>(null)
 
   // Pustaka Spesimen User
   const [userSpecimens, setUserSpecimens] = useState<UserSpecimenItem[]>([])
@@ -110,6 +115,24 @@ export default function SignDocumentPage() {
 
   const recipientsList = useMemo(() => doc?.recipients || [], [doc?.recipients])
   const fieldsList = useMemo(() => doc?.fields || [], [doc?.fields])
+
+  useEffect(() => {
+    const checkProxyStatus = async () => {
+      try {
+        const res = await fetch(`/api/proxy-requests/check?documentId=${documentId}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.approvedProxy) {
+            setApprovedProxy(data.approvedProxy)
+          }
+        }
+      } catch (err) {
+        console.error('Failed checking proxy status:', err)
+      }
+    }
+
+    checkProxyStatus()
+  }, [documentId])
 
   const myRecipientInDoc = useMemo(() => {
     if (!currentUserId) return null
@@ -823,6 +846,18 @@ export default function SignDocumentPage() {
 
         {/* Sidebar Kanan Papan TTD */}
         <aside className="w-80 border-l border-slate-800 bg-slate-950 p-5 flex flex-col gap-4 shrink-0 overflow-y-auto">
+          {approvedProxy && (
+            <div className="p-3 mb-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
+              <div>
+                <p className="font-bold">Izin Perwakilan Disetujui Admin</p>
+                <p className="text-[10px] text-blue-700">
+                  Anda menandatangani sebagai wakil resmi untuk <strong>{approvedProxy.targetUser.name}</strong>.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* List Plot Milik User */}
           <div className="space-y-2">
             <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
