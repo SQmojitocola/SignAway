@@ -157,21 +157,23 @@ export default function SignDocumentPage() {
       (r) =>
         r.user?.id === currentUserId ||
         r.userId === currentUserId ||
-        (currentUserEmail && r.user?.email === currentUserEmail)
+        (currentUserEmail && r.user?.email === currentUserEmail) ||
+        (approvedProxy && (r.user?.id === approvedProxy.targetUser.id || r.userId === approvedProxy.targetUser.id))
     )
-  }, [recipientsList, currentUserId, currentUserEmail])
+  }, [recipientsList, currentUserId, currentUserEmail, approvedProxy])
 
-  // Semua Field milik user ini
+  // Semua Field milik user ini (atau milik target user yang diwakilkan via proxy)
   const myFields = useMemo(() => {
     return fieldsList.filter((field) => {
       const recipient = recipientsList.find((r) => r.id === field.recipientId)
       return (
         field.recipientId === myRecipientInDoc?.id ||
         (recipient?.user?.id || recipient?.userId) === currentUserId ||
-        (currentUserEmail && recipient?.user?.email === currentUserEmail)
+        (currentUserEmail && recipient?.user?.email === currentUserEmail) ||
+        (approvedProxy && ((recipient?.user?.id || recipient?.userId) === approvedProxy.targetUser.id))
       )
     })
-  }, [fieldsList, recipientsList, myRecipientInDoc, currentUserId, currentUserEmail])
+  }, [fieldsList, recipientsList, myRecipientInDoc, currentUserId, currentUserEmail, approvedProxy])
 
   // Field Aktif yang Sedang Dipilih User di Sidebar
   const activeField = useMemo(() => {
@@ -689,9 +691,10 @@ export default function SignDocumentPage() {
       currentActiveSigner.id === myRecipientInDoc.id ||
       currentActiveSigner.user?.id === currentUserId ||
       currentActiveSigner.userId === currentUserId ||
-      (currentUserEmail && currentActiveSigner.user?.email === currentUserEmail)
+      (currentUserEmail && currentActiveSigner.user?.email === currentUserEmail) ||
+      (approvedProxy && (currentActiveSigner.user?.id === approvedProxy.targetUser.id || currentActiveSigner.userId === approvedProxy.targetUser.id))
     )
-  }, [currentUserId, currentUserEmail, myRecipientInDoc, recipientsList])
+  }, [currentUserId, currentUserEmail, myRecipientInDoc, recipientsList, approvedProxy])
 
   if (loading) return <div className="p-8 text-center text-slate-500">Memuat dokumen...</div>
   if (!doc) return <div className="p-8 text-center text-slate-500">Dokumen tidak ditemukan.</div>

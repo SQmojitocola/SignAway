@@ -44,12 +44,51 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: 'Dokumen tidak ditemukan' }, { status: 404 })
     }
 
-    const recipient = document.recipients.find(
-      (r) => r.userId === userId && (r.status === 'WAITING' || r.status === 'PENDING')
+    const currentUserId = userId
+
+    // Cek apakah user adalah penerima asli yang sedang menunggu giliran tanda tangan
+    let recipient = document.recipients.find(
+      (r) => r.userId === currentUserId && (r.status === 'WAITING' || r.status === 'PENDING')
     )
 
-    if (!recipient) {
-      return NextResponse.json({ message: 'Kamu tidak memiliki antrean TTD pada dokumen ini' }, { status: 403 })
+    // Cek apakah ada pengajuan proxy APPROVED di mana pemohonnya adalah user yang sedang login
+    const approvedProxy = await prisma.proxySignRequest.findFirst({
+      where: {
+        documentId: document.id,
+        requestedById: currentUserId,
+        status: 'APPROVED',
+      },
+      include: {
+        targetUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            nip: true,
+            department: true,
+          },
+        },
+      },
+    })
+
+    // Jika user bukan penerima asli langsung, namun memiliki izin proxy APPROVED,
+    // ambil antrean recipient milik targetUser yang diwakilinya
+    if (!recipient && approvedProxy) {
+      recipient = document.recipients.find(
+        (r) => r.userId === approvedProxy.targetUserId && (r.status === 'WAITING' || r.status === 'PENDING')
+      )
+    }
+
+    const isOriginalRecipient = recipient ? recipient.userId === currentUserId : false
+    const isApprovedProxy = Boolean(
+      approvedProxy && recipient && approvedProxy.targetUserId === recipient.userId
+    )
+
+    if (!recipient || (!isOriginalRecipient && !isApprovedProxy)) {
+      return NextResponse.json(
+        { message: 'Anda tidak memiliki hak menandatangani plot ini.' },
+        { status: 403 }
+      )
     }
 
     const fields = document.fields.filter((field) => field.recipientId === recipient.id)
@@ -57,22 +96,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: 'Plot TTD/Paraf belum ditentukan' }, { status: 400 })
     }
 
-    const approvedProxy = await prisma.proxySignRequest.findFirst({
-      where: {
-        documentId: document.id,
-        requestedById: userId,
-        status: 'APPROVED',
-      },
-      select: {
-        targetUser: { select: { name: true } },
-      },
+    // Ambil profil lengkap penandatangan aktual saat ini
+    const currentUser = await prisma.user.findUnique({
+      where: { id: currentUserId },
+      select: { name: true, nip: true },
     })
+
     const signedAt = new Date()
     const auditText = createAuditTrailText({
-      signerName: recipient.user.name,
-      signerNip: recipient.user.nip,
+      signerName: isApprovedProxy
+        ? currentUser?.name || session.user.name || 'Wakil Penandatangan'
+        : recipient.user.name,
+      signerNip: isApprovedProxy ? currentUser?.nip : recipient.user.nip,
       signedAt,
-      isProxySigned: Boolean(approvedProxy),
+      isProxySigned: Boolean(isApprovedProxy),
       targetName: approvedProxy?.targetUser.name,
     })
 
