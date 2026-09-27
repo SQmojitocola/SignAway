@@ -203,12 +203,16 @@ export async function POST(req: Request) {
     }
 
     const stampPage = pdfDoc.getPage(targetPageIndex)
-    const { height: pageHeight } = stampPage.getSize()
-    const drawY = pageHeight - boxY - boxHeight
+    const { width: pageWidth, height: pageHeight } = stampPage.getSize()
+
+    // Safety clamping: pastikan koordinat box selalu berada di dalam batas fisik halaman PDF
+    const clampedBoxX = Math.max(10, Math.min(pageWidth - boxWidth - 10, boxX))
+    const clampedBoxY = Math.max(10, Math.min(pageHeight - boxHeight - 10, boxY))
+    const drawY = pageHeight - clampedBoxY - boxHeight
 
     // A. Gambar Kotak Putih dengan Border Halus (Sesuai Referensi Gambar)
     stampPage.drawRectangle({
-      x: boxX,
+      x: clampedBoxX,
       y: drawY,
       width: boxWidth,
       height: boxHeight,
@@ -221,14 +225,14 @@ export async function POST(req: Request) {
     const qrPadding = 5
     const qrSize = Math.max(20, boxHeight - qrPadding * 2)
     stampPage.drawImage(embeddedQrImage, {
-      x: boxX + qrPadding,
+      x: clampedBoxX + qrPadding,
       y: drawY + qrPadding,
       width: qrSize,
       height: qrSize,
     })
 
     // C. Cetak Teks Sisi Kanan (Persis Format & Warna Gambar Pengguna)
-    const textX = boxX + qrPadding + qrSize + 7
+    const textX = clampedBoxX + qrPadding + qrSize + 7
 
     // Baris 1: "Terverifikasi Sistem E-Sign" (Teks Hijau Tebal)
     stampPage.drawText('Terverifikasi Sistem E-Sign', {
