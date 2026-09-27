@@ -23,6 +23,33 @@ interface Recipient {
   role?: string
 }
 
+interface ApiRecipient {
+  id: string
+  userId: string
+  role?: string
+  user: {
+    id: string
+    name: string
+    email: string
+  }
+}
+
+interface ApiField {
+  id: string
+  recipientId: string
+  type?: 'SIGNATURE' | 'PARAF'
+  pageNumber: number
+  posX: number
+  posY: number
+  width?: number
+  height?: number
+  recipient?: {
+    user?: {
+      name?: string
+    }
+  }
+}
+
 interface SignatureField {
   id: string
   recipientId: string
@@ -198,7 +225,7 @@ export default function DocumentFieldPlottingPage() {
       }
     }
 
-    const handlePointerUp = (event: PointerEvent) => {
+    const handlePointerUp = () => {
       const interaction = interactionRef.current
       if (!interaction) return
 
@@ -256,7 +283,7 @@ export default function DocumentFieldPlottingPage() {
         setDocumentTitle(data.document.title)
         setDocumentPath(data.document.filePath)
 
-        const validRecipients: Recipient[] = data.document.recipients.map((r: any) => ({
+        const validRecipients: Recipient[] = (data.document.recipients as ApiRecipient[]).map((r) => ({
           id: r.id,
           userId: r.userId,
           name: r.user.id === data.document.sender.id ? `${r.user.name} (Saya)` : r.user.name,
@@ -272,7 +299,7 @@ export default function DocumentFieldPlottingPage() {
         if (!fieldsResponse.ok) throw new Error(fieldsData.message || 'Gagal memuat posisi TTD')
 
         setFields(
-          fieldsData.fields.map((field: any) => ({
+          (fieldsData.fields as ApiField[]).map((field) => ({
             id: field.id,
             recipientId: field.recipientId,
             recipientName: field.recipient?.user?.name || 'Penandatangan',

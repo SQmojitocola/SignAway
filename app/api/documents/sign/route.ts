@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
+import { PDFDocument, PDFImage, rgb, StandardFonts } from 'pdf-lib'
 import { readFile, writeFile } from 'fs/promises'
 import path from 'path'
 import crypto from 'crypto'
@@ -82,7 +82,7 @@ export async function POST(req: Request) {
     const pdfDoc = await PDFDocument.load(pdfBytes)
 
     // Cache image embedding agar gambar spesimen yang sama tidak di-embed berulang kali
-    const embeddedImageCache: Record<string, any> = {}
+    const embeddedImageCache: Record<string, PDFImage> = {}
 
     // Helper function untuk mendapatkan PDFImage dari string base64
     const getEmbeddedImage = async (base64Str: string) => {

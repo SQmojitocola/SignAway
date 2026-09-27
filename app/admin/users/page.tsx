@@ -2,11 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import {
-  Users,
   UserPlus,
   Search,
   KeyRound,
-  ShieldCheck,
 } from 'lucide-react'
 
 interface UserData {
@@ -84,7 +82,7 @@ export default function UserManagementPage() {
         })
         fetchUsers()
       }
-    } catch (err) {
+    } catch {
       setErrorMsg('Terjadi kesalahan jaringan.')
     } finally {
       setSubmitting(false)
@@ -302,7 +300,7 @@ export default function UserManagementPage() {
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">Role Akses</label>
                 <select
                   value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value as 'ADMIN' | 'KARYAWAN' })}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-[#003b73] bg-white"
                 >
                   <option value="KARYAWAN">Karyawan (Signer / User)</option>

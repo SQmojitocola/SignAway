@@ -4,7 +4,6 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
-import { useEffect, useState } from 'react'
 import { 
   LayoutDashboard, 
   Users, 
@@ -22,20 +21,11 @@ import {
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
-  const { data: session, update } = useSession()
-  const [userRole, setUserRole] = useState<string | null>(null)
+  const { data: session } = useSession()
 
   // 📍 Sinkronkan role dari session atau cek jika sedang di route /admin
-  useEffect(() => {
-    const role = (session?.user as any)?.role
-    if (role) {
-      setUserRole(role)
-    } else if (pathname.startsWith('/admin')) {
-      // Fallback: Jika sedang berada di path /admin, langsung aktifkan tampilan Admin
-      setUserRole('ADMIN')
-    }
-  }, [session, pathname])
-
+  const sessionRole = (session?.user as { role?: string } | undefined)?.role
+  const userRole = sessionRole || (pathname.startsWith('/admin') ? 'ADMIN' : null)
   const isAdmin = userRole === 'ADMIN' || pathname.startsWith('/admin')
 
   // Menu Khusus Administrator

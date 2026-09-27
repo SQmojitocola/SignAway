@@ -1,13 +1,8 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { unlink } from 'fs/promises'
-import path from 'path'
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(req: Request) {
   try {
     const session = await auth()
     if (!session?.user?.id) {
@@ -15,7 +10,19 @@ export async function GET(
     }
 
     const userId = session.user.id
-    const { id } = await params
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+
+    if (!id) {
+      const documents = await prisma.document.findMany({
+        where: {
+          OR: [{ senderId: userId }, { recipients: { some: { userId: userId } } }],
+        },
+        orderBy: { createdAt: 'desc' },
+      })
+      return NextResponse.json({ documents })
+    }
+
     const document = await prisma.document.findFirst({
       where: {
         id,

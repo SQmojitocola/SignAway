@@ -81,8 +81,8 @@ export default function RegisterPage() {
 
       if (!res.ok) throw new Error('Gagal mendaftar')
       router.push('/login?registered=true')
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gagal mendaftar')
     } finally {
       setLoading(false)
     }

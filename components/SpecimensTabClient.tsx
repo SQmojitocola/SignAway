@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import Image from 'next/image'
 import { PenTool, CheckCircle2, Plus, Trash2, X, Star } from 'lucide-react'
 
 interface Specimen {

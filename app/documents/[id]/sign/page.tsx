@@ -58,6 +58,23 @@ interface UserSpecimenItem {
   isPrimary: boolean
 }
 
+interface RawField {
+  id: string
+  recipientId: string
+  type?: 'SIGNATURE' | 'PARAF'
+  pageNumber?: number
+  page?: number
+  posX: number
+  posY: number
+  width?: number
+  height?: number
+  recipient?: {
+    user?: {
+      name?: string
+    }
+  }
+}
+
 const PDF_VIEWPORT_SCALE = 1.25
 
 export default function SignDocumentPage() {
@@ -186,12 +203,12 @@ export default function SignDocumentPage() {
           setCurrentUserEmail(activeUser.email)
 
           const rawDoc = docData.document || docData
-          const recipients = rawDoc.recipients || []
+          const recipients: Recipient[] = rawDoc.recipients || []
 
-          const normalizedFields = (rawDoc.fields || []).map((f: any) => {
-            let matchedRecipient = recipients.find((r: any) => r.id === f.recipientId)
+          const normalizedFields = ((rawDoc.fields || []) as RawField[]).map((f) => {
+            let matchedRecipient = recipients.find((r) => r.id === f.recipientId)
             if (!matchedRecipient) {
-              matchedRecipient = recipients.find((r: any) => r.user?.id === activeUser.id || r.userId === activeUser.id)
+              matchedRecipient = recipients.find((r) => r.user?.id === activeUser.id || r.userId === activeUser.id)
             }
 
             return {

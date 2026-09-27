@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { CheckCircle2, FileText, Home, Files } from 'lucide-react'
+import { CheckCircle2, Home, Files } from 'lucide-react'
 
 interface Recipient {
   id: string

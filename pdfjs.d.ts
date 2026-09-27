@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 declare module 'pdfjs-dist/build/pdf.mjs' {
   const content: any;
   export = content;

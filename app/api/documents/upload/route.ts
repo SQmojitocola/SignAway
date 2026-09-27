@@ -25,7 +25,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: 'File PDF wajib diunggah' }, { status: 400 })
     }
 
-    const isSequential = sequentialRaw === 'true' || sequentialRaw === true
+    const isSequential = sequentialRaw === 'true'
 
     // 3. Simpan Berkas PDF ke Folder Storage Local
     const bytes = await file.arrayBuffer()

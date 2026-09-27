@@ -235,7 +235,7 @@ export default function DocumentDetailPage() {
                   <span className="font-bold text-white">{rejecterName}</span>
                 </p>
                 <div className="rounded-lg border border-red-900/40 bg-slate-900 p-3 text-[11px] italic text-red-200">
-                  "{rejectReasonText}"
+                  &quot;{rejectReasonText}&quot;
                 </div>
               </div>
             </div>

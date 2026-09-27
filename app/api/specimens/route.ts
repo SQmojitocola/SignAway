@@ -13,7 +13,7 @@ export async function GET() {
     const userId = session.user.id
 
     // Ambil user beserta specimens
-    let user = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: userId },
       include: { specimens: { orderBy: { createdAt: 'desc' } } },
     })

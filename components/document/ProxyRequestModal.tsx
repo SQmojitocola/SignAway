@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ShieldAlert, UserCheck, Send, X } from 'lucide-react'
+import { ShieldAlert, Send, X } from 'lucide-react'
 
 interface UserOption {
   id: string
@@ -81,7 +81,7 @@ export default function ProxyRequestModal({
         if (onSuccess) onSuccess()
         onClose()
       }
-    } catch (err) {
+    } catch {
       setErrorMsg('Terjadi kesalahan jaringan.')
     } finally {
       setSubmitting(false)

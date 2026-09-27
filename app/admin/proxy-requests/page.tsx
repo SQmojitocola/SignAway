@@ -2,15 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import {
-  FileCheck,
   CheckCircle2,
   XCircle,
   Clock,
   Search,
-  ArrowRight,
   FileText,
-  UserCheck,
-  AlertCircle,
 } from 'lucide-react'
 
 interface ProxyRequestData {
@@ -220,7 +216,7 @@ export default function ProxyRequestsPage() {
                       <p className="text-[10px] text-slate-400">{req.targetUser.department || 'Umum'}</p>
                     </td>
                     <td className="p-4 max-w-xs">
-                      <p className="text-slate-600 line-clamp-2 italic">"{req.reason}"</p>
+                      <p className="text-slate-600 line-clamp-2 italic">&quot;{req.reason}&quot;</p>
                     </td>
                     <td className="p-4">
                       <span
@@ -287,7 +283,7 @@ export default function ProxyRequestsPage() {
               <div className="pt-1 border-t border-slate-200">
                 <span className="text-slate-400 block text-[10px] uppercase font-bold">Alasan Pengajuan</span>
                 <p className="italic text-slate-700 bg-white p-2 rounded-lg border border-slate-200 mt-1">
-                  "{selectedRequest.reason}"
+                  &quot;{selectedRequest.reason}&quot;
                 </p>
               </div>
             </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   CheckCircle2,
@@ -58,15 +58,16 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<DashboardCategory>('waiting')
-  const [seenDocs, setSeenDocs] = useState<Record<string, boolean>>({})
+  const [seenDocs, setSeenDocs] = useState<Record<string, boolean>>(() => {
+    if (typeof window !== 'undefined') {
+      return readSeenDocs()
+    }
+    return {}
+  })
 
   // 📍 STATE LIMIT DISPLAY & PAGINATION
   const [pageSize, setPageSize] = useState<number>(5)
   const [currentPage, setCurrentPage] = useState<number>(1)
-
-  useEffect(() => {
-    setSeenDocs(readSeenDocs())
-  }, [])
 
   // Reset ke halaman 1 setiap kali ganti kategori atau pencarian
   const handleCategoryChange = (cat: DashboardCategory) => {
@@ -83,7 +84,7 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
     const next = { ...seenDocs, [docId]: true }
     setSeenDocs(next)
     if (typeof window !== 'undefined') {
-      window.localStorage.getItem && window.localStorage.setItem(DASHBOARD_SEEN_KEY, JSON.stringify(next))
+      window.localStorage.setItem(DASHBOARD_SEEN_KEY, JSON.stringify(next))
     }
   }
 

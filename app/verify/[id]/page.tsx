@@ -31,15 +31,13 @@ export default function PublicVerifierPage() {
   const router = useRouter()
   const documentId = params.id as string
 
+  const isCheckMode = !documentId || documentId === 'check'
   const [doc, setDoc] = useState<DocumentVerificationData | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!isCheckMode)
   const [verifyStatus, setVerifyStatus] = useState<{ isValid?: boolean; message?: string } | null>(null)
 
   useEffect(() => {
-    if (!documentId || documentId === 'check') {
-      setLoading(false)
-      return
-    }
+    if (!documentId || documentId === 'check') return
 
     fetch(`/api/documents/${documentId}`)
       .then((res) => res.json())
@@ -67,7 +65,7 @@ export default function PublicVerifierPage() {
       } else {
         setVerifyStatus({ isValid: false, message: data.message })
       }
-    } catch (err) {
+    } catch {
       setVerifyStatus({ isValid: false, message: 'Gagal memverifikasi berkas.' })
     } finally {
       setLoading(false)

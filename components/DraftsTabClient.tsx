@@ -10,7 +10,7 @@ interface DraftItem {
   title: string
   createdAt: string
   recipients: Array<{ id: string; user: { id: string; name: string; email: string } }>
-  fields: any[]
+  fields?: unknown[]
 }
 
 interface RejectedItem {
