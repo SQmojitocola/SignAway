@@ -267,39 +267,49 @@ export default function SignDocumentPage() {
     }
   }, [activeField, matchedSpecimens])
 
+  const activeFieldRef = useRef(activeField)
+  useEffect(() => {
+    activeFieldRef.current = activeField
+  }, [activeField])
+
   // Background Crop
   const captureMirrorBackground = useCallback(() => {
-    if (!activeField) return
-    const pageElement = pageRefs.current[activeField.pageNumber]
+    const currentField = activeFieldRef.current
+    if (!currentField) return
+    const pageElement = pageRefs.current[currentField.pageNumber]
     const pdfCanvas = pageElement?.querySelector('canvas')
     if (!pdfCanvas) return
 
     try {
+      const targetWidth = currentField.width || 150
+      const targetHeight = currentField.height || 70
       const cropCanvas = document.createElement('canvas')
-      const targetWidth = activeField.width || 150
-      const targetHeight = activeField.height || 70
-      cropCanvas.width = targetWidth
-      cropCanvas.height = targetHeight
+      cropCanvas.width = targetWidth * 2
+      cropCanvas.height = targetHeight * 2
 
       const ctx = cropCanvas.getContext('2d')
       if (ctx) {
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, cropCanvas.width, cropCanvas.height)
+
         ctx.drawImage(
           pdfCanvas,
-          activeField.posX,
-          activeField.posY,
+          Math.max(0, currentField.posX),
+          Math.max(0, currentField.posY),
           targetWidth,
           targetHeight,
           0,
           0,
-          targetWidth,
-          targetHeight
+          cropCanvas.width,
+          cropCanvas.height
         )
-        setBgCropUrl(cropCanvas.toDataURL('image/png'))
+        const dataUrl = cropCanvas.toDataURL('image/png')
+        setBgCropUrl(dataUrl)
       }
     } catch (err) {
       console.error('Mirror background error:', err)
     }
-  }, [activeField])
+  }, [])
 
   // Render PDF Pages
   useEffect(() => {
@@ -352,13 +362,21 @@ export default function SignDocumentPage() {
               })
               renderTasks.push(renderTask)
               await renderTask.promise
+
+              // Begitu halaman selesai dirender, langsung panggil capture background jika ini halaman field aktif
+              if (activeFieldRef.current?.pageNumber === pageInfo.pageNumber) {
+                captureMirrorBackground()
+              }
             }
+
+            // Panggil sekali lagi setelah seluruh dokumen selesai dirender
+            captureMirrorBackground()
           } catch (err) {
             if (!cancelled) {
               console.error('Error rendering PDF page:', err)
             }
           }
-        }, 100)
+        }, 80)
       } catch (err) {
         if (!cancelled) {
           console.error('Error rendering PDF:', err)
@@ -373,16 +391,15 @@ export default function SignDocumentPage() {
       if (renderTimer) clearTimeout(renderTimer)
       renderTasks.forEach((renderTask) => renderTask.cancel())
     }
-  }, [doc?.filePath])
+  }, [doc?.filePath, captureMirrorBackground])
 
   useEffect(() => {
-    if (activeField && pdfPages.length > 0) {
-      const timer = setTimeout(() => {
-        captureMirrorBackground()
-      }, 150)
+    if (activeField) {
+      captureMirrorBackground()
+      const timer = setTimeout(captureMirrorBackground, 120)
       return () => clearTimeout(timer)
     }
-  }, [activeField, pdfPages, captureMirrorBackground])
+  }, [activeField, captureMirrorBackground])
 
   // Drawing Canvas Handlers
   const getPointerCoordinates = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -412,7 +429,7 @@ export default function SignDocumentPage() {
     const { x, y } = getPointerCoordinates(e)
     ctx.beginPath()
     ctx.moveTo(x, y)
-    ctx.lineWidth = 3
+    ctx.lineWidth = 4
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
     ctx.strokeStyle = penColor
@@ -545,7 +562,7 @@ export default function SignDocumentPage() {
 
   // 📍 LOGIKA CEK / TERAPKAN SPESIMEN KE SEMUA PLOT
   const applySpecimenToFields = useCallback(
-    (specimenUrl: string, targetType: Field['type'], applyAll: boolean) => {
+    (specimenUrl: string, targetType: Field['type'], applyAll: boolean, colorOverride?: '#000000' | '#0B5369') => {
       const img = new Image()
       img.crossOrigin = 'anonymous'
       img.onload = () => {
@@ -556,6 +573,7 @@ export default function SignDocumentPage() {
           : []
 
         const newMapEntries: Record<string, string> = {}
+        const effectiveColor = colorOverride || penColor
 
         targetFields.forEach((field) => {
           const targetW = field.width || 150
@@ -578,6 +596,14 @@ export default function SignDocumentPage() {
           const drawY = centerY - drawH / 2
 
           ctx.drawImage(img, drawX, drawY, drawW, drawH)
+
+          if (effectiveColor === '#0B5369') {
+            ctx.globalCompositeOperation = 'source-in'
+            ctx.fillStyle = '#0B5369'
+            ctx.fillRect(0, 0, canvas.width, canvas.height)
+            ctx.globalCompositeOperation = 'source-over'
+          }
+
           newMapEntries[field.id] = canvas.toDataURL('image/png')
         })
 
@@ -588,14 +614,71 @@ export default function SignDocumentPage() {
       }
       img.src = specimenUrl
     },
-    [myFields, activeField, specimenScale, specimenPos]
+    [myFields, activeField, specimenScale, specimenPos, penColor]
+  )
+
+  // 📍 HANDLE GANTI WARNA TINTA (RECOLOR INSTAN UNTUK GORES & SPESIMEN)
+  const handleColorChange = useCallback(
+    (newColor: '#000000' | '#0B5369') => {
+      setPenColor(newColor)
+
+      if (sigMode === 'DRAW') {
+        const canvas = canvasRef.current
+        if (canvas && activeField) {
+          const ctx = canvas.getContext('2d')
+          if (ctx) {
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+            let hasPixels = false
+            for (let i = 3; i < imgData.data.length; i += 4) {
+              if (imgData.data[i] > 10) {
+                hasPixels = true
+                break
+              }
+            }
+            if (hasPixels) {
+              ctx.globalCompositeOperation = 'source-in'
+              ctx.fillStyle = newColor
+              ctx.fillRect(0, 0, canvas.width, canvas.height)
+              ctx.globalCompositeOperation = 'source-over'
+
+              const base64 = canvas.toDataURL('image/png')
+              applyDrawResult(base64, applyToAll)
+            }
+          }
+        }
+      } else if (sigMode === 'SPECIMEN') {
+        if (activeSpecimenUrl && activeField) {
+          applySpecimenToFields(activeSpecimenUrl, activeField.type, applyToAll, newColor)
+        }
+      }
+    },
+    [sigMode, activeField, applyToAll, applyDrawResult, activeSpecimenUrl, applySpecimenToFields]
   )
 
   useEffect(() => {
     if (sigMode === 'SPECIMEN' && activeSpecimenUrl && activeField) {
-      applySpecimenToFields(activeSpecimenUrl, activeField.type, applyToAll)
+      applySpecimenToFields(activeSpecimenUrl, activeField.type, applyToAll, penColor)
     }
-  }, [sigMode, activeSpecimenUrl, specimenPos, specimenScale, applySpecimenToFields, activeField, applyToAll])
+  }, [sigMode, activeSpecimenUrl, specimenPos, specimenScale, applySpecimenToFields, activeField, applyToAll, penColor])
+
+  // Restore hasil goresan ke kanvas saat berpindah field aktif atau mode DRAW
+  useEffect(() => {
+    if (sigMode === 'DRAW' && canvasRef.current && activeField) {
+      const canvas = canvasRef.current
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+        const saved = signaturesMap[activeField.id]
+        if (saved) {
+          const img = new Image()
+          img.onload = () => {
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+          }
+          img.src = saved
+        }
+      }
+    }
+  }, [activeField?.id, sigMode])
 
   // Cek Kelengkapan Pengisian Semua Plot
   const isAllFieldsFilled = useMemo(() => {
@@ -1009,6 +1092,37 @@ export default function SignDocumentPage() {
                 </button>
               </div>
 
+              {/* 📍 PILIHAN WARNA TINTA (Berlaku untuk Gores TTD & Spesimen) */}
+              <div className="flex items-center justify-between rounded-xl border border-slate-700/60 bg-slate-800/60 p-2">
+                <span className="text-[11px] font-semibold text-slate-300">Warna Tinta:</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleColorChange('#000000')}
+                    className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
+                      penColor === '#000000'
+                        ? 'bg-slate-700 text-white ring-2 ring-blue-500'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span className="h-3 w-3 rounded-full border border-slate-400 bg-black" />
+                    Hitam
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleColorChange('#0B5369')}
+                    className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
+                      penColor === '#0B5369'
+                        ? 'bg-slate-700 text-white ring-2 ring-blue-500'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span className="h-3 w-3 rounded-full border border-blue-300 bg-[#0B5369]" />
+                    Biru
+                  </button>
+                </div>
+              </div>
+
               {/* 📍 COMPONENT CHECKLIST SWITCHER TERAPKAN KE SEMUA PLOT (BERLAKU UNTUK DRAW & SPECIMEN) */}
               <div
                 onClick={() => {
@@ -1059,36 +1173,6 @@ export default function SignDocumentPage() {
                     Goreskan {isParafTask ? 'paraf' : 'tanda tangan'} Anda di bawah:
                   </p>
 
-                  <div className="mb-3 flex items-center justify-between rounded-xl border border-slate-700/60 bg-slate-800/60 p-2">
-                    <span className="text-[11px] font-semibold text-slate-300">Warna Tinta:</span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setPenColor('#000000')}
-                        className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
-                          penColor === '#000000'
-                            ? 'bg-slate-700 text-white ring-2 ring-blue-500'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        <span className="h-3 w-3 rounded-full border border-slate-400 bg-black" />
-                        Hitam
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPenColor('#0B5369')}
-                        className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
-                          penColor === '#0B5369'
-                            ? 'bg-slate-700 text-white ring-2 ring-blue-500'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        <span className="h-3 w-3 rounded-full border border-blue-300 bg-[#0B5369]" />
-                        Biru
-                      </button>
-                    </div>
-                  </div>
-
                   <div
                     className="relative w-full rounded-xl border-2 border-slate-700 bg-white overflow-hidden shadow-inner flex items-center justify-center select-none"
                     style={{
@@ -1099,7 +1183,7 @@ export default function SignDocumentPage() {
                       backgroundRepeat: 'no-repeat',
                     }}
                   >
-                    {bgCropUrl && <div className="absolute inset-0 bg-white/60 pointer-events-none" />}
+                    {bgCropUrl && <div className="absolute inset-0 bg-white/35 pointer-events-none" />}
 
                     <canvas
                       ref={canvasRef}
@@ -1146,7 +1230,17 @@ export default function SignDocumentPage() {
                                 : 'border-slate-700 opacity-70 hover:opacity-100'
                             }`}
                           >
-                            <img src={item.imageUrl} alt="Spesimen" className="h-full w-full object-contain" />
+                            <img
+                              src={item.imageUrl}
+                              alt="Spesimen"
+                              className="h-full w-full object-contain"
+                              style={{
+                                filter:
+                                  penColor === '#0B5369'
+                                    ? 'brightness(0) saturate(100%) invert(26%) sepia(61%) saturate(1912%) hue-rotate(163deg) brightness(93%) contrast(96%)'
+                                    : 'none',
+                              }}
+                            />
                             {item.isPrimary && (
                               <Star className="absolute top-0.5 right-0.5 h-3 w-3 fill-amber-400 text-amber-500" />
                             )}
@@ -1174,7 +1268,7 @@ export default function SignDocumentPage() {
                         onMouseDown={startSpecimenDrag}
                         onTouchStart={startSpecimenDrag}
                       >
-                        {bgCropUrl && <div className="absolute inset-0 bg-white/60 pointer-events-none" />}
+                        {bgCropUrl && <div className="absolute inset-0 bg-white/35 pointer-events-none" />}
 
                         <div
                           className="absolute pointer-events-none transition-transform duration-75"
@@ -1191,6 +1285,12 @@ export default function SignDocumentPage() {
                             src={activeSpecimenUrl}
                             alt="Spesimen"
                             className="max-h-full max-w-full object-contain drop-shadow-sm select-none"
+                            style={{
+                              filter:
+                                penColor === '#0B5369'
+                                  ? 'brightness(0) saturate(100%) invert(26%) sepia(61%) saturate(1912%) hue-rotate(163deg) brightness(93%) contrast(96%)'
+                                  : 'none',
+                            }}
                             draggable={false}
                           />
                         </div>
