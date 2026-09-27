@@ -67,6 +67,7 @@ interface SignatureField {
 interface FieldInteraction {
   mode: 'drag' | 'resize'
   fieldId: string
+  initialPageNumber: number
   startX: number
   startY: number
   initialX: number
@@ -203,7 +204,12 @@ export default function DocumentFieldPlottingPage() {
     }
   }, [hasUnsavedChanges])
 
-  // 📍 4. OPTIMIZED DRAG & RESIZE INTERACTION LISTENER (INSTANT & PRECISE)
+  const pdfPagesRef = useRef(pdfPages)
+  useEffect(() => {
+    pdfPagesRef.current = pdfPages
+  }, [pdfPages])
+
+  // 📍 4. OPTIMIZED DRAG & RESIZE INTERACTION LISTENER (INSTANT & PRECISE WITH CROSS-PAGE DETECTION)
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
       const interaction = interactionRef.current
@@ -215,8 +221,8 @@ export default function DocumentFieldPlottingPage() {
       if (!element) return
 
       if (interaction.mode === 'drag') {
-        interaction.currentX = Math.max(0, interaction.initialX + deltaX)
-        interaction.currentY = Math.max(0, interaction.initialY + deltaY)
+        interaction.currentX = interaction.initialX + deltaX
+        interaction.currentY = interaction.initialY + deltaY
         // Transform GPU langsung tanpa delay
         element.style.transform = `translate3d(${deltaX}px, ${deltaY}px, 0)`
       } else {
@@ -227,7 +233,7 @@ export default function DocumentFieldPlottingPage() {
       }
     }
 
-    const handlePointerUp = () => {
+    const handlePointerUp = (event: PointerEvent) => {
       const interaction = interactionRef.current
       if (!interaction) return
 
@@ -236,12 +242,81 @@ export default function DocumentFieldPlottingPage() {
         element.releasePointerCapture(interaction.pointerId)
       }
 
-      const nextX = interaction.currentX
-      const nextY = interaction.currentY
       const mode = interaction.mode
       const fieldId = interaction.fieldId
       const nextW = interaction.currentWidth
       const nextH = interaction.currentHeight
+
+      let targetPageNumber = interaction.initialPageNumber
+      let finalPosX = interaction.initialX
+      let finalPosY = interaction.initialY
+
+      if (mode === 'drag') {
+        let targetPageRect: DOMRect | null = null
+
+        // 1. Deteksi halaman mana yang tepat berada di bawah kursor mouse saat dilepaskan
+        for (const p of pdfPagesRef.current) {
+          const el = pageRefs.current[p.pageNumber]
+          if (el) {
+            const rect = el.getBoundingClientRect()
+            if (
+              event.clientY >= rect.top &&
+              event.clientY <= rect.bottom &&
+              event.clientX >= rect.left - 50 &&
+              event.clientX <= rect.right + 50
+            ) {
+              targetPageNumber = p.pageNumber
+              targetPageRect = rect
+              break
+            }
+          }
+        }
+
+        // 2. Jika dilepas di luar atau di area gap, cari halaman terdekat
+        if (!targetPageRect) {
+          let minDistance = Infinity
+          for (const p of pdfPagesRef.current) {
+            const el = pageRefs.current[p.pageNumber]
+            if (el) {
+              const rect = el.getBoundingClientRect()
+              const dist = Math.abs(event.clientY - (rect.top + rect.bottom) / 2)
+              if (dist < minDistance) {
+                minDistance = dist
+                targetPageNumber = p.pageNumber
+                targetPageRect = rect
+              }
+            }
+          }
+        }
+
+        const initialPageEl = pageRefs.current[interaction.initialPageNumber]
+        const initialPageRect = initialPageEl ? initialPageEl.getBoundingClientRect() : targetPageRect
+
+        if (targetPageRect && initialPageRect) {
+          // Posisi screen top-left field saat awal drag
+          const fieldScreenStartX = initialPageRect.left + interaction.initialX
+          const fieldScreenStartY = initialPageRect.top + interaction.initialY
+
+          // Offset grab point relatif ke ujung kiri-atas field
+          const grabOffsetX = interaction.startX - fieldScreenStartX
+          const grabOffsetY = interaction.startY - fieldScreenStartY
+
+          // Posisi screen baru field saat dilepaskan
+          const fieldNewScreenX = event.clientX - grabOffsetX
+          const fieldNewScreenY = event.clientY - grabOffsetY
+
+          // Konversi ke koordinat lokal di dalam halaman target
+          const localX = fieldNewScreenX - targetPageRect.left
+          const localY = fieldNewScreenY - targetPageRect.top
+
+          const targetPageInfo = pdfPagesRef.current.find((p) => p.pageNumber === targetPageNumber)
+          const maxW = Math.max(0, (targetPageInfo?.width || 744) - nextW)
+          const maxH = Math.max(0, (targetPageInfo?.height || 1052) - nextH)
+
+          finalPosX = Math.max(0, Math.min(maxW, localX))
+          finalPosY = Math.max(0, Math.min(maxH, localY))
+        }
+      }
 
       interactionRef.current = null
 
@@ -254,7 +329,7 @@ export default function DocumentFieldPlottingPage() {
         currentFields.map((field) => {
           if (field.id !== fieldId) return field
           return mode === 'drag'
-            ? { ...field, posX: nextX, posY: nextY }
+            ? { ...field, pageNumber: targetPageNumber, posX: finalPosX, posY: finalPosY }
             : {
                 ...field,
                 width: nextW,
@@ -378,23 +453,44 @@ export default function DocumentFieldPlottingPage() {
       return
     }
 
-    const defaultPage = 1
+    // Cari halaman yang sedang paling nampak di layar user
+    let targetPage = 1
+    if (pdfPages.length > 0) {
+      const windowCenterY = window.innerHeight / 2
+      for (const p of pdfPages) {
+        const el = pageRefs.current[p.pageNumber]
+        if (el) {
+          const rect = el.getBoundingClientRect()
+          if (rect.top <= windowCenterY && rect.bottom >= windowCenterY) {
+            targetPage = p.pageNumber
+            break
+          }
+        }
+      }
+    }
+
+    const targetPageInfo = pdfPages.find((p) => p.pageNumber === targetPage)
+    const pageWidth = targetPageInfo?.width || 744
+    const pageHeight = targetPageInfo?.height || 1052
+    const initialWidth = 220
+    const initialHeight = 65
+
     const newField: SignatureField = {
       id: `field-${crypto.randomUUID()}`,
       recipientId: '',
       recipientName: 'Sistem E-Sign',
       type: 'AUDIT_STAMP',
-      pageNumber: defaultPage,
-      posX: 320,
-      posY: 680,
-      width: 220,
-      height: 65,
+      pageNumber: targetPage,
+      posX: Math.max(20, pageWidth - initialWidth - 40),
+      posY: Math.max(20, pageHeight - initialHeight - 60),
+      width: initialWidth,
+      height: initialHeight,
     }
 
     setHasUnsavedChanges(true)
     setFields((prev) => [...prev, newField])
     setSelectedFieldId(newField.id)
-    pageRefs.current[defaultPage]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    pageRefs.current[targetPage]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 
   const selectedField = fields.find((f) => f.id === selectedFieldId)
@@ -757,6 +853,7 @@ export default function DocumentFieldPlottingPage() {
                             const interaction: FieldInteraction = {
                               mode: 'drag',
                               fieldId: field.id,
+                              initialPageNumber: field.pageNumber,
                               startX: event.clientX,
                               startY: event.clientY,
                               initialX: field.posX,
@@ -836,6 +933,7 @@ export default function DocumentFieldPlottingPage() {
                                 const interaction: FieldInteraction = {
                                   mode: 'resize',
                                   fieldId: field.id,
+                                  initialPageNumber: field.pageNumber,
                                   startX: event.clientX,
                                   startY: event.clientY,
                                   initialX: field.posX,
@@ -877,6 +975,7 @@ export default function DocumentFieldPlottingPage() {
                           const interaction: FieldInteraction = {
                             mode: 'drag',
                             fieldId: field.id,
+                            initialPageNumber: field.pageNumber,
                             startX: event.clientX,
                             startY: event.clientY,
                             initialX: field.posX,
@@ -963,6 +1062,7 @@ export default function DocumentFieldPlottingPage() {
                               const interaction: FieldInteraction = {
                                 mode: 'resize',
                                 fieldId: field.id,
+                                initialPageNumber: field.pageNumber,
                                 startX: event.clientX,
                                 startY: event.clientY,
                                 initialX: field.posX,
