@@ -1,7 +1,8 @@
 'use client'
 
-import Sidebar from '@/components/Sidebar' // <-- Ubah 'sidebar' menjadi 'Sidebar' (S besar)
+import Sidebar from '@/components/Sidebar'
 import { usePathname } from 'next/navigation'
+import AuthProvider from '@/components/providers/AuthProvider'
 import '@/app/globals.css'
 
 export default function RootLayout({
@@ -22,14 +23,16 @@ export default function RootLayout({
   return (
     <html lang="id">
       <body className="bg-slate-100 min-h-screen">
-        {isHideSidebar ? (
-          <main className="w-full min-h-screen">{children}</main>
-        ) : (
-          <div className="flex min-h-screen">
-            <Sidebar />
-            <main className="flex-1 p-8">{children}</main>
-          </div>
-        )}
+        <AuthProvider>
+          {isHideSidebar ? (
+            <main className="w-full min-h-screen">{children}</main>
+          ) : (
+            <div className="flex min-h-screen">
+              <Sidebar />
+              <main className="flex-1 p-8">{children}</main>
+            </div>
+          )}
+        </AuthProvider>
       </body>
     </html>
   )

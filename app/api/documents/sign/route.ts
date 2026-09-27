@@ -6,6 +6,7 @@ import crypto from 'crypto'
 import QRCode from 'qrcode'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
+import { createAuditTrailText } from '@/lib/pdf-stamp'
 
 export async function POST(req: Request) {
   try {
@@ -55,6 +56,25 @@ export async function POST(req: Request) {
     if (fields.length === 0) {
       return NextResponse.json({ message: 'Plot TTD/Paraf belum ditentukan' }, { status: 400 })
     }
+
+    const approvedProxy = await prisma.proxySignRequest.findFirst({
+      where: {
+        documentId: document.id,
+        requestedById: userId,
+        status: 'APPROVED',
+      },
+      select: {
+        targetUser: { select: { name: true } },
+      },
+    })
+    const signedAt = new Date()
+    const auditText = createAuditTrailText({
+      signerName: recipient.user.name,
+      signerNip: recipient.user.nip,
+      signedAt,
+      isProxySigned: Boolean(approvedProxy),
+      targetName: approvedProxy?.targetUser.name,
+    })
 
     const cleanRelativePath = document.filePath.replace(/^\//, '')
     const absolutePdfPath = path.join(process.cwd(), 'public', cleanRelativePath)
@@ -153,16 +173,24 @@ export async function POST(req: Request) {
       })
 
       // Teks Kiri: SHA-256 Audit Trail
+      page.drawText(auditText, {
+        x: 70,
+        y: 30,
+        size: 6,
+        font: helveticaBold,
+        color: rgb(0.05, 0.6, 0.35), // Warna Hijau Pudar Terverifikasi
+      })
+
       page.drawText('SHA-256 Audit Trail Verified', {
         x: 70,
         y: 22,
         size: 7.5,
         font: helveticaBold,
-        color: rgb(0.05, 0.6, 0.35), // Warna Hijau Pudar Terverifikasi
+        color: rgb(0.05, 0.6, 0.35),
       })
 
-      page.drawText('• Dokumen sah & terdaftar secara digital', {
-        x: 182,
+      page.drawText('Dokumen sah & terdaftar secara digital', {
+        x: 225,
         y: 22,
         size: 7.5,
         font: helvetica,
@@ -202,6 +230,7 @@ export async function POST(req: Request) {
           signerId: userId,
           signatureImagePath: 'embedded_in_pdf',
           ipAddress: clientIp,
+          signedAt,
         },
       })
 

@@ -9,6 +9,7 @@ interface DocumentVerificationData {
   title: string
   checksum: string
   status: string
+  filePath?: string
   createdAt: string
   sender: { name: string; email: string }
   recipients: Array<{

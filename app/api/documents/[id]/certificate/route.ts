@@ -346,7 +346,7 @@ export async function GET(
     const cleanTitle = document.title.replace(/[^a-zA-Z0-9_\-]/g, '_')
     const filename = `Sertifikat_Valid_${cleanTitle}.pdf`
 
-    return new NextResponse(certificatePdfBytes, {
+    return new NextResponse(Buffer.from(certificatePdfBytes), {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="${filename}"`,

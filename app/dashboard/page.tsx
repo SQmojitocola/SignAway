@@ -19,15 +19,22 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
+  // 1. Ambil data user beserta Role-nya dari database
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, name: true, email: true },
+    select: { id: true, name: true, email: true, role: true },
   });
 
   if (!user) {
     redirect("/login");
   }
 
+  // 📍 2. JIKA ADMIN -> LANGSUNG DIALIHKAN KE HALAMAN MANAJEMEN KARYAWAN ADMIN
+  if (user.role === "ADMIN") {
+    redirect("/admin/users");
+  }
+
+  // 3. JIKA KARYAWAN BIASA -> LANJUT TAMPILKAN DASHBOARD DOKUMEN
   const documents = await prisma.document.findMany({
     where: {
       OR: [
