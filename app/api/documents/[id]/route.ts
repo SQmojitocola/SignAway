@@ -15,11 +15,20 @@ export async function GET(
     }
 
     const userId = session.user.id
+    const userRole = session.user.role
     const { id } = await params
     const document = await prisma.document.findFirst({
       where: {
         id,
-        OR: [{ senderId: userId }, { recipients: { some: { userId: userId } } }],
+        ...(userRole === 'ADMIN'
+          ? {}
+          : {
+              OR: [
+                { senderId: userId },
+                { recipients: { some: { userId: userId } } },
+                { proxyRequests: { some: { requestedById: userId, status: 'APPROVED' } } },
+              ],
+            }),
       },
       select: {
         id: true,
