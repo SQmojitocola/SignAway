@@ -28,6 +28,7 @@ export async function GET() {
         role: true,
         nip: true,
         department: true,
+        status: true,
         isActive: true,
         createdAt: true,
       },
