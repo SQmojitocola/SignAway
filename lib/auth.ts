@@ -23,7 +23,7 @@ export const { handlers, signIn, signOut, auth } = nextAuth({
           where: { email }
         })
         
-        if (!user || !user.isActive) {
+        if (!user || !user.isActive || user.status !== 'ACTIVE') {
           return null
         }
 

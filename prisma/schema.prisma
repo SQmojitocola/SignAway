@@ -12,6 +12,13 @@ enum Role {
   KARYAWAN
 }
 
+// Status Akun Pengguna
+enum UserStatus {
+  ACTIVE
+  FROZEN
+  DELETED
+}
+
 // Status Proxy Delegasi
 enum ProxyStatus {
   PENDING
@@ -46,9 +53,10 @@ model User {
   email             String    @unique
   name              String
   role              Role      @default(KARYAWAN)
-  nip               String?   @unique
+  nip               String?     @unique
   department        String?
-  isActive          Boolean   @default(true) @map("is_active")
+  status            UserStatus  @default(ACTIVE)
+  isActive          Boolean     @default(true) @map("is_active")
   passwordHash      String    @map("password_hash")
   signatureSpecimen String?   @map("signature_specimen")
   createdAt         DateTime  @default(now()) @map("signed_at")
