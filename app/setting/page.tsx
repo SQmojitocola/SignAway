@@ -6,13 +6,23 @@ import MaterialIcon from "@/components/ui/MaterialIcon";
 export default function SettingsPage() {
   const [profileName, setProfileName] = useState("");
   const [profileEmail, setProfileEmail] = useState("");
+  const [profileRole, setProfileRole] = useState("");
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
+  const [profileError, setProfileError] = useState("");
   const [activeTab, setActiveTab] = useState("profil");
+
+  // State ubah password
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState("");
+  const [passwordError, setPasswordError] = useState("");
 
   // State untuk Toggle Notifikasi
   const [notifWeekly, setNotifWeekly] = useState(false);
@@ -21,35 +31,94 @@ export default function SettingsPage() {
   useEffect(() => {
     fetch("/api/users?me=true")
       .then(async (response) => {
-        if (!response.ok) throw new Error("Profil tidak dapat dimuat")
-        const data = await response.json()
-        setProfileName(data.user?.name ?? "")
-        setProfileEmail(data.user?.email ?? "")
+        if (!response.ok) throw new Error("Profil tidak dapat dimuat");
+        const data = await response.json();
+        setProfileName(data.user?.name ?? "");
+        setProfileEmail(data.user?.email ?? "");
+        setProfileRole(data.user?.role ?? "KARYAWAN");
       })
-      .catch(() => setProfileMessage("Profil tidak dapat dimuat"))
-      .finally(() => setProfileLoading(false))
-  }, [])
+      .catch(() => setProfileError("Profil tidak dapat dimuat"))
+      .finally(() => setProfileLoading(false));
+  }, []);
 
-  const handleProfileSave = async () => {
-    setProfileSaving(true)
-    setProfileMessage("")
+  const handleProfileSave = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setProfileSaving(true);
+    setProfileMessage("");
+    setProfileError("");
     try {
       const response = await fetch("/api/users", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: profileName, email: profileEmail }),
-      })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.message ?? "Profil gagal disimpan")
-      setProfileName(data.user.name)
-      setProfileEmail(data.user.email)
-      setProfileMessage("Profil berhasil disimpan")
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message ?? "Profil gagal disimpan");
+      setProfileName(data.user.name);
+      setProfileEmail(data.user.email);
+      setProfileMessage("Profil berhasil disimpan");
     } catch (error) {
-      setProfileMessage(error instanceof Error ? error.message : "Profil gagal disimpan")
+      setProfileError(error instanceof Error ? error.message : "Profil gagal disimpan");
     } finally {
-      setProfileSaving(false)
+      setProfileSaving(false);
     }
-  }
+  };
+
+  const handlePasswordSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordMessage("");
+    setPasswordError("");
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError("Semua field kata sandi wajib diisi");
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setPasswordError("Kata sandi baru minimal 8 karakter");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Konfirmasi kata sandi baru tidak cocok");
+      return;
+    }
+
+    setPasswordSaving(true);
+    try {
+      const response = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message ?? "Gagal memperbarui kata sandi");
+      setPasswordMessage("Kata sandi berhasil diperbarui!");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : "Gagal memperbarui kata sandi");
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
+  const roleLabel =
+    profileRole === "ADMIN"
+      ? "Administrator"
+      : profileRole === "ATASAN"
+      ? "Atasan / Verifikator"
+      : "Karyawan / Staf";
+
+  const initials = profileName
+    ? profileName
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((n) => n[0].toUpperCase())
+        .join("")
+    : "U";
 
   return (
     <div className="bg-[#f8fafc] text-gray-900 min-h-screen font-sans">
@@ -74,16 +143,16 @@ export default function SettingsPage() {
 
               {/* User Profile Pill */}
               <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-full pl-2 pr-4 py-1.5 shadow-sm">
-                <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100 shrink-0">
-                  <img 
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuAZmBjA9e4kw9uWCJDI7f4TH_2jlXCZjf3nkxYaDS3u06ISe_vlZYWADmJPpIQh5npgRdWVb4s4VnnsGtuAn8wsxoC50q918pnHoUokC6HsqjQV0ccuvLEwjvIOUehCoMjPxOzl-cXBB6EaMfY8ZowAovjxcomXGhgkTUfGqZ7oDbcce21JLrCXv63u0bPHg_SdsCjeXUlQGrMiJ0CkALdS_3dq2NlyYfEcEFntZvES9tu_jUYjLXaO2Q" 
-                    alt="Ahmad Fauzan" 
-                    className="w-full h-full object-cover" 
-                  />
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-[#003b73] text-white flex items-center justify-center font-bold text-xs shrink-0">
+                  {initials}
                 </div>
                 <div className="flex flex-col text-left">
-                  <span className="text-xs font-semibold text-gray-900 leading-tight">Ahmad Fauzan</span>
-                  <span className="text-[11px] text-gray-400 leading-tight">Admin Pusat</span>
+                  <span className="text-xs font-semibold text-gray-900 leading-tight">
+                    {profileLoading ? "Memuat..." : profileName || "Pengguna"}
+                  </span>
+                  <span className="text-[11px] text-gray-400 leading-tight">
+                    {roleLabel}
+                  </span>
                 </div>
               </div>
             </div>
@@ -153,94 +222,88 @@ export default function SettingsPage() {
                 <p className="text-xs text-gray-500 mt-0.5">Informasi akun dan identitas resmi kedinasan PT Surveyor Indonesia.</p>
               </div>
 
-              <div className="flex flex-col sm:flex-row sm:items-center gap-6 mb-8 pb-6 border-b border-gray-100">
-                <div className="w-20 h-20 rounded-full overflow-hidden bg-gray-100 border-2 border-blue-100 shrink-0">
-                  <img 
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuAZmBjA9e4kw9uWCJDI7f4TH_2jlXCZjf3nkxYaDS3u06ISe_vlZYWADmJPpIQh5npgRdWVb4s4VnnsGtuAn8wsxoC50q918pnHoUokC6HsqjQV0ccuvLEwjvIOUehCoMjPxOzl-cXBB6EaMfY8ZowAovjxcomXGhgkTUfGqZ7oDbcce21JLrCXv63u0bPHg_SdsCjeXUlQGrMiJ0CkALdS_3dq2NlyYfEcEFntZvES9tu_jUYjLXaO2Q" 
-                    alt="Ahmad Fauzan" 
-                    className="w-full h-full object-cover" 
-                  />
+              {profileMessage && (
+                <div className="mb-4 flex items-center gap-2 text-emerald-700 bg-emerald-50 border border-emerald-200 px-4 py-2.5 rounded-lg text-xs font-medium">
+                  <MaterialIcon name="check_circle" size={18} />
+                  <span>{profileMessage}</span>
                 </div>
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-3">
-                    <button className="bg-[#003b73] hover:bg-[#002d58] text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
-                      <MaterialIcon name="photo_camera" size={16} />
-                      Ubah Foto
-                    </button>
-                    <button className="border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-semibold px-4 py-2 rounded-lg transition-colors">
-                      Hapus
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-gray-400">Disarankan format JPG, PNG atau WEBP resolusi minimal 400×400 piksel (Maks. 2MB).</p>
+              )}
+
+              {profileError && (
+                <div className="mb-4 flex items-center gap-2 text-red-700 bg-red-50 border border-red-200 px-4 py-2.5 rounded-lg text-xs font-medium">
+                  <MaterialIcon name="logout" size={18} />
+                  <span>{profileError}</span>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row sm:items-center gap-6 mb-8 pb-6 border-b border-gray-100">
+                <div className="w-20 h-20 rounded-full overflow-hidden bg-[#003b73] text-white border-2 border-blue-100 flex items-center justify-center font-bold text-2xl shrink-0 shadow-inner">
+                  {initials}
+                </div>
+                <div className="flex flex-col gap-1">
+                  <h4 className="text-sm font-bold text-slate-800">{profileName || "Pengguna"}</h4>
+                  <p className="text-xs text-slate-500">{profileEmail}</p>
+                  <span className="inline-block mt-1 w-fit text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-[#003b73] border border-blue-200">
+                    {roleLabel}
+                  </span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <form onSubmit={handleProfileSave} className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1.5">Nama Lengkap</label>
                   <div className="relative">
                     <MaterialIcon name="person" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input 
                       type="text" 
+                      required
                       value={profileName}
                       onChange={(event) => setProfileName(event.target.value)}
-                      disabled={profileLoading}
+                      disabled={profileLoading || profileSaving}
                       className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003b73]" 
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">NIP / ID Karyawan</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Email Perusahaan</label>
                   <div className="relative">
-                    <MaterialIcon name="id_card" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <MaterialIcon name="mail" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input 
+                      type="email" 
+                      required
+                      value={profileEmail}
+                      onChange={(event) => setProfileEmail(event.target.value)}
+                      disabled={profileLoading || profileSaving}
+                      className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003b73]" 
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Peran / Hak Akses</label>
+                  <div className="relative">
+                    <MaterialIcon name="corporate_fare" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input 
                       type="text" 
-                      readOnly 
-                      defaultValue="PTS-2023-0894"
+                      readOnly
+                      value={roleLabel}
                       className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-500 cursor-not-allowed outline-none" 
                     />
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Jabatan / Divisi</label>
-                  <div className="relative">
-                    <MaterialIcon name="corporate_fare" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input 
-                      type="text" 
-                      defaultValue="Direktur Operasional / Pengelola Dokumen"
-                      className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003b73]" 
-                    />
-                  </div>
+                <div className="md:col-span-2 flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+                  <button
+                    type="submit"
+                    disabled={profileSaving || profileLoading}
+                    className="px-5 py-2 bg-[#003b73] hover:bg-[#002d58] disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+                  >
+                    <MaterialIcon name="save" size={16} />
+                    {profileSaving ? "Menyimpan..." : "Simpan Perubahan Profil"}
+                  </button>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Email</label>
-                  <div className="relative">
-                    <MaterialIcon name="mail" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input 
-                      type="email" 
-                      value={profileEmail}
-                      onChange={(event) => setProfileEmail(event.target.value)}
-                      disabled={profileLoading}
-                      className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003b73]" 
-                    />
-                  </div>
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Nomor Telepon / WhatsApp</label>
-                  <div className="relative max-w-md">
-                    <MaterialIcon name="call" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input 
-                      type="tel" 
-                      defaultValue="+62 812 8901 2345"
-                      className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003b73]" 
-                    />
-                  </div>
-                </div>
-              </div>
+              </form>
             </section>
           )}
 
@@ -273,11 +336,11 @@ export default function SettingsPage() {
                   </div>
 
                   <div className="mt-4 flex flex-col gap-2">
-                    <button className="w-full bg-white hover:bg-gray-50 border border-gray-200 text-[#003b73] text-xs font-semibold py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors">
+                    <button type="button" className="w-full bg-white hover:bg-gray-50 border border-gray-200 text-[#003b73] text-xs font-semibold py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors">
                       <MaterialIcon name="draw" size={16} />
                       Perbarui Tanda Tangan
                     </button>
-                    <button className="w-full bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-semibold py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors">
+                    <button type="button" className="w-full bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-semibold py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors">
                       <MaterialIcon name="pin" size={16} />
                       Atur Ulang PIN Tanda Tangan
                     </button>
@@ -311,18 +374,35 @@ export default function SettingsPage() {
                   <MaterialIcon name="lock" className="text-[#003b73]" />
                   Keamanan & Kata Sandi
                 </h3>
-                <p className="text-xs text-gray-500 mt-0.5">Kelola kata sandi akun dan autentikasi berlapis untuk menjaga integritas data.</p>
+                <p className="text-xs text-gray-500 mt-0.5">Kelola kata sandi akun untuk menjaga integritas dan keamanan akun Anda.</p>
               </div>
+
+              {passwordMessage && (
+                <div className="mb-4 flex items-center gap-2 text-emerald-700 bg-emerald-50 border border-emerald-200 px-4 py-2.5 rounded-lg text-xs font-medium">
+                  <MaterialIcon name="check_circle" size={18} />
+                  <span>{passwordMessage}</span>
+                </div>
+              )}
+
+              {passwordError && (
+                <div className="mb-4 flex items-center gap-2 text-red-700 bg-red-50 border border-red-200 px-4 py-2.5 rounded-lg text-xs font-medium">
+                  <MaterialIcon name="logout" size={18} />
+                  <span>{passwordError}</span>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div>
-                  <h4 className="text-xs font-semibold text-gray-900 mb-3">Ubah Kata Sandi</h4>
-                  <div className="space-y-4">
+                  <h4 className="text-xs font-semibold text-gray-900 mb-3">Ubah Kata Sandi Akun</h4>
+                  <form onSubmit={handlePasswordSave} className="space-y-4">
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">Kata Sandi Saat Ini</label>
                       <div className="relative">
                         <input 
                           type={showCurrentPassword ? "text" : "password"} 
+                          required
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
                           placeholder="Masukkan kata sandi lama"
                           className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003b73]" 
                         />
@@ -341,7 +421,10 @@ export default function SettingsPage() {
                       <div className="relative">
                         <input 
                           type={showNewPassword ? "text" : "password"} 
-                          placeholder="Minimal 8 karakter dengan angka & simbol"
+                          required
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="Minimal 8 karakter"
                           className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003b73]" 
                         />
                         <button 
@@ -359,6 +442,9 @@ export default function SettingsPage() {
                       <div className="relative">
                         <input 
                           type={showConfirmPassword ? "text" : "password"} 
+                          required
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
                           placeholder="Ulangi kata sandi baru"
                           className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003b73]" 
                         />
@@ -371,36 +457,32 @@ export default function SettingsPage() {
                         </button>
                       </div>
                     </div>
-                  </div>
+
+                    <div className="pt-2">
+                      <button
+                        type="submit"
+                        disabled={passwordSaving}
+                        className="px-5 py-2 bg-[#003b73] hover:bg-[#002d58] disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+                      >
+                        <MaterialIcon name="save" size={16} />
+                        {passwordSaving ? "Memperbarui..." : "Perbarui Kata Sandi"}
+                      </button>
+                    </div>
+                  </form>
                 </div>
 
-                <div className="flex flex-col justify-between border-t lg:border-t-0 lg:border-l border-gray-100 pt-6 lg:pt-0 lg:pl-8">
+                <div className="border border-gray-200 rounded-xl p-5 bg-[#fafbfd] flex flex-col justify-between h-fit">
                   <div>
-                    <h4 className="text-xs font-semibold text-gray-900 mb-3">Autentikasi Dua Faktor (2FA)</h4>
-                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 mb-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                            <MaterialIcon name="security" size={20} />
-                          </div>
-                          <div>
-                            <p className="text-xs font-semibold text-gray-900">2FA Terproteksi</p>
-                            <p className="text-[11px] text-gray-500 mt-0.5">Google Authenticator / SMS Token aktif</p>
-                          </div>
-                        </div>
-                        <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-700 font-bold text-[10px] rounded-full">Aktif</span>
-                      </div>
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-xs font-semibold text-gray-700">Autentikasi Sesi & Keamanan</span>
+                      <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                        <MaterialIcon name="security" size={12} />
+                        Aktif
+                      </span>
                     </div>
                     <p className="text-xs text-gray-500 leading-relaxed">
-                      Setiap login dari perangkat baru akan memerlukan verifikasi token keamanan untuk melindungi dokumen BUMN yang bersifat rahasia.
+                      Sesi akun Anda dilindungi dengan token enkripsi JWT NextAuth. Anda dapat memperbarui kata sandi secara berkala untuk menjaga keamanan akun dinas Anda.
                     </p>
-                  </div>
-
-                  <div className="mt-6 pt-4 border-t border-gray-100">
-                    <button className="text-[#003b73] hover:text-[#00529c] text-xs font-semibold flex items-center gap-1.5 transition-colors">
-                      <MaterialIcon name="devices" size={16} />
-                      Kelola Sesi Login Aktif (2 Perangkat)
-                    </button>
                   </div>
                 </div>
               </div>
