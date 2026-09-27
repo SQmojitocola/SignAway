@@ -57,6 +57,7 @@ export async function GET(
           select: {
             id: true,
             recipientId: true,
+            type: true,
             pageNumber: true,
             posX: true,
             posY: true,

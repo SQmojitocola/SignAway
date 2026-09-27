@@ -141,17 +141,18 @@ model DocumentRecipient {
 }
 
 model DocumentField {
-  id          String @id @default(uuid())
-  documentId  String @map("document_id")
-  recipientId String @map("recipient_id")
-  pageNumber  Int    @map("page_number")
-  posX        Float  @map("pos_x")
-  posY        Float  @map("pos_y")
-  width       Float  @default(150)
-  height      Float  @default(60)
+  id          String             @id @default(uuid())
+  documentId  String             @map("document_id")
+  recipientId String?            @map("recipient_id")
+  type        String             @default("SIGNATURE")
+  pageNumber  Int                @map("page_number")
+  posX        Float              @map("pos_x")
+  posY        Float              @map("pos_y")
+  width       Float              @default(150)
+  height      Float              @default(60)
 
-  document  Document          @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  recipient DocumentRecipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  document  Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  recipient DocumentRecipient? @relation(fields: [recipientId], references: [id], onDelete: Cascade)
 
   @@map("document_fields")
 }

@@ -6,7 +6,6 @@ import crypto from 'crypto'
 import QRCode from 'qrcode'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
-import { createAuditTrailText } from '@/lib/pdf-stamp'
 
 export async function POST(req: Request) {
   try {
@@ -103,15 +102,6 @@ export async function POST(req: Request) {
     })
 
     const signedAt = new Date()
-    const auditText = createAuditTrailText({
-      signerName: isApprovedProxy
-        ? currentUser?.name || session.user.name || 'Wakil Penandatangan'
-        : recipient.user.name,
-      signerNip: isApprovedProxy ? currentUser?.nip : recipient.user.nip,
-      signedAt,
-      isProxySigned: Boolean(isApprovedProxy),
-      targetName: approvedProxy?.targetUser.name,
-    })
 
     const cleanRelativePath = document.filePath.replace(/^\//, '')
     const absolutePdfPath = path.join(process.cwd(), 'public', cleanRelativePath)
@@ -187,65 +177,88 @@ export async function POST(req: Request) {
     const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
     const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica)
 
-    // 📍 3. STAMPING FOOTER MODERN DI SETIAP HALAMAN PDF
+    // 📍 3. STAMPING STEMPEL AUDIT & QR VERIFIKASI (POSISI FLEKSIBEL SESUAI PLOT)
     const totalPages = pdfDoc.getPageCount()
-    for (let i = 0; i < totalPages; i++) {
-      const page = pdfDoc.getPage(i)
-      const { width } = page.getSize()
+    const auditField = document.fields.find((f) => f.type === 'AUDIT_STAMP')
 
-      // Garis Pembatas Tipis Footer
-      page.drawLine({
-        start: { x: 30, y: 42 },
-        end: { x: width - 30, y: 42 },
-        thickness: 0.5,
-        color: rgb(0.85, 0.88, 0.92),
-      })
+    let targetPageIndex = 0
+    let boxX = 30
+    let boxY = 40
+    let boxWidth = 220 / 1.25 // Konversi visual scale 1.25 -> PDF scale 1.0 (176 pt)
+    let boxHeight = 65 / 1.25 // (52 pt)
 
-      // Tempel QR Code Tajam & Proporsional (Ukuran 32x32 pt)
-      page.drawImage(embeddedQrImage, {
-        x: 30,
-        y: 7,
-        width: 32,
-        height: 32,
-      })
-
-      // Teks Kiri: SHA-256 Audit Trail
-      page.drawText(auditText, {
-        x: 70,
-        y: 30,
-        size: 6,
-        font: helveticaBold,
-        color: rgb(0.05, 0.6, 0.35), // Warna Hijau Pudar Terverifikasi
-      })
-
-      page.drawText('SHA-256 Audit Trail Verified', {
-        x: 70,
-        y: 22,
-        size: 7.5,
-        font: helveticaBold,
-        color: rgb(0.05, 0.6, 0.35),
-      })
-
-      page.drawText('Dokumen sah & terdaftar secara digital', {
-        x: 225,
-        y: 22,
-        size: 7.5,
-        font: helvetica,
-        color: rgb(0.5, 0.55, 0.6),
-      })
-
-      // Teks Kanan: DOC-ID
-      const docIdText = `DOC-ID: ${document.id.toUpperCase().slice(0, 18)}`
-      const docIdWidth = helveticaBold.widthOfTextAtSize(docIdText, 7.5)
-
-      page.drawText(docIdText, {
-        x: width - 30 - docIdWidth,
-        y: 22,
-        size: 7.5,
-        font: helveticaBold,
-        color: rgb(0.4, 0.45, 0.5),
-      })
+    if (auditField) {
+      targetPageIndex = Math.max(0, Math.min(totalPages - 1, (auditField.pageNumber || 1) - 1))
+      boxX = auditField.posX / 1.25
+      boxY = auditField.posY / 1.25
+      boxWidth = (auditField.width || 220) / 1.25
+      boxHeight = (auditField.height || 65) / 1.25
+    } else {
+      // Fallback: Jika tidak diatur secara eksplisit, tempatkan di pojok kanan bawah halaman terakhir
+      targetPageIndex = totalPages - 1
+      const targetPageObj = pdfDoc.getPage(targetPageIndex)
+      const { width: pWidth } = targetPageObj.getSize()
+      boxX = pWidth - 30 - boxWidth
+      boxY = 40
     }
+
+    const stampPage = pdfDoc.getPage(targetPageIndex)
+    const { height: pageHeight } = stampPage.getSize()
+    const drawY = pageHeight - boxY - boxHeight
+
+    // A. Gambar Kotak Putih dengan Border Halus (Sesuai Referensi Gambar)
+    stampPage.drawRectangle({
+      x: boxX,
+      y: drawY,
+      width: boxWidth,
+      height: boxHeight,
+      color: rgb(1, 1, 1),
+      borderColor: rgb(0.8, 0.83, 0.88),
+      borderWidth: 0.8,
+    })
+
+    // B. Tempel QR Code di Sisi Kiri Kotak
+    const qrPadding = 5
+    const qrSize = Math.max(20, boxHeight - qrPadding * 2)
+    stampPage.drawImage(embeddedQrImage, {
+      x: boxX + qrPadding,
+      y: drawY + qrPadding,
+      width: qrSize,
+      height: qrSize,
+    })
+
+    // C. Cetak Teks Sisi Kanan (Persis Format & Warna Gambar Pengguna)
+    const textX = boxX + qrPadding + qrSize + 7
+
+    // Baris 1: "Terverifikasi Sistem E-Sign" (Teks Hijau Tebal)
+    stampPage.drawText('Terverifikasi Sistem E-Sign', {
+      x: textX,
+      y: drawY + boxHeight - 15,
+      size: 8.5,
+      font: helveticaBold,
+      color: rgb(0.18, 0.44, 0.18), // Forest green (#2e7d32)
+    })
+
+    // Baris 2: "Doc ID : ..." (Abu-abu Gelap)
+    const docIdDisplay = document.id.toUpperCase().slice(0, 18)
+    stampPage.drawText(`Doc ID : ${docIdDisplay}`, {
+      x: textX,
+      y: drawY + boxHeight - 27,
+      size: 7,
+      font: helvetica,
+      color: rgb(0.35, 0.4, 0.45),
+    })
+
+    // Baris 3: "Timestamp: 11:05:23 11 09 2025" (Format HH:mm:ss DD MM YYYY)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const timestampStr = `${pad(signedAt.getHours())}:${pad(signedAt.getMinutes())}:${pad(signedAt.getSeconds())} ${pad(signedAt.getDate())} ${pad(signedAt.getMonth() + 1)} ${signedAt.getFullYear()}`
+    stampPage.drawText(`Timestamp: ${timestampStr}`, {
+      x: textX,
+      y: drawY + boxHeight - 39,
+      size: 6.5,
+      font: helvetica,
+      color: rgb(0.4, 0.45, 0.5),
+    })
 
     // 📍 4. HITUNG HASH SHA-256 KRIPTOGRAFI DOKUMEN FINAL
     const updatedPdfBytes = await pdfDoc.save()

@@ -3,7 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 
 interface FieldInput {
-  recipientId: string
+  recipientId?: string | null
+  type?: 'SIGNATURE' | 'PARAF' | 'AUDIT_STAMP' | string
   pageNumber: number
   posX: number
   posY: number
@@ -62,17 +63,23 @@ export async function POST(req: Request) {
     }
 
     // 📍 SIMPAN KOORDINAT APA ADANYA SESUAI PIKSEL VISUAL CANVAS (SKALA 1:1)
-    const normalizedFields = fields.map((field: FieldInput) => ({
-      documentId,
-      recipientId: field.recipientId === 'self' && selfRecipientId
-        ? selfRecipientId
-        : field.recipientId,
-      pageNumber: field.pageNumber,
-      posX: field.posX,
-      posY: field.posY,
-      width: field.width || 150,
-      height: field.height || 70,
-    }))
+    const normalizedFields = fields.map((field: FieldInput) => {
+      const isAuditStamp = field.type === 'AUDIT_STAMP'
+      return {
+        documentId,
+        recipientId: isAuditStamp
+          ? null
+          : (field.recipientId === 'self' && selfRecipientId
+              ? selfRecipientId
+              : field.recipientId || null),
+        type: field.type || 'SIGNATURE',
+        pageNumber: field.pageNumber,
+        posX: field.posX,
+        posY: field.posY,
+        width: field.width || (isAuditStamp ? 220 : 150),
+        height: field.height || (isAuditStamp ? 65 : 70),
+      }
+    })
 
     // 3. Simpan / Overwrite Field
     const result = await prisma.$transaction(async (tx) => {

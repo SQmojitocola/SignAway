@@ -12,8 +12,10 @@ import {
   X,
   FileCheck,
   Sliders,
+  QrCode,
+  ShieldCheck,
 } from 'lucide-react'
-import { FieldTypeSelectorModal } from '@/components/FieldTypeSelectorModal'
+import { FieldTypeSelectorModal, FieldPlotType } from '@/components/FieldTypeSelectorModal'
 
 interface Recipient {
   id: string
@@ -37,7 +39,7 @@ interface ApiRecipient {
 interface ApiField {
   id: string
   recipientId: string
-  type?: 'SIGNATURE' | 'PARAF'
+  type?: 'SIGNATURE' | 'PARAF' | 'AUDIT_STAMP'
   pageNumber: number
   posX: number
   posY: number
@@ -54,7 +56,7 @@ interface SignatureField {
   id: string
   recipientId: string
   recipientName: string
-  type: 'SIGNATURE' | 'PARAF'
+  type: 'SIGNATURE' | 'PARAF' | 'AUDIT_STAMP'
   pageNumber: number
   posX: number
   posY: number
@@ -299,17 +301,20 @@ export default function DocumentFieldPlottingPage() {
         if (!fieldsResponse.ok) throw new Error(fieldsData.message || 'Gagal memuat posisi TTD')
 
         setFields(
-          (fieldsData.fields as ApiField[]).map((field) => ({
-            id: field.id,
-            recipientId: field.recipientId,
-            recipientName: field.recipient?.user?.name || 'Penandatangan',
-            type: field.type || 'SIGNATURE',
-            pageNumber: field.pageNumber,
-            posX: field.posX,
-            posY: field.posY,
-            width: field.width || 150,
-            height: field.height || 70,
-          }))
+          (fieldsData.fields as ApiField[]).map((field) => {
+            const isAudit = field.type === 'AUDIT_STAMP'
+            return {
+              id: field.id,
+              recipientId: field.recipientId || '',
+              recipientName: isAudit ? 'Sistem E-Sign' : (field.recipient?.user?.name || 'Penandatangan'),
+              type: field.type || 'SIGNATURE',
+              pageNumber: field.pageNumber,
+              posX: field.posX,
+              posY: field.posY,
+              width: field.width || (isAudit ? 220 : 150),
+              height: field.height || (isAudit ? 65 : 70),
+            }
+          })
         )
       } catch (error) {
         alert(error instanceof Error ? error.message : 'Gagal memuat dokumen')
@@ -335,31 +340,66 @@ export default function DocumentFieldPlottingPage() {
   }
 
   // METODE KONFIRMASI DARI MODAL TERPISAH
-  const handleConfirmFieldType = (type: 'SIGNATURE' | 'PARAF') => {
-    if (!pendingPlot || !activeRecipient) return
+  const handleConfirmFieldType = (type: FieldPlotType) => {
+    if (!pendingPlot) return
 
+    const isAudit = type === 'AUDIT_STAMP'
     const newField: SignatureField = {
       id: `field-${crypto.randomUUID()}`,
-      recipientId: activeRecipient.id,
-      recipientName: activeRecipient.name,
+      recipientId: isAudit ? '' : (activeRecipient?.id || ''),
+      recipientName: isAudit ? 'Sistem E-Sign' : (activeRecipient?.name || 'Penandatangan'),
       type,
       pageNumber: pendingPlot.pageNumber,
       posX: pendingPlot.posX,
       posY: pendingPlot.posY,
-      width: type === 'PARAF' ? 100 : 150,
-      height: type === 'PARAF' ? 50 : 70,
+      width: isAudit ? 220 : type === 'PARAF' ? 100 : 150,
+      height: isAudit ? 65 : type === 'PARAF' ? 50 : 70,
     }
 
     setHasUnsavedChanges(true)
-    setFields((currentFields) => [...currentFields, newField])
+    setFields((currentFields) => {
+      // Jika stempel audit sudah ada sebelumnya, ganti posisinya dengan yang baru
+      if (isAudit) {
+        return [...currentFields.filter((f) => f.type !== 'AUDIT_STAMP'), newField]
+      }
+      return [...currentFields, newField]
+    })
     setSelectedFieldId(newField.id)
     setPendingPlot(null)
     setActiveRecipient(null)
   }
 
+  // Helper untuk menambah atau mengarahkan ke Stempel Audit dari Sidebar
+  const handleAddAuditStamp = () => {
+    const existing = fields.find((f) => f.type === 'AUDIT_STAMP')
+    if (existing) {
+      setSelectedFieldId(existing.id)
+      pageRefs.current[existing.pageNumber]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
+
+    const defaultPage = 1
+    const newField: SignatureField = {
+      id: `field-${crypto.randomUUID()}`,
+      recipientId: '',
+      recipientName: 'Sistem E-Sign',
+      type: 'AUDIT_STAMP',
+      pageNumber: defaultPage,
+      posX: 320,
+      posY: 680,
+      width: 220,
+      height: 65,
+    }
+
+    setHasUnsavedChanges(true)
+    setFields((prev) => [...prev, newField])
+    setSelectedFieldId(newField.id)
+    pageRefs.current[defaultPage]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
   const selectedField = fields.find((f) => f.id === selectedFieldId)
   const visibleFields = selectedRecipientId
-    ? fields.filter((field) => field.recipientId === selectedRecipientId)
+    ? fields.filter((field) => field.recipientId === selectedRecipientId || field.type === 'AUDIT_STAMP')
     : fields
 
   const canSend = recipients.length > 0 && recipients.every((recipient) =>
@@ -611,6 +651,67 @@ export default function DocumentFieldPlottingPage() {
               </div>
             ))}
           </div>
+
+          {/* 📍 KARTU STEMPEL AUDIT (QR & DOC-ID) */}
+          <div className="pt-4 border-t border-slate-200">
+            <div className="flex items-center justify-between mb-1.5">
+              <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Stempel Verifikasi
+              </h3>
+              {fields.some((f) => f.type === 'AUDIT_STAMP') && (
+                <span className="text-[9px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">
+                  Aktif
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-500 mb-2.5">
+              QR Code & Timestamp verifikasi keabsahan dokumen. Dapat diposisikan ke bagian dokumen mana pun.
+            </p>
+
+            {(() => {
+              const auditField = fields.find((f) => f.type === 'AUDIT_STAMP')
+              if (auditField) {
+                return (
+                  <div className="p-3 rounded-xl border border-emerald-300 bg-emerald-50/60 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-emerald-900 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Hal. {auditField.pageNumber}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteField(auditField.id)}
+                        className="text-[11px] font-semibold text-rose-600 hover:underline cursor-pointer"
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedFieldId(auditField.id)
+                        pageRefs.current[auditField.pageNumber]?.scrollIntoView({
+                          behavior: 'smooth',
+                          block: 'center',
+                        })
+                      }}
+                      className="w-full text-center py-1.5 text-xs font-bold text-emerald-700 bg-white rounded-lg border border-emerald-200 hover:bg-emerald-50 cursor-pointer shadow-xs"
+                    >
+                      Pilih & Atur Posisi
+                    </button>
+                  </div>
+                )
+              }
+              return (
+                <button
+                  type="button"
+                  onClick={handleAddAuditStamp}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-all cursor-pointer shadow-xs"
+                >
+                  <QrCode className="w-4 h-4 text-emerald-600" /> + Tempatkan Stempel Audit
+                </button>
+              )
+            })()}
+          </div>
         </aside>
 
         {/* Panel Tengah: Canvas PDF */}
@@ -634,7 +735,127 @@ export default function DocumentFieldPlottingPage() {
                   .filter((field) => field.pageNumber === page.pageNumber)
                   .map((field) => {
                     const isSelected = selectedFieldId === field.id
+                    const isAudit = field.type === 'AUDIT_STAMP'
                     const isParaf = field.type === 'PARAF'
+
+                    if (isAudit) {
+                      return (
+                        <div
+                          key={field.id}
+                          ref={(element) => {
+                            fieldElementsRef.current[field.id] = element
+                          }}
+                          onPointerDown={(event) => {
+                            if (pdfInteractive || activeRecipient) return
+                            event.preventDefault()
+                            event.stopPropagation()
+
+                            const el = fieldElementsRef.current[field.id]
+                            if (el) el.setPointerCapture(event.pointerId)
+
+                            setSelectedFieldId(field.id)
+                            const interaction: FieldInteraction = {
+                              mode: 'drag',
+                              fieldId: field.id,
+                              startX: event.clientX,
+                              startY: event.clientY,
+                              initialX: field.posX,
+                              initialY: field.posY,
+                              initialWidth: field.width,
+                              initialHeight: field.height,
+                              currentX: field.posX,
+                              currentY: field.posY,
+                              currentWidth: field.width,
+                              currentHeight: field.height,
+                              pointerId: event.pointerId,
+                            }
+                            interactionRef.current = interaction
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedFieldId(field.id)
+                          }}
+                          style={{
+                            left: `${field.posX}px`,
+                            top: `${field.posY}px`,
+                            width: `${field.width}px`,
+                            height: `${field.height}px`,
+                          }}
+                          className={`absolute z-10 rounded-md border bg-white shadow-sm p-2 flex items-center gap-2.5 select-none cursor-move ${
+                            isSelected
+                              ? 'border-emerald-600 ring-2 ring-emerald-400 shadow-md'
+                              : 'border-slate-300 hover:border-slate-400'
+                          }`}
+                        >
+                          <div className="absolute -top-3 left-2 bg-emerald-800 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-xs pointer-events-none">
+                            Stempel Verifikasi (Audit Trail)
+                          </div>
+
+                          <button
+                            type="button"
+                            aria-label="Hapus stempel"
+                            onPointerDown={(event) => {
+                              event.preventDefault()
+                              event.stopPropagation()
+                              handleDeleteField(field.id)
+                            }}
+                            className="absolute -right-2.5 -top-2.5 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow hover:bg-red-700 cursor-pointer"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+
+                          {/* Sisi Kiri: Preview QR Code */}
+                          <div className="h-full aspect-square bg-slate-50 border border-slate-200 rounded p-1 flex items-center justify-center shrink-0 pointer-events-none">
+                            <QrCode className="w-full h-full text-slate-800" />
+                          </div>
+
+                          {/* Sisi Kanan: Teks Persis Referensi Gambar */}
+                          <div className="flex flex-col justify-center overflow-hidden min-w-0 pointer-events-none pr-1">
+                            <p className="text-[10px] sm:text-[11px] font-extrabold text-[#2e7d32] leading-tight truncate">
+                              Terverifikasi Sistem E-Sign
+                            </p>
+                            <p className="text-[8.5px] font-semibold text-slate-600 font-mono mt-0.5 truncate">
+                              Doc ID : {documentId.toUpperCase().slice(0, 16)}
+                            </p>
+                            <p className="text-[8px] text-slate-500 font-mono truncate">
+                              Timestamp: [Saat Pengesahan]
+                            </p>
+                          </div>
+
+                          {isSelected && !pdfInteractive && (
+                            <button
+                              type="button"
+                              aria-label="Ubah ukuran stempel"
+                              onPointerDown={(event) => {
+                                event.preventDefault()
+                                event.stopPropagation()
+
+                                const el = fieldElementsRef.current[field.id]
+                                if (el) el.setPointerCapture(event.pointerId)
+
+                                const interaction: FieldInteraction = {
+                                  mode: 'resize',
+                                  fieldId: field.id,
+                                  startX: event.clientX,
+                                  startY: event.clientY,
+                                  initialX: field.posX,
+                                  initialY: field.posY,
+                                  initialWidth: field.width,
+                                  initialHeight: field.height,
+                                  currentX: field.posX,
+                                  currentY: field.posY,
+                                  currentWidth: field.width,
+                                  currentHeight: field.height,
+                                  pointerId: event.pointerId,
+                                }
+                                interactionRef.current = interaction
+                              }}
+                              className="absolute -bottom-1.5 -right-1.5 z-20 h-4 w-4 cursor-se-resize rounded-full bg-emerald-600 border border-white shadow"
+                            />
+                          )}
+                        </div>
+                      )
+                    }
 
                     return (
                       <div

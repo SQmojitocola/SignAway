@@ -18,13 +18,14 @@ import {
   Square,
   Sparkles,
   ShieldCheck,
+  QrCode,
 } from 'lucide-react'
 
 interface Field {
   id: string
   recipientId: string
   recipientName: string
-  type: 'SIGNATURE' | 'PARAF'
+  type: 'SIGNATURE' | 'PARAF' | 'AUDIT_STAMP'
   pageNumber: number
   posX: number
   posY: number
@@ -61,7 +62,7 @@ interface UserSpecimenItem {
 interface RawField {
   id: string
   recipientId: string
-  type?: 'SIGNATURE' | 'PARAF'
+  type?: 'SIGNATURE' | 'PARAF' | 'AUDIT_STAMP'
   pageNumber?: number
   page?: number
   posX: number
@@ -165,6 +166,7 @@ export default function SignDocumentPage() {
   // Semua Field milik user ini (atau milik target user yang diwakilkan via proxy)
   const myFields = useMemo(() => {
     return fieldsList.filter((field) => {
+      if (field.type === 'AUDIT_STAMP') return false
       const recipient = recipientsList.find((r) => r.id === field.recipientId)
       return (
         field.recipientId === myRecipientInDoc?.id ||
@@ -208,21 +210,22 @@ export default function SignDocumentPage() {
           const recipients: Recipient[] = rawDoc.recipients || []
 
           const normalizedFields = ((rawDoc.fields || []) as RawField[]).map((f) => {
-            let matchedRecipient = recipients.find((r) => r.id === f.recipientId)
-            if (!matchedRecipient) {
+            const isAudit = f.type === 'AUDIT_STAMP'
+            let matchedRecipient = isAudit ? null : recipients.find((r) => r.id === f.recipientId)
+            if (!isAudit && !matchedRecipient) {
               matchedRecipient = recipients.find((r) => r.user?.id === activeUser.id || r.userId === activeUser.id)
             }
 
             return {
               id: f.id,
-              recipientId: matchedRecipient?.id || f.recipientId,
-              recipientName: matchedRecipient?.user?.name || f.recipient?.user?.name || 'Penandatangan',
+              recipientId: isAudit ? '' : (matchedRecipient?.id || f.recipientId || ''),
+              recipientName: isAudit ? 'Sistem E-Sign' : (matchedRecipient?.user?.name || f.recipient?.user?.name || 'Penandatangan'),
               type: f.type || 'SIGNATURE',
               pageNumber: f.pageNumber || f.page || 1,
               posX: f.posX,
               posY: f.posY,
-              width: f.width || 150,
-              height: f.height || 70,
+              width: f.width || (isAudit ? 220 : 150),
+              height: f.height || (isAudit ? 65 : 70),
             }
           })
 
@@ -542,7 +545,7 @@ export default function SignDocumentPage() {
 
   // 📍 LOGIKA CEK / TERAPKAN SPESIMEN KE SEMUA PLOT
   const applySpecimenToFields = useCallback(
-    (specimenUrl: string, targetType: 'SIGNATURE' | 'PARAF', applyAll: boolean) => {
+    (specimenUrl: string, targetType: Field['type'], applyAll: boolean) => {
       const img = new Image()
       img.crossOrigin = 'anonymous'
       img.onload = () => {
@@ -800,6 +803,40 @@ export default function SignDocumentPage() {
                 {fieldsList
                   .filter((f) => f.pageNumber === page.pageNumber)
                   .map((field) => {
+                    if (field.type === 'AUDIT_STAMP') {
+                      return (
+                        <div
+                          key={field.id}
+                          style={{
+                            position: 'absolute',
+                            left: `${field.posX}px`,
+                            top: `${field.posY}px`,
+                            width: `${field.width}px`,
+                            height: `${field.height}px`,
+                          }}
+                          className="flex items-center gap-2.5 rounded-md border border-slate-300 bg-white shadow-sm p-2 z-10 box-border select-none"
+                        >
+                          <div className="absolute -top-3 left-2 bg-emerald-800 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-xs pointer-events-none">
+                            Stempel Verifikasi
+                          </div>
+                          <div className="h-full aspect-square bg-slate-50 border border-slate-200 rounded p-1 flex items-center justify-center shrink-0">
+                            <QrCode className="w-full h-full text-slate-800" />
+                          </div>
+                          <div className="flex flex-col justify-center overflow-hidden min-w-0 pr-1">
+                            <p className="text-[10px] sm:text-[10.5px] font-extrabold text-[#2e7d32] leading-tight truncate">
+                              Terverifikasi Sistem E-Sign
+                            </p>
+                            <p className="text-[8.5px] font-semibold text-slate-600 font-mono mt-0.5 truncate">
+                              Doc ID : {doc?.id.toUpperCase().slice(0, 16)}
+                            </p>
+                            <p className="text-[8px] text-slate-500 font-mono truncate">
+                              Timestamp: [Otomatis Saat Selesai]
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    }
+
                     const recipient = recipientsList.find((r) => r.id === field.recipientId)
                     const isMine =
                       field.recipientId === myRecipientInDoc?.id ||

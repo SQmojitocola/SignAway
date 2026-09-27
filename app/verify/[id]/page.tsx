@@ -39,12 +39,20 @@ export default function PublicVerifierPage() {
   useEffect(() => {
     if (!documentId || documentId === 'check') return
 
-    fetch(`/api/documents/${documentId}`)
+    fetch(`/api/verify/${documentId}`)
       .then((res) => res.json())
       .then((data) => {
-        if (data.document) setDoc(data.document)
+        if (data.document) {
+          setDoc(data.document)
+          setVerifyStatus({ isValid: true })
+        } else {
+          setVerifyStatus({ isValid: false, message: data.message || 'Dokumen tidak ditemukan atau belum terdaftar.' })
+        }
       })
-      .catch((err) => console.error('Fetch error:', err))
+      .catch((err) => {
+        console.error('Fetch error:', err)
+        setVerifyStatus({ isValid: false, message: 'Gagal memverifikasi keabsahan dokumen.' })
+      })
       .finally(() => setLoading(false))
   }, [documentId])
 
@@ -227,6 +235,14 @@ export default function PublicVerifierPage() {
                 })}
               </div>
             </div>
+          </div>
+        ) : !isCheckMode ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center text-xs text-red-600 max-w-xl mx-auto shadow-sm">
+            <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-red-500" />
+            <p className="font-bold text-sm">Dokumen Tidak Ditemukan</p>
+            <p className="mt-1 text-slate-500">
+              {verifyStatus?.message || 'ID dokumen tidak valid atau belum terdaftar dalam sistem.'}
+            </p>
           </div>
         ) : null}
       </main>
