@@ -29,9 +29,9 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  // 📍 2. JIKA ADMIN -> LANGSUNG DIALIHKAN KE HALAMAN MANAJEMEN KARYAWAN ADMIN
+  // 📍 2. JIKA ADMIN -> LANGSUNG DIALIHKAN KE HALAMAN DASHBOARD ADMIN
   if (user.role === "ADMIN") {
-    redirect("/admin/users");
+    redirect("/admin/dashboard");
   }
 
   // 3. JIKA KARYAWAN BIASA -> LANJUT TAMPILKAN DASHBOARD DOKUMEN
@@ -40,6 +40,7 @@ export default async function DashboardPage() {
       OR: [
         { senderId: user.id },
         { recipients: { some: { userId: user.id } } },
+        { proxyRequests: { some: { requestedById: user.id, status: 'APPROVED' } } },
       ],
     },
     orderBy: { createdAt: "desc" },
@@ -58,6 +59,15 @@ export default async function DashboardPage() {
           user: { select: { id: true, name: true, email: true } },
         },
       },
+      proxyRequests: {
+        where: { requestedById: user.id, status: 'APPROVED' },
+        select: {
+          id: true,
+          requestedById: true,
+          targetUserId: true,
+          status: true,
+        },
+      },
     },
   });
 
@@ -69,6 +79,7 @@ export default async function DashboardPage() {
     sequential: doc.sequential,
     sender: doc.sender,
     recipients: doc.recipients,
+    proxyRequests: doc.proxyRequests,
   }));
 
   return (

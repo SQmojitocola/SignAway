@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   CheckCircle2,
@@ -25,6 +25,12 @@ export interface DashboardDocument {
     status: 'WAITING' | 'PENDING' | 'SIGNED' | 'REJECTED'
     signingOrder: number | null
     user: { id: string; name: string; email: string }
+  }>
+  proxyRequests?: Array<{
+    id: string
+    requestedById: string
+    targetUserId: string
+    status: string
   }>
 }
 
@@ -69,6 +75,39 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
   const [pageSize, setPageSize] = useState<number>(5)
   const [currentPage, setCurrentPage] = useState<number>(1)
 
+  // Helper cek apakah dokumen menunggu tanda tangan user (langsung atau via proxy)
+  const isWaitingForUser = useCallback(
+    (doc: DashboardDocument) => {
+      return doc.recipients.some((recipient) => {
+        const isDirect = recipient.user.id === userId
+        const isProxy = Boolean(
+          doc.proxyRequests?.some(
+            (p) => p.status === 'APPROVED' && p.targetUserId === recipient.user.id
+          )
+        )
+        return (isDirect || isProxy) && (recipient.status === 'WAITING' || recipient.status === 'PENDING')
+      })
+    },
+    [userId]
+  )
+
+  // Helper cek apakah dokumen selesai untuk user
+  const isCompletedForUser = useCallback(
+    (doc: DashboardDocument) => {
+      if (doc.status === 'COMPLETED') return true
+      return doc.recipients.some((recipient) => {
+        const isDirect = recipient.user.id === userId
+        const isProxy = Boolean(
+          doc.proxyRequests?.some(
+            (p) => p.status === 'APPROVED' && p.targetUserId === recipient.user.id
+          )
+        )
+        return (isDirect || isProxy) && recipient.status === 'SIGNED'
+      })
+    },
+    [userId]
+  )
+
   // Reset ke halaman 1 setiap kali ganti kategori atau pencarian
   const handleCategoryChange = (cat: DashboardCategory) => {
     setSelectedCategory(cat)
@@ -90,20 +129,13 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
 
   // Hitung statistik untuk 4 kartu
   const counts = useMemo(() => {
-    const waiting = documents.filter((doc) =>
-      doc.recipients.some((recipient) => recipient.user.id === userId && (recipient.status === 'WAITING' || recipient.status === 'PENDING'))
-    ).length
-
+    const waiting = documents.filter(isWaitingForUser).length
     const uploaded = documents.filter((doc) => doc.sender.id === userId && doc.status !== 'DRAFT').length
-
     const rejected = documents.filter((doc) => doc.sender.id === userId && doc.status === 'REJECTED').length
-
-    const completed = documents.filter((doc) =>
-      doc.status === 'COMPLETED' || doc.recipients.some((recipient) => recipient.user.id === userId && recipient.status === 'SIGNED')
-    ).length
+    const completed = documents.filter(isCompletedForUser).length
 
     return { waiting, uploaded, rejected, completed }
-  }, [documents, userId])
+  }, [documents, userId, isWaitingForUser, isCompletedForUser])
 
   // Filter daftar dokumen berdasarkan tab aktif
   const filteredDocs = useMemo(() => {
@@ -121,21 +153,17 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
 
     switch (selectedCategory) {
       case 'waiting':
-        return base.filter((doc) =>
-          doc.recipients.some((recipient) => recipient.user.id === userId && (recipient.status === 'WAITING' || recipient.status === 'PENDING'))
-        )
+        return base.filter(isWaitingForUser)
       case 'uploaded':
         return base.filter((doc) => doc.sender.id === userId && doc.status !== 'DRAFT')
       case 'rejected':
         return base.filter((doc) => doc.sender.id === userId && doc.status === 'REJECTED')
       case 'completed':
-        return base.filter((doc) =>
-          doc.status === 'COMPLETED' || doc.recipients.some((recipient) => recipient.user.id === userId && recipient.status === 'SIGNED')
-        )
+        return base.filter(isCompletedForUser)
       default:
         return base
     }
-  }, [documents, search, selectedCategory, userId])
+  }, [documents, search, selectedCategory, userId, isWaitingForUser, isCompletedForUser])
 
   // 📍 PAGINATED / SLICED DOCUMENTS UNTUK DITAMPILKAN PADA TABEL
   const totalItems = filteredDocs.length
@@ -250,7 +278,14 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
                             <FileText className="w-4 h-4" />
                           </div>
                           <div>
-                            <p className="font-bold text-slate-800">{doc.title}</p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="font-bold text-slate-800">{doc.title}</p>
+                              {doc.proxyRequests && doc.proxyRequests.length > 0 && (
+                                <span className="text-[9px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded border border-blue-200">
+                                  Delegasi TTD
+                                </span>
+                              )}
+                            </div>
                             <p className="text-[10px] text-slate-400">ID: {doc.id.substring(0, 8)}</p>
                           </div>
                         </div>
