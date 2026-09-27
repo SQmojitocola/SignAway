@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { verifyPassword, hashPassword } from '@/lib/password'
 
 export async function GET(req: Request) {
   try {
@@ -14,16 +15,19 @@ export async function GET(req: Request) {
 
     if (searchParams.get('me') === 'true') {
       const user = await prisma.user.findUnique({
-          where: { id: session.user.id },
-          select: { id: true, name: true, email: true, signatureSpecimen: true },
-        })
-      return NextResponse.json({ user }, { status: 200 })
-    }
-
-    if (searchParams.get('me') === 'true') {
-      const user = await prisma.user.findUnique({
         where: { id: session.user.id },
-        select: { id: true, name: true, email: true },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          signatureSpecimen: true,
+          specimens: {
+            where: { isPrimary: true, type: 'SIGNATURE' },
+            select: { imageUrl: true },
+            take: 1,
+          },
+        },
       })
       return NextResponse.json({ user }, { status: 200 })
     }
@@ -90,3 +94,48 @@ export async function PUT(req: Request) {
     return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 })
   }
 }
+
+export async function PATCH(req: Request) {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { currentPassword, newPassword } = await req.json()
+
+    if (!currentPassword || !newPassword) {
+      return NextResponse.json({ message: 'Kata sandi saat ini dan baru wajib diisi' }, { status: 400 })
+    }
+
+    if (typeof newPassword !== 'string' || newPassword.length < 8) {
+      return NextResponse.json({ message: 'Kata sandi baru minimal 8 karakter' }, { status: 400 })
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { passwordHash: true },
+    })
+
+    if (!user) {
+      return NextResponse.json({ message: 'Pengguna tidak ditemukan' }, { status: 404 })
+    }
+
+    const isValid = await verifyPassword(currentPassword, user.passwordHash)
+    if (!isValid) {
+      return NextResponse.json({ message: 'Kata sandi saat ini tidak cocok' }, { status: 400 })
+    }
+
+    const newHashedPassword = await hashPassword(newPassword)
+    await prisma.user.update({
+      where: { id: session.user.id },
+      data: { passwordHash: newHashedPassword },
+    })
+
+    return NextResponse.json({ message: 'Kata sandi berhasil diperbarui' }, { status: 200 })
+  } catch (error) {
+    console.error('Password update error:', error)
+    return NextResponse.json({ message: 'Gagal memperbarui kata sandi' }, { status: 500 })
+  }
+}
+
