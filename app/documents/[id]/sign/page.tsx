@@ -27,12 +27,14 @@ interface Field {
   id: string
   recipientId: string
   recipientName: string
-  type: 'SIGNATURE' | 'PARAF' | 'AUDIT_STAMP'
+  type: 'SIGNATURE' | 'PARAF' | 'AUDIT_STAMP' | 'NAME'
   pageNumber: number
   posX: number
   posY: number
   width: number
   height: number
+  fontSize?: number | null
+  textAlign?: string | null
   value?: string | null
 }
 
@@ -41,7 +43,7 @@ interface Recipient {
   userId?: string
   status: string
   signingOrder?: number | null
-  user: { id: string; name: string; email: string }
+  user: { id: string; name: string; email: string; nip?: string | null }
 }
 
 interface DocumentData {
@@ -64,16 +66,19 @@ interface UserSpecimenItem {
 interface RawField {
   id: string
   recipientId: string
-  type?: 'SIGNATURE' | 'PARAF' | 'AUDIT_STAMP'
+  type?: 'SIGNATURE' | 'PARAF' | 'AUDIT_STAMP' | 'NAME'
   pageNumber?: number
   page?: number
   posX: number
   posY: number
   width?: number
   height?: number
+  fontSize?: number | null
+  textAlign?: string | null
   recipient?: {
     user?: {
       name?: string
+      nip?: string | null
     }
   }
 }
@@ -170,6 +175,8 @@ export default function SignDocumentPage() {
 
           const normalizedFields = ((rawDoc.fields || []) as RawField[]).map((f) => {
             const isAudit = f.type === 'AUDIT_STAMP'
+            const isName = f.type === 'NAME'
+            const isParaf = f.type === 'PARAF'
             let matchedRecipient = isAudit ? null : recipients.find((r) => r.id === f.recipientId)
             if (!isAudit && !matchedRecipient) {
               matchedRecipient = recipients.find((r) => r.user?.id === activeUser.id || r.userId === activeUser.id)
@@ -183,8 +190,10 @@ export default function SignDocumentPage() {
               pageNumber: f.pageNumber || f.page || 1,
               posX: f.posX,
               posY: f.posY,
-              width: f.width || (isAudit ? 220 : 150),
-              height: f.height || (isAudit ? 65 : 70),
+              width: f.width || (isAudit ? 220 : isName ? 160 : isParaf ? 100 : 150),
+              height: f.height || (isAudit ? 65 : isName ? 48 : isParaf ? 50 : 70),
+              fontSize: f.fontSize || 10,
+              textAlign: f.textAlign || 'center',
             }
           })
 
@@ -261,7 +270,7 @@ export default function SignDocumentPage() {
       return []
     }
     return fieldsList.filter((field) => {
-      if (field.type === 'AUDIT_STAMP') return false
+      if (field.type === 'AUDIT_STAMP' || field.type === 'NAME') return false
       return field.recipientId === myRecipientInDoc.id
     })
   }, [fieldsList, myRecipientInDoc])
@@ -945,6 +954,53 @@ export default function SignDocumentPage() {
                             <p className="text-[8px] text-slate-500 font-mono truncate">
                               Timestamp: [Otomatis Saat Selesai]
                             </p>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    if (field.type === 'NAME') {
+                      const recipient = recipientsList.find((r) => r.id === field.recipientId)
+                      const displayName = (recipient?.user?.name || field.recipientName || 'Penandatangan').replace(' (Saya)', '')
+                      const displayNip = recipient?.user?.nip || null
+                      const isMine = myRecipientInDoc?.id === field.recipientId
+
+                      return (
+                        <div
+                          key={field.id}
+                          style={{
+                            position: 'absolute',
+                            left: `${field.posX}px`,
+                            top: `${field.posY}px`,
+                            width: `${field.width}px`,
+                            height: `${field.height}px`,
+                          }}
+                          className={`rounded-md border p-1.5 flex flex-col justify-center z-10 box-border select-none ${
+                            isMine
+                              ? 'border-indigo-400 bg-white/95 shadow-xs'
+                              : 'border-slate-300 bg-white/85'
+                          }`}
+                        >
+                          <div className="absolute -top-3 left-2 bg-indigo-700 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-xs pointer-events-none">
+                            {displayName} (Nama & NIK)
+                          </div>
+                          <div
+                            className={`w-full flex flex-col justify-center pointer-events-none overflow-hidden px-1 ${
+                              field.textAlign === 'left' ? 'items-start text-left' : 'items-center text-center'
+                            }`}
+                            style={{
+                              fontSize: `${field.fontSize || 10}px`,
+                              lineHeight: 1.25,
+                            }}
+                          >
+                            <span className="font-bold tracking-wide uppercase underline text-slate-900 truncate max-w-full">
+                              {displayName}
+                            </span>
+                            {displayNip && (
+                              <span className="font-semibold text-slate-700 font-mono tracking-tight mt-0.5 text-[0.9em] truncate max-w-full">
+                                {displayNip}
+                              </span>
+                            )}
                           </div>
                         </div>
                       )

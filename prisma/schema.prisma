@@ -150,6 +150,8 @@ model DocumentField {
   posY        Float              @map("pos_y")
   width       Float              @default(150)
   height      Float              @default(60)
+  fontSize    Int?               @default(10) @map("font_size")
+  textAlign   String?            @default("center") @map("text_align")
 
   document  Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
   recipient DocumentRecipient? @relation(fields: [recipientId], references: [id], onDelete: Cascade)

@@ -14,6 +14,10 @@ import {
   Sliders,
   QrCode,
   ShieldCheck,
+  UserCheck,
+  Type,
+  AlignLeft,
+  AlignCenter,
 } from 'lucide-react'
 import { FieldTypeSelectorModal, FieldPlotType } from '@/components/FieldTypeSelectorModal'
 
@@ -22,6 +26,7 @@ interface Recipient {
   userId: string
   name: string
   email: string
+  nip?: string | null
   role?: string
 }
 
@@ -33,21 +38,25 @@ interface ApiRecipient {
     id: string
     name: string
     email: string
+    nip?: string | null
   }
 }
 
 interface ApiField {
   id: string
   recipientId: string
-  type?: 'SIGNATURE' | 'PARAF' | 'AUDIT_STAMP'
+  type?: 'SIGNATURE' | 'PARAF' | 'AUDIT_STAMP' | 'NAME'
   pageNumber: number
   posX: number
   posY: number
   width?: number
   height?: number
+  fontSize?: number | null
+  textAlign?: string | null
   recipient?: {
     user?: {
       name?: string
+      nip?: string | null
     }
   }
 }
@@ -56,12 +65,15 @@ interface SignatureField {
   id: string
   recipientId: string
   recipientName: string
-  type: 'SIGNATURE' | 'PARAF' | 'AUDIT_STAMP'
+  recipientNip?: string | null
+  type: 'SIGNATURE' | 'PARAF' | 'AUDIT_STAMP' | 'NAME'
   pageNumber: number
   posX: number
   posY: number
   width: number
   height: number
+  fontSize?: number
+  textAlign?: 'left' | 'center'
 }
 
 interface FieldInteraction {
@@ -453,6 +465,7 @@ export default function DocumentFieldPlottingPage() {
           userId: r.userId,
           name: r.user.id === data.document.sender.id ? `${r.user.name} (Saya)` : r.user.name,
           email: r.user.email,
+          nip: r.user.nip || null,
           role: r.role,
         }))
 
@@ -466,16 +479,21 @@ export default function DocumentFieldPlottingPage() {
         setFields(
           (fieldsData.fields as ApiField[]).map((field) => {
             const isAudit = field.type === 'AUDIT_STAMP'
+            const isName = field.type === 'NAME'
+            const isParaf = field.type === 'PARAF'
             return {
               id: field.id,
               recipientId: field.recipientId || '',
               recipientName: isAudit ? 'Sistem E-Sign' : (field.recipient?.user?.name || 'Penandatangan'),
+              recipientNip: isAudit ? null : (field.recipient?.user?.nip || null),
               type: field.type || 'SIGNATURE',
               pageNumber: field.pageNumber,
               posX: field.posX,
               posY: field.posY,
-              width: field.width || (isAudit ? 220 : 150),
-              height: field.height || (isAudit ? 65 : 70),
+              width: field.width || (isAudit ? 220 : isName ? 160 : isParaf ? 100 : 150),
+              height: field.height || (isAudit ? 65 : isName ? 48 : isParaf ? 50 : 70),
+              fontSize: field.fontSize || 10,
+              textAlign: (field.textAlign as 'left' | 'center') || 'center',
             }
           })
         )
@@ -498,7 +516,7 @@ export default function DocumentFieldPlottingPage() {
     const posX = Math.max(0, e.clientX - rect.left - 75)
     const posY = Math.max(0, e.clientY - rect.top - 35)
 
-    // Buka Modal Pemilihan Tipe (TTD atau Paraf)
+    // Buka Modal Pemilihan Tipe (TTD atau Paraf atau Nama)
     setPendingPlot({ pageNumber, posX, posY })
   }
 
@@ -507,16 +525,21 @@ export default function DocumentFieldPlottingPage() {
     if (!pendingPlot) return
 
     const isAudit = type === 'AUDIT_STAMP'
+    const isName = type === 'NAME'
+    const isParaf = type === 'PARAF'
     const newField: SignatureField = {
       id: `field-${crypto.randomUUID()}`,
       recipientId: isAudit ? '' : (activeRecipient?.id || ''),
       recipientName: isAudit ? 'Sistem E-Sign' : (activeRecipient?.name || 'Penandatangan'),
+      recipientNip: isAudit ? null : (activeRecipient?.nip || null),
       type,
       pageNumber: pendingPlot.pageNumber,
       posX: pendingPlot.posX,
       posY: pendingPlot.posY,
-      width: isAudit ? 220 : type === 'PARAF' ? 100 : 150,
-      height: isAudit ? 65 : type === 'PARAF' ? 50 : 70,
+      width: isAudit ? 220 : isName ? 160 : isParaf ? 100 : 150,
+      height: isAudit ? 65 : isName ? 48 : isParaf ? 50 : 70,
+      fontSize: 10,
+      textAlign: 'center',
     }
 
     setHasUnsavedChanges(true)
@@ -599,7 +622,7 @@ export default function DocumentFieldPlottingPage() {
     setSelectedFieldId(null)
   }
 
-  const handleUpdateFieldType = (fieldId: string, type: 'SIGNATURE' | 'PARAF') => {
+  const handleUpdateFieldType = (fieldId: string, type: 'SIGNATURE' | 'PARAF' | 'NAME') => {
     setHasUnsavedChanges(true)
     setFields((current) =>
       current.map((f) => {
@@ -607,10 +630,24 @@ export default function DocumentFieldPlottingPage() {
         return {
           ...f,
           type,
-          width: type === 'PARAF' ? 100 : 150,
-          height: type === 'PARAF' ? 50 : 70,
+          width: type === 'NAME' ? 160 : type === 'PARAF' ? 100 : 150,
+          height: type === 'NAME' ? 48 : type === 'PARAF' ? 50 : 70,
         }
       })
+    )
+  }
+
+  const handleUpdateFieldFontSize = (fieldId: string, fontSize: number) => {
+    setHasUnsavedChanges(true)
+    setFields((current) =>
+      current.map((f) => (f.id === fieldId ? { ...f, fontSize } : f))
+    )
+  }
+
+  const handleUpdateFieldTextAlign = (fieldId: string, textAlign: 'left' | 'center') => {
+    setHasUnsavedChanges(true)
+    setFields((current) =>
+      current.map((f) => (f.id === fieldId ? { ...f, textAlign } : f))
     )
   }
 
@@ -1081,6 +1118,134 @@ export default function DocumentFieldPlottingPage() {
                       )
                     }
 
+                    if (field.type === 'NAME') {
+                      return (
+                        <div
+                          key={field.id}
+                          ref={(element) => {
+                            fieldElementsRef.current[field.id] = element
+                          }}
+                          onPointerDown={(event) => {
+                            if (pdfInteractive || activeRecipient) return
+                            event.preventDefault()
+                            event.stopPropagation()
+
+                            const el = fieldElementsRef.current[field.id]
+                            if (el) el.setPointerCapture(event.pointerId)
+
+                            setSelectedFieldId(field.id)
+                            const interaction: FieldInteraction = {
+                              mode: 'drag',
+                              fieldId: field.id,
+                              initialPageNumber: field.pageNumber,
+                              startX: event.clientX,
+                              startY: event.clientY,
+                              initialX: field.posX,
+                              initialY: field.posY,
+                              initialWidth: field.width,
+                              initialHeight: field.height,
+                              currentX: field.posX,
+                              currentY: field.posY,
+                              currentWidth: field.width,
+                              currentHeight: field.height,
+                              pointerId: event.pointerId,
+                            }
+                            interactionRef.current = interaction
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedFieldId(field.id)
+                          }}
+                          style={{
+                            left: `${field.posX}px`,
+                            top: `${field.posY}px`,
+                            width: `${field.width}px`,
+                            height: `${field.height}px`,
+                          }}
+                          className={`absolute z-10 rounded-md border-2 border-dashed p-1.5 flex flex-col justify-center select-none cursor-move ${
+                            isSelected
+                              ? 'border-indigo-600 bg-white/95 ring-2 ring-indigo-400 shadow-md'
+                              : 'border-indigo-400 bg-white/85 hover:border-indigo-500'
+                          }`}
+                        >
+                          <div className="absolute -top-3 left-2 bg-indigo-700 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-xs pointer-events-none">
+                            {field.recipientName} (Nama & NIK)
+                          </div>
+
+                          <button
+                            type="button"
+                            aria-label="Hapus plot"
+                            onPointerDown={(event) => {
+                              event.preventDefault()
+                              event.stopPropagation()
+                              handleDeleteField(field.id)
+                            }}
+                            className="absolute -right-3 -top-3 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow hover:bg-red-700 cursor-pointer"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+
+                          {/* Preview Teks Nama & NIK (Sesuai Preferensi Kesepakatan) */}
+                          <div
+                            className={`w-full flex flex-col justify-center pointer-events-none overflow-hidden px-1 ${
+                              field.textAlign === 'left' ? 'items-start text-left' : 'items-center text-center'
+                            }`}
+                            style={{
+                              fontSize: `${field.fontSize || 10}px`,
+                              lineHeight: 1.25,
+                            }}
+                          >
+                            <span className="font-bold tracking-wide uppercase underline text-slate-900 truncate max-w-full">
+                              {field.recipientName.replace(' (Saya)', '')}
+                            </span>
+                            <span className="font-semibold text-slate-700 font-mono tracking-tight mt-0.5 text-[0.9em] truncate max-w-full">
+                              {field.recipientNip || '1751103'}
+                            </span>
+                          </div>
+
+                          {/* Indikator Koordinat Real-Time saat Terpilih */}
+                          {isSelected && (
+                            <div className="absolute -bottom-2.5 left-2 bg-slate-800/90 text-white text-[8px] font-mono px-1.5 py-0.5 rounded shadow-xs pointer-events-none">
+                              X: {Math.round(field.posX)} · Y: {Math.round(field.posY)} · {field.fontSize || 10}pt
+                            </div>
+                          )}
+
+                          {isSelected && !pdfInteractive && (
+                            <button
+                              type="button"
+                              aria-label="Ubah ukuran plot"
+                              onPointerDown={(event) => {
+                                event.preventDefault()
+                                event.stopPropagation()
+
+                                const el = fieldElementsRef.current[field.id]
+                                if (el) el.setPointerCapture(event.pointerId)
+
+                                const interaction: FieldInteraction = {
+                                  mode: 'resize',
+                                  fieldId: field.id,
+                                  initialPageNumber: field.pageNumber,
+                                  startX: event.clientX,
+                                  startY: event.clientY,
+                                  initialX: field.posX,
+                                  initialY: field.posY,
+                                  initialWidth: field.width,
+                                  initialHeight: field.height,
+                                  currentX: field.posX,
+                                  currentY: field.posY,
+                                  currentWidth: field.width,
+                                  currentHeight: field.height,
+                                  pointerId: event.pointerId,
+                                }
+                                interactionRef.current = interaction
+                              }}
+                              className="absolute bottom-0 right-0 h-4 w-4 cursor-se-resize rounded-tl bg-indigo-600"
+                            />
+                          )}
+                        </div>
+                      )
+                    }
+
                     return (
                       <div
                         key={field.id}
@@ -1126,7 +1291,6 @@ export default function DocumentFieldPlottingPage() {
                           width: `${field.width}px`,
                           height: `${field.height}px`,
                         }}
-                        /* 📍 Menghapus `transition-all` agar pergerakan drag instan & tidak lag */
                         className={`absolute z-10 rounded-lg border-2 border-dashed p-2 flex flex-col items-center justify-center select-none cursor-move ${
                           isParaf
                             ? isSelected
@@ -1271,12 +1435,16 @@ export default function DocumentFieldPlottingPage() {
                         </span>
                         <span
                           className={`text-[9px] px-1.5 py-0.5 rounded font-extrabold ${
-                            field.type === 'PARAF'
+                            field.type === 'AUDIT_STAMP'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : field.type === 'NAME'
+                              ? 'bg-indigo-100 text-indigo-700'
+                              : field.type === 'PARAF'
                               ? 'bg-amber-100 text-amber-700'
                               : 'bg-blue-100 text-blue-700'
                           }`}
                         >
-                          {field.type}
+                          {field.type === 'NAME' ? 'NAMA & NIK' : field.type}
                         </span>
                       </span>
                       <span className="block text-slate-500 text-[10px] mt-1">
@@ -1305,7 +1473,7 @@ export default function DocumentFieldPlottingPage() {
                 {/* Switcher Tipe Field Terpilih */}
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Tipe Pengesahan</label>
-                  <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                  <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
                     <button
                       type="button"
                       onClick={() => handleUpdateFieldType(selectedField.id, 'SIGNATURE')}
@@ -1329,8 +1497,93 @@ export default function DocumentFieldPlottingPage() {
                     >
                       <FileCheck className="h-3 w-3" /> Paraf
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateFieldType(selectedField.id, 'NAME')}
+                      className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        selectedField.type === 'NAME'
+                          ? 'bg-white text-indigo-600 shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      <UserCheck className="h-3 w-3" /> Nama
+                    </button>
                   </div>
                 </div>
+
+                {/* Panel Pengaturan Tipografi saat Tipe Plot adalah NAME (Nama & NIK) */}
+                {selectedField.type === 'NAME' && (
+                  <div className="space-y-3.5 border-t border-slate-100 pt-3">
+                    {/* Ukuran Font */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                          <Type className="h-3 w-3 text-indigo-600" /> Ukuran Font
+                        </label>
+                        <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
+                          {selectedField.fontSize || 10} pt
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-5 gap-1">
+                        {[8, 9, 10, 11, 12].map((size) => (
+                          <button
+                            key={size}
+                            type="button"
+                            onClick={() => handleUpdateFieldFontSize(selectedField.id, size)}
+                            className={`py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                              (selectedField.fontSize || 10) === size
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            {size}pt
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Kesejajaran Teks */}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">
+                        Kesejajaran Teks
+                      </label>
+                      <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateFieldTextAlign(selectedField.id, 'left')}
+                          className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            selectedField.textAlign === 'left'
+                              ? 'bg-white text-indigo-600 shadow-xs'
+                              : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          <AlignLeft className="h-3.5 w-3.5" /> Rata Kiri
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateFieldTextAlign(selectedField.id, 'center')}
+                          className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            (selectedField.textAlign || 'center') === 'center'
+                              ? 'bg-white text-indigo-600 shadow-xs'
+                              : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          <AlignCenter className="h-3.5 w-3.5" /> Rata Tengah
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Catatan Format */}
+                    <div className="rounded-lg bg-indigo-50/70 border border-indigo-100 p-2 text-[10px] text-indigo-900/80 leading-relaxed">
+                      <p className="font-semibold text-indigo-900 mb-0.5">Format Teks Otomatis:</p>
+                      <ul className="list-disc list-inside space-y-0.5 text-[9.5px]">
+                        <li>Nama kapital dengan garis bawah (<u>UNDERLINE</u>)</li>
+                        <li>NIK tercetak di bawah nama (angka saja)</li>
+                      </ul>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : null}
           </div>

@@ -49,7 +49,7 @@ export async function GET(
             signingOrder: true,
             rejectReason: true,
             user: {
-              select: { id: true, name: true, email: true, role: true },
+              select: { id: true, name: true, email: true, role: true, nip: true },
             },
           },
         },
@@ -63,10 +63,12 @@ export async function GET(
             posY: true,
             width: true,
             height: true,
+            fontSize: true,
+            textAlign: true,
             recipient: {
               select: {
                 user: {
-                  select: { name: true },
+                  select: { name: true, nip: true },
                 },
               },
             },

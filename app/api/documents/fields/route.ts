@@ -4,12 +4,14 @@ import { auth } from '@/lib/auth'
 
 interface FieldInput {
   recipientId?: string | null
-  type?: 'SIGNATURE' | 'PARAF' | 'AUDIT_STAMP' | string
+  type?: 'SIGNATURE' | 'PARAF' | 'AUDIT_STAMP' | 'NAME' | string
   pageNumber: number
   posX: number
   posY: number
   width?: number
   height?: number
+  fontSize?: number | null
+  textAlign?: string | null
 }
 
 export async function POST(req: Request) {
@@ -65,6 +67,12 @@ export async function POST(req: Request) {
     // 📍 SIMPAN KOORDINAT APA ADANYA SESUAI PIKSEL VISUAL CANVAS (SKALA 1:1)
     const normalizedFields = fields.map((field: FieldInput) => {
       const isAuditStamp = field.type === 'AUDIT_STAMP'
+      const isName = field.type === 'NAME'
+      const isParaf = field.type === 'PARAF'
+
+      const defaultWidth = isAuditStamp ? 220 : isName ? 160 : isParaf ? 100 : 150
+      const defaultHeight = isAuditStamp ? 65 : isName ? 48 : isParaf ? 50 : 70
+
       return {
         documentId,
         recipientId: isAuditStamp
@@ -76,8 +84,10 @@ export async function POST(req: Request) {
         pageNumber: field.pageNumber,
         posX: field.posX,
         posY: field.posY,
-        width: field.width || (isAuditStamp ? 220 : 150),
-        height: field.height || (isAuditStamp ? 65 : 70),
+        width: field.width || defaultWidth,
+        height: field.height || defaultHeight,
+        fontSize: field.fontSize ?? 10,
+        textAlign: field.textAlign || 'center',
       }
     })
 
@@ -136,7 +146,7 @@ export async function GET(req: Request) {
         recipient: {
           include: {
             user: {
-              select: { id: true, name: true, email: true },
+              select: { id: true, name: true, email: true, nip: true },
             },
           },
         },

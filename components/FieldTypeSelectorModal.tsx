@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { X, PenTool, FileCheck, Check, QrCode } from 'lucide-react'
+import { X, PenTool, FileCheck, Check, QrCode, UserCheck } from 'lucide-react'
 
-export type FieldPlotType = 'SIGNATURE' | 'PARAF' | 'AUDIT_STAMP'
+export type FieldPlotType = 'SIGNATURE' | 'PARAF' | 'AUDIT_STAMP' | 'NAME'
 
 interface FieldTypeSelectorModalProps {
   isOpen: boolean
@@ -24,7 +24,7 @@ export function FieldTypeSelectorModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl space-y-5">
+      <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl space-y-5">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Plotting Dokumen</p>
@@ -40,11 +40,11 @@ export function FieldTypeSelectorModal({
         </div>
 
         <p className="text-xs text-slate-500">
-          Tentukan tipe komponen yang ingin ditempatkan pada dokumen:
+          Tentukan tipe komponen yang ingin ditempatkan pada dokumen untuk {recipientName ? <span className="font-semibold text-slate-700">{recipientName}</span> : 'penandatangan'}:
         </p>
 
-        {/* Pilihan Card TTD / Paraf / Stempel Audit */}
-        <div className="grid grid-cols-3 gap-2.5">
+        {/* Pilihan Card TTD / Paraf / Nama & NIK / Stempel Audit */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           <button
             type="button"
             onClick={() => setSelectedType('SIGNATURE')}
@@ -71,6 +71,20 @@ export function FieldTypeSelectorModal({
             <FileCheck className="h-5 w-5 mb-1.5 text-amber-600" />
             <span className="text-[11px] font-bold text-center">Paraf</span>
             <span className="text-[9px] text-slate-400 mt-0.5">Ringkas</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedType('NAME')}
+            className={`flex flex-col items-center justify-center rounded-xl p-3 border-2 transition-all cursor-pointer ${
+              selectedType === 'NAME'
+                ? 'border-indigo-600 bg-indigo-50/80 text-indigo-700 shadow-sm ring-2 ring-indigo-500/20'
+                : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'
+            }`}
+          >
+            <UserCheck className="h-5 w-5 mb-1.5 text-indigo-600" />
+            <span className="text-[11px] font-bold text-center">Nama & NIK</span>
+            <span className="text-[9px] text-slate-400 mt-0.5">Font Resmi</span>
           </button>
 
           <button

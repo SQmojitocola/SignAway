@@ -123,15 +123,14 @@ export async function POST(req: Request) {
       return embedded
     }
 
-    // 📍 1. STAMPING MASING-MASING FIELD DENGAN SPESIMEN YANG SESUAI (TTD vs PARAF)
+    // Embed font standard Helvetica & HelveticaBold untuk plot Teks Identitas dan Stempel Audit
+    const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+    const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica)
+
+    const effectiveSigner = isApprovedProxy && approvedProxy?.targetUser ? approvedProxy.targetUser : currentUser
+
+    // 📍 1. STAMPING MASING-MASING FIELD DENGAN SPESIMEN YANG SESUAI (TTD vs PARAF vs NAMA & NIK)
     for (const field of fields) {
-      // Prioritaskan spesimen dari signaturesMap per field ID, jika tidak ada baru gunakan fallback
-      const rawImageBase64 = (signaturesMap && signaturesMap[field.id]) || fallbackSignatureBase64
-
-      if (!rawImageBase64) continue
-
-      const embeddedImage = await getEmbeddedImage(rawImageBase64)
-
       const pageNum = field.pageNumber || 1
       const pageIndex = Math.max(0, pageNum - 1)
       const page = pdfDoc.getPage(pageIndex)
@@ -140,8 +139,84 @@ export async function POST(req: Request) {
       // Konversi Visual Scale (1.25) ke PDF Scale (1.0)
       const boxX = field.posX / 1.25
       const boxY = field.posY / 1.25
-      const boxWidth = (field.width || 150) / 1.25
-      const boxHeight = (field.height || 70) / 1.25
+      const boxWidth = (field.width || (field.type === 'NAME' ? 160 : 150)) / 1.25
+      const boxHeight = (field.height || (field.type === 'NAME' ? 48 : 70)) / 1.25
+
+      // 🏷️ CETAK TEKS IDENTITAS RESMI (NAMA BERGARIS BAWAH & NIK TANPA AWALAN)
+      if (field.type === 'NAME') {
+        const nameText = (effectiveSigner?.name || 'PENANDATANGAN').toUpperCase()
+        const nipText = effectiveSigner?.nip ? String(effectiveSigner.nip).trim() : ''
+        const baseFontSize = (field.fontSize || 10) * 0.95
+        const nameFontSize = baseFontSize
+        const nipFontSize = Math.max(6.5, baseFontSize - 1.2)
+
+        const nameWidth = helveticaBold.widthOfTextAtSize(nameText, nameFontSize)
+        const isCenter = (field.textAlign || 'center') === 'center'
+        const centerY = pageHeight - boxY - boxHeight / 2
+
+        if (nipText) {
+          const nipWidth = helvetica.widthOfTextAtSize(nipText, nipFontSize)
+          const nameX = isCenter ? boxX + (boxWidth - nameWidth) / 2 : boxX + 2
+          const nameY = centerY + 2
+
+          // Teks Nama Penandatangan (Kapital Tebal)
+          page.drawText(nameText, {
+            x: nameX,
+            y: nameY,
+            size: nameFontSize,
+            font: helveticaBold,
+            color: rgb(0, 0, 0),
+          })
+
+          // Garis Bawah (Underline) Nama
+          const underlineY = nameY - 1.8
+          page.drawLine({
+            start: { x: nameX, y: underlineY },
+            end: { x: nameX + nameWidth, y: underlineY },
+            thickness: 0.7,
+            color: rgb(0, 0, 0),
+          })
+
+          // Teks NIK Penandatangan (Angka saja di bawah nama)
+          const nipX = isCenter ? boxX + (boxWidth - nipWidth) / 2 : boxX + 2
+          const nipY = nameY - nameFontSize - 2.5
+          page.drawText(nipText, {
+            x: nipX,
+            y: nipY,
+            size: nipFontSize,
+            font: helvetica,
+            color: rgb(0.1, 0.1, 0.1),
+          })
+        } else {
+          // Hanya Nama saja jika tidak ada NIP
+          const nameX = isCenter ? boxX + (boxWidth - nameWidth) / 2 : boxX + 2
+          const nameY = centerY - nameFontSize / 3
+
+          page.drawText(nameText, {
+            x: nameX,
+            y: nameY,
+            size: nameFontSize,
+            font: helveticaBold,
+            color: rgb(0, 0, 0),
+          })
+
+          const underlineY = nameY - 1.8
+          page.drawLine({
+            start: { x: nameX, y: underlineY },
+            end: { x: nameX + nameWidth, y: underlineY },
+            thickness: 0.7,
+            color: rgb(0, 0, 0),
+          })
+        }
+        continue
+      }
+
+      // Prioritaskan spesimen dari signaturesMap per field ID, jika tidak ada baru gunakan fallback
+      const rawImageBase64 = (signaturesMap && signaturesMap[field.id]) || fallbackSignatureBase64
+
+      if (!rawImageBase64) continue
+
+      const embeddedImage = await getEmbeddedImage(rawImageBase64)
 
       // Aspect Ratio Protection
       const scale = Math.min(boxWidth / embeddedImage.width, boxHeight / embeddedImage.height)
@@ -173,9 +248,6 @@ export async function POST(req: Request) {
 
     const qrBase64 = qrCodeDataUrl.replace(/^data:image\/png;base64,/, '')
     const embeddedQrImage = await pdfDoc.embedPng(Buffer.from(qrBase64, 'base64'))
-
-    const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
-    const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica)
 
     // 📍 3. STAMPING STEMPEL AUDIT & QR VERIFIKASI (POSISI FLEKSIBEL SESUAI PLOT)
     const totalPages = pdfDoc.getPageCount()
