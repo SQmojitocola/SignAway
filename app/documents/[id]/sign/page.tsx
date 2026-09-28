@@ -139,69 +139,23 @@ export default function SignDocumentPage() {
   const recipientsList = useMemo(() => doc?.recipients || [], [doc?.recipients])
   const fieldsList = useMemo(() => doc?.fields || [], [doc?.fields])
 
-  useEffect(() => {
-    const checkProxyStatus = async () => {
-      try {
-        const res = await fetch(`/api/proxy-requests/check?documentId=${documentId}`)
-        if (res.ok) {
-          const data = await res.json()
-          if (data.approvedProxy) {
-            setApprovedProxy(data.approvedProxy)
-          }
-        }
-      } catch (err) {
-        console.error('Failed checking proxy status:', err)
-      }
-    }
-
-    checkProxyStatus()
-  }, [documentId])
-
-  const myRecipientInDoc = useMemo(() => {
-    if (!currentUserId) return null
-    return recipientsList.find(
-      (r) =>
-        r.user?.id === currentUserId ||
-        r.userId === currentUserId ||
-        (currentUserEmail && r.user?.email === currentUserEmail) ||
-        (approvedProxy && (r.user?.id === approvedProxy.targetUser.id || r.userId === approvedProxy.targetUser.id))
-    )
-  }, [recipientsList, currentUserId, currentUserEmail, approvedProxy])
-
-  // Semua Field milik user ini (atau milik target user yang diwakilkan via proxy)
-  const myFields = useMemo(() => {
-    return fieldsList.filter((field) => {
-      if (field.type === 'AUDIT_STAMP') return false
-      const recipient = recipientsList.find((r) => r.id === field.recipientId)
-      return (
-        field.recipientId === myRecipientInDoc?.id ||
-        (recipient?.user?.id || recipient?.userId) === currentUserId ||
-        (currentUserEmail && recipient?.user?.email === currentUserEmail) ||
-        (approvedProxy && ((recipient?.user?.id || recipient?.userId) === approvedProxy.targetUser.id))
-      )
-    })
-  }, [fieldsList, recipientsList, myRecipientInDoc, currentUserId, currentUserEmail, approvedProxy])
-
-  // Field Aktif yang Sedang Dipilih User di Sidebar
-  const activeField = useMemo(() => {
-    return myFields.find((f) => f.id === selectedFieldId) || myFields[0] || null
-  }, [myFields, selectedFieldId])
-
-  // Spesimen yang COCOK KETAT dengan Tipe Field Aktif (SIGNATURE vs PARAF)
-  const matchedSpecimens = useMemo(() => {
-    if (!activeField) return []
-    return userSpecimens.filter((s) => s.type === activeField.type)
-  }, [userSpecimens, activeField])
-
-  // Fetch data awal
+  // 1. Fetch data awal dokumen, user, spesimen, dan izin proxy secara bersamaan
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [docRes, userRes, specRes] = await Promise.all([
+        const [docRes, userRes, specRes, proxyRes] = await Promise.all([
           fetch(`/api/documents/${documentId}`),
           fetch('/api/users?me=true'),
-          fetch('/api/specimens'),
+          fetch(`/api/specimens?documentId=${documentId}`),
+          fetch(`/api/proxy-requests/check?documentId=${documentId}`),
         ])
+
+        if (proxyRes.ok) {
+          const proxyData = await proxyRes.json()
+          if (proxyData.approvedProxy) {
+            setApprovedProxy(proxyData.approvedProxy)
+          }
+        }
 
         if (docRes.ok && userRes.ok) {
           const docData = await docRes.json()
@@ -250,8 +204,78 @@ export default function SignDocumentPage() {
         setLoading(false)
       }
     }
+
     fetchData()
   }, [documentId])
+
+  // 2. Tentukan recipient aktif untuk sesi penandatanganan ini
+  const myRecipientInDoc = useMemo(() => {
+    if (!currentUserId) return null
+
+    // A. Prioritaskan recipient langsung milik user saat ini yang BELUM ditandatangani
+    const directUnsigned = recipientsList.find(
+      (r) =>
+        (r.user?.id === currentUserId ||
+          r.userId === currentUserId ||
+          (currentUserEmail && r.user?.email === currentUserEmail)) &&
+        r.status !== 'SIGNED' &&
+        r.status !== 'REJECTED'
+    )
+    if (directUnsigned) return directUnsigned
+
+    // B. Jika user sendiri tidak punya slot belum sign, cari slot target proxy yang BELUM ditandatangani
+    if (approvedProxy) {
+      const proxyUnsigned = recipientsList.find(
+        (r) =>
+          (r.user?.id === approvedProxy.targetUser.id || r.userId === approvedProxy.targetUser.id) &&
+          r.status !== 'SIGNED' &&
+          r.status !== 'REJECTED'
+      )
+      if (proxyUnsigned) return proxyUnsigned
+    }
+
+    // C. Fallback jika semua sudah SIGNED: ambil slot langsung user
+    const directFallback = recipientsList.find(
+      (r) =>
+        r.user?.id === currentUserId ||
+        r.userId === currentUserId ||
+        (currentUserEmail && r.user?.email === currentUserEmail)
+    )
+    if (directFallback) return directFallback
+
+    // D. Fallback target proxy
+    if (approvedProxy) {
+      return (
+        recipientsList.find(
+          (r) => r.user?.id === approvedProxy.targetUser.id || r.userId === approvedProxy.targetUser.id
+        ) || null
+      )
+    }
+
+    return null
+  }, [recipientsList, currentUserId, currentUserEmail, approvedProxy])
+
+  // 3. Semua Field yang menjadi kewajiban aktif penandatanganan pada sesi ini
+  const myFields = useMemo(() => {
+    if (!myRecipientInDoc || myRecipientInDoc.status === 'SIGNED' || myRecipientInDoc.status === 'REJECTED') {
+      return []
+    }
+    return fieldsList.filter((field) => {
+      if (field.type === 'AUDIT_STAMP') return false
+      return field.recipientId === myRecipientInDoc.id
+    })
+  }, [fieldsList, myRecipientInDoc])
+
+  // Field Aktif yang Sedang Dipilih User di Sidebar
+  const activeField = useMemo(() => {
+    return myFields.find((f) => f.id === selectedFieldId) || myFields[0] || null
+  }, [myFields, selectedFieldId])
+
+  // Spesimen yang COCOK KETAT dengan Tipe Field Aktif (SIGNATURE vs PARAF)
+  const matchedSpecimens = useMemo(() => {
+    if (!activeField) return []
+    return userSpecimens.filter((s) => s.type === activeField.type)
+  }, [userSpecimens, activeField])
 
   // Auto-select field pertama saat data dimuat
   useEffect(() => {
@@ -329,7 +353,8 @@ export default function SignDocumentPage() {
         const pdfjs = await import('pdfjs-dist/build/pdf.mjs')
         pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`
 
-        const pdf = await pdfjs.getDocument(doc.filePath).promise
+        const pdfUrl = doc.filePath.includes('?') ? `${doc.filePath}&t=${Date.now()}` : `${doc.filePath}?t=${Date.now()}`
+        const pdf = await pdfjs.getDocument(pdfUrl).promise
         const pages: Array<{ pageNumber: number; width: number; height: number }> = []
 
         for (let i = 1; i <= pdf.numPages; i++) {
@@ -926,11 +951,8 @@ export default function SignDocumentPage() {
                     }
 
                     const recipient = recipientsList.find((r) => r.id === field.recipientId)
-                    const isMine =
-                      field.recipientId === myRecipientInDoc?.id ||
-                      (recipient?.user?.id || recipient?.userId) === currentUserId ||
-                      (currentUserEmail && recipient?.user?.email === currentUserEmail)
                     const isSigned = recipient?.status === 'SIGNED'
+                    const isMine = myFields.some((f) => f.id === field.id)
                     const isParaf = field.type === 'PARAF'
                     const isSelectedPlot = selectedFieldId === field.id
                     const filledData = signaturesMap[field.id]
@@ -938,7 +960,7 @@ export default function SignDocumentPage() {
                     return (
                       <div
                         key={field.id}
-                        onClick={() => isMine && setSelectedFieldId(field.id)}
+                        onClick={() => !isSigned && isMine && setSelectedFieldId(field.id)}
                         style={{
                           position: 'absolute',
                           left: `${field.posX}px`,
@@ -946,14 +968,16 @@ export default function SignDocumentPage() {
                           width: `${field.width}px`,
                           height: `${field.height}px`,
                         }}
-                        className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-1 z-10 box-border select-none transition-all cursor-pointer ${
-                          isMine
+                        className={`flex flex-col items-center justify-center rounded-lg p-1 z-10 box-border select-none transition-all ${
+                          isSigned
+                            ? 'border border-emerald-500/40 bg-emerald-500/5 cursor-default'
+                            : isMine
                             ? isSelectedPlot
-                              ? 'border-blue-500 bg-blue-500/20 ring-4 ring-blue-500/30'
+                              ? 'border-2 border-dashed border-blue-500 bg-blue-500/20 ring-4 ring-blue-500/30 cursor-pointer'
                               : isParaf
-                              ? 'border-amber-500 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20'
-                              : 'border-emerald-500 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20'
-                            : 'border-blue-500 bg-blue-500/10 text-blue-500'
+                              ? 'border-2 border-dashed border-amber-500 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 cursor-pointer'
+                              : 'border-2 border-dashed border-emerald-500 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 cursor-pointer'
+                            : 'border-2 border-dashed border-slate-700/50 bg-slate-800/10 text-slate-500 cursor-not-allowed'
                         }`}
                       >
                         {filledData ? (
@@ -963,11 +987,12 @@ export default function SignDocumentPage() {
                             className="h-full w-full object-contain pointer-events-none select-none"
                           />
                         ) : isSigned ? (
-                          <div className="flex flex-col items-center opacity-40">
-                            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                            <span className="text-[8px] font-bold text-emerald-800 uppercase">
-                              {field.recipientName}
-                            </span>
+                          <div className="flex flex-col items-center justify-center p-1 w-full h-full pointer-events-none">
+                            <div className="flex items-center gap-1 text-emerald-700 font-bold text-[9px] bg-emerald-500/15 px-1.5 py-0.5 rounded border border-emerald-500/30 shadow-xs">
+                              <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
+                              <span className="truncate max-w-[120px] uppercase">{field.recipientName}</span>
+                            </div>
+                            <span className="text-[7.5px] font-semibold text-emerald-600/80 mt-0.5">Sudah Ditandatangani</span>
                           </div>
                         ) : (
                           <div className="flex flex-col items-center justify-center text-center overflow-hidden p-0.5 w-full h-full">
@@ -1003,52 +1028,62 @@ export default function SignDocumentPage() {
             </div>
           )}
 
-          {/* List Plot Milik User */}
+          {/* List Plot Milik User / Target Proxy */}
           <div className="space-y-2">
             <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-              Daftar Tugas Plot Anda ({myFields.length})
+              Daftar Tugas Plot {approvedProxy && myRecipientInDoc?.id !== currentUserId && myRecipientInDoc?.userId !== currentUserId ? `${approvedProxy.targetUser.name} (Wakil)` : 'Anda'} ({myFields.length})
             </h3>
 
-            <div className="grid gap-1.5">
-              {myFields.map((f, idx) => {
-                const isFilled = Boolean(signaturesMap[f.id])
-                const isSelected = selectedFieldId === f.id
-                return (
-                  <button
-                    key={f.id}
-                    type="button"
-                    onClick={() => setSelectedFieldId(f.id)}
-                    className={`flex items-center justify-between p-2 rounded-lg border text-xs font-semibold transition-all ${
-                      isSelected
-                        ? 'border-blue-500 bg-blue-950/40 text-white'
-                        : 'border-slate-800 bg-slate-900 text-slate-400 hover:bg-slate-800'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-[10px] text-slate-500">#{idx + 1}</span>
-                      <span>Hlm {f.pageNumber}</span>
-                      <span
-                        className={`text-[9px] px-1.5 py-0.5 rounded font-extrabold ${
-                          f.type === 'PARAF'
-                            ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                            : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                        }`}
-                      >
-                        {f.type}
-                      </span>
-                    </div>
+            {myFields.length === 0 ? (
+              <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 text-center space-y-2">
+                <CheckCircle2 className="h-8 w-8 text-emerald-400 mx-auto" />
+                <p className="text-xs font-bold text-slate-200">Tidak Ada Tugas Plot Aktif</p>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Semua plot yang menjadi kewajiban Anda pada dokumen ini telah selesai ditandatangani.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-1.5">
+                {myFields.map((f, idx) => {
+                  const isFilled = Boolean(signaturesMap[f.id])
+                  const isSelected = selectedFieldId === f.id
+                  return (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setSelectedFieldId(f.id)}
+                      className={`flex items-center justify-between p-2 rounded-lg border text-xs font-semibold transition-all ${
+                        isSelected
+                          ? 'border-blue-500 bg-blue-950/40 text-white'
+                          : 'border-slate-800 bg-slate-900 text-slate-400 hover:bg-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-[10px] text-slate-500">#{idx + 1}</span>
+                        <span>Hlm {f.pageNumber}</span>
+                        <span
+                          className={`text-[9px] px-1.5 py-0.5 rounded font-extrabold ${
+                            f.type === 'PARAF'
+                              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                              : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                          }`}
+                        >
+                          {f.type}
+                        </span>
+                      </div>
 
-                    {isFilled ? (
-                      <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-bold">
-                        <Check className="h-3 w-3" /> Terisi
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-amber-400 font-bold">Belum</span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
+                      {isFilled ? (
+                        <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-bold">
+                          <Check className="h-3 w-3" /> Terisi
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-amber-400 font-bold">Belum</span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {/* Area Pengisian TTD / Paraf */}

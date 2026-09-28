@@ -294,6 +294,22 @@ export async function POST(req: Request) {
         where: { documentId: document.id, status: { not: 'SIGNED' } },
       })
 
+      if (remainingWaiters > 0) {
+        const nextPendingRecipient = await tx.documentRecipient.findFirst({
+          where: {
+            documentId: document.id,
+            status: 'PENDING',
+          },
+          orderBy: { signingOrder: 'asc' },
+        })
+        if (nextPendingRecipient) {
+          await tx.documentRecipient.update({
+            where: { id: nextPendingRecipient.id },
+            data: { status: 'WAITING' },
+          })
+        }
+      }
+
       const newDocStatus = remainingWaiters === 0 ? 'COMPLETED' : 'PARTIAL_SIGNED'
 
       await tx.document.update({

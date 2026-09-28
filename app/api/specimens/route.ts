@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
-// GET: Ambil semua spesimen milik user (TTD & Paraf) + migrasi otomatis spesimen lama
-export async function GET() {
+// GET: Ambil semua spesimen milik user (TTD & Paraf) + migrasi otomatis spesimen lama (atau spesimen target proxy jika ada)
+export async function GET(req: Request) {
   try {
     const session = await auth()
     if (!session?.user?.id) {
@@ -11,10 +11,29 @@ export async function GET() {
     }
 
     const userId = session.user.id
+    const { searchParams } = new URL(req.url)
+    const documentId = searchParams.get('documentId')
+
+    let targetUserId = userId
+    let isProxySession = false
+
+    if (documentId) {
+      const approvedProxy = await prisma.proxySignRequest.findFirst({
+        where: {
+          documentId,
+          requestedById: userId,
+          status: 'APPROVED',
+        },
+      })
+      if (approvedProxy) {
+        targetUserId = approvedProxy.targetUserId
+        isProxySession = true
+      }
+    }
 
     // Ambil user beserta specimens
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: targetUserId },
       include: { specimens: { orderBy: { createdAt: 'desc' } } },
     })
 
@@ -35,7 +54,18 @@ export async function GET() {
       user.specimens = [legacySpecimen]
     }
 
-    return NextResponse.json({ specimens: user.specimens })
+    let resultSpecimens = user.specimens
+
+    // Jika ini sesi proxy dan target user belum punya spesimen, fallback sertakan juga spesimen user saat ini
+    if (isProxySession && resultSpecimens.length === 0) {
+      const ownSpecimens = await prisma.userSpecimen.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+      })
+      resultSpecimens = ownSpecimens
+    }
+
+    return NextResponse.json({ specimens: resultSpecimens })
   } catch (error) {
     console.error('Fetch specimens error:', error)
     return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 })
