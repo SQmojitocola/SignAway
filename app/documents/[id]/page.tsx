@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, XCircle, Download, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, XCircle, Download, CheckCircle2, ShieldAlert, ShieldCheck, Clock, PenTool } from 'lucide-react'
+import ProxyRequestModal from '@/components/document/ProxyRequestModal'
 
 interface Recipient {
   id: string
@@ -51,17 +52,45 @@ export default function DocumentDetailPage() {
     Array<{ pageNumber: number; width: number; height: number }>
   >([])
 
+  const [currentUser, setCurrentUser] = useState<{ id: string; name: string; email: string } | null>(null)
+  const [proxyInfo, setProxyInfo] = useState<{
+    approvedProxy: { id: string; targetUser: { id: string; name: string } } | null
+    latestRequest: { id: string; status: string; rejectionNote?: string | null; targetUser: { id: string; name: string } } | null
+  } | null>(null)
+  const [showProxyModal, setShowProxyModal] = useState(false)
+  const [defaultTargetUserId, setDefaultTargetUserId] = useState<string | undefined>(undefined)
+
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({})
 
+  const fetchDocAndProxy = async () => {
+    try {
+      const [docRes, userRes, proxyRes] = await Promise.all([
+        fetch(`/api/documents/${documentId}`),
+        fetch('/api/users?me=true'),
+        fetch(`/api/proxy-requests/check?documentId=${documentId}`),
+      ])
+
+      if (docRes.ok) {
+        const data = await docRes.json()
+        setDoc(data.document || data)
+      }
+      if (userRes.ok) {
+        const uData = await userRes.json()
+        setCurrentUser(uData.user || uData)
+      }
+      if (proxyRes.ok) {
+        const pData = await proxyRes.json()
+        setProxyInfo(pData)
+      }
+    } catch (err) {
+      console.error('Fetch error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    fetch(`/api/documents/${documentId}`)
-      .then((res) => res.json())
-      .then((data) => {
-        const rawDoc = data.document || data
-        setDoc(rawDoc)
-      })
-      .catch((err) => console.error('Fetch error:', err))
-      .finally(() => setLoading(false))
+    fetchDocAndProxy()
   }, [documentId])
 
   useEffect(() => {
@@ -169,19 +198,52 @@ export default function DocumentDetailPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-slate-400">STATUS:</span>
-          <span
-            className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
-              isRejected
-                ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                : isCompleted
-                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-            }`}
-          >
-            {isRejected ? 'DITOLAK' : doc.status}
-          </span>
+        <div className="flex items-center gap-3">
+          {!isCompleted && !isRejected && (
+            proxyInfo?.approvedProxy ? (
+              <button
+                type="button"
+                onClick={() => router.push(`/documents/${documentId}/sign`)}
+                className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-blue-500 shadow-md transition-colors cursor-pointer"
+              >
+                <PenTool className="h-3.5 w-3.5" /> Tanda Tangani (Kuasa)
+              </button>
+            ) : doc.recipients?.some((r) => r.user?.id === currentUser?.id && (r.status === 'WAITING' || r.status === 'PENDING')) ? (
+              <button
+                type="button"
+                onClick={() => router.push(`/documents/${documentId}/sign`)}
+                className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-500 shadow-md transition-colors cursor-pointer"
+              >
+                <PenTool className="h-3.5 w-3.5" /> Tanda Tangani Dokumen
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setDefaultTargetUserId(undefined)
+                  setShowProxyModal(true)
+                }}
+                className="flex items-center gap-1.5 rounded-xl border border-blue-500/40 bg-blue-950/30 px-3 py-1.5 text-xs font-bold text-blue-300 hover:bg-blue-900/40 transition-colors cursor-pointer"
+              >
+                <ShieldAlert className="h-3.5 w-3.5 text-amber-400" /> Ajukan Proxy TTD
+              </button>
+            )
+          )}
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-semibold text-slate-400">STATUS:</span>
+            <span
+              className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
+                isRejected
+                  ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                  : isCompleted
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                  : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+              }`}
+            >
+              {isRejected ? 'DITOLAK' : doc.status}
+            </span>
+          </div>
         </div>
       </header>
 
@@ -224,6 +286,53 @@ export default function DocumentDetailPage() {
         </main>
 
         <aside className="w-80 border-l border-slate-800 bg-slate-950 p-5 flex flex-col gap-4 shrink-0 overflow-y-auto">
+          {/* Banner Status Izin Proxy */}
+          {proxyInfo?.approvedProxy ? (
+            <div className="rounded-xl border border-blue-500/40 bg-blue-950/40 p-3.5 space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-blue-400">
+                <ShieldCheck className="h-4 w-4 shrink-0 text-blue-400" /> Izin Perwakilan Aktif
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                Anda disetujui mewakili <strong>{proxyInfo.approvedProxy.targetUser.name}</strong> untuk menandatangani dokumen ini.
+              </p>
+              <button
+                type="button"
+                onClick={() => router.push(`/documents/${documentId}/sign`)}
+                className="flex items-center justify-center gap-1.5 w-full rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-2 text-xs font-bold text-white shadow-sm transition-colors cursor-pointer"
+              >
+                <PenTool className="h-3.5 w-3.5" /> Tanda Tangani Sekarang
+              </button>
+            </div>
+          ) : proxyInfo?.latestRequest?.status === 'PENDING' ? (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-950/30 p-3.5 space-y-1.5">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-amber-400">
+                <Clock className="h-4 w-4 shrink-0" /> Pengajuan Proxy Menunggu
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                Permohonan mewakili <strong>{proxyInfo.latestRequest.targetUser.name}</strong> sedang menunggu persetujuan Administrator.
+              </p>
+            </div>
+          ) : proxyInfo?.latestRequest?.status === 'REJECTED' ? (
+            <div className="rounded-xl border border-rose-500/30 bg-rose-950/30 p-3.5 space-y-1.5">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-rose-400">
+                <XCircle className="h-4 w-4 shrink-0" /> Pengajuan Proxy Ditolak
+              </div>
+              <p className="text-[11px] text-slate-300">
+                {proxyInfo.latestRequest.rejectionNote || 'Ditolak oleh Administrator.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setDefaultTargetUserId(undefined)
+                  setShowProxyModal(true)
+                }}
+                className="text-[10px] text-rose-300 hover:underline font-bold pt-1 cursor-pointer"
+              >
+                Ajukan Ulang Permohonan
+              </button>
+            </div>
+          ) : null}
+
           {isRejected && (
             <div className="rounded-xl border border-red-500/30 bg-red-950/40 p-4 space-y-2">
               <div className="flex items-center gap-2 text-xs font-bold text-red-400">
@@ -242,34 +351,83 @@ export default function DocumentDetailPage() {
           )}
 
           <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 space-y-3">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-              Riwayat Penandatanganan
-            </h3>
-            {doc.recipients?.map((r, idx) => (
-              <div
-                key={r.id}
-                className="flex items-center justify-between border-b border-slate-800/50 pb-2 last:border-0 last:pb-0"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-[10px] text-slate-500">#{idx + 1}</span>
-                  <div>
-                    <p className="text-xs font-medium text-slate-300">{r.user?.name}</p>
-                    <p className="text-[9px] text-slate-500">{r.user?.email}</p>
+            <div className="flex items-center justify-between">
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                Riwayat Penandatanganan
+              </h3>
+              {!isCompleted && !isRejected && !proxyInfo?.approvedProxy && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDefaultTargetUserId(undefined)
+                    setShowProxyModal(true)
+                  }}
+                  className="text-[9px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-0.5 cursor-pointer"
+                >
+                  <ShieldAlert className="h-3 w-3 text-amber-400" /> Ajukan Proxy
+                </button>
+              )}
+            </div>
+
+            {doc.recipients?.map((r, idx) => {
+              const isTargetOfApprovedProxy = proxyInfo?.approvedProxy?.targetUser.id === r.user?.id
+              const canRequestProxyForThis =
+                !isCompleted &&
+                !isRejected &&
+                (r.status === 'WAITING' || r.status === 'PENDING') &&
+                currentUser &&
+                r.user?.id !== currentUser.id &&
+                !isTargetOfApprovedProxy
+
+              return (
+                <div
+                  key={r.id}
+                  className="flex items-center justify-between border-b border-slate-800/50 pb-2.5 last:border-0 last:pb-0"
+                >
+                  <div className="flex items-center gap-2 min-w-0 pr-2">
+                    <span className="font-mono text-[10px] text-slate-500 shrink-0">#{idx + 1}</span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-slate-300 truncate">{r.user?.name}</p>
+                      <p className="text-[9px] text-slate-500 truncate">{r.user?.email}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {isTargetOfApprovedProxy && (
+                      <span className="text-[9px] font-bold text-blue-400 bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-500/30">
+                        Diwakili Anda
+                      </span>
+                    )}
+
+                    {canRequestProxyForThis && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDefaultTargetUserId(r.user?.id)
+                          setShowProxyModal(true)
+                        }}
+                        title={`Ajukan izin untuk mewakili tanda tangan ${r.user?.name}`}
+                        className="flex items-center gap-1 rounded bg-slate-800/90 px-1.5 py-0.5 text-[9px] font-bold text-blue-400 hover:bg-slate-700 hover:text-blue-300 border border-slate-700 transition-colors cursor-pointer"
+                      >
+                        <ShieldAlert className="h-2.5 w-2.5 text-amber-400" /> Mewakili
+                      </button>
+                    )}
+
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                        r.status === 'SIGNED'
+                          ? 'bg-emerald-500/10 text-emerald-400'
+                          : r.status === 'REJECTED'
+                          ? 'bg-red-500/10 text-red-400'
+                          : 'bg-slate-800 text-slate-500'
+                      }`}
+                    >
+                      {r.status}
+                    </span>
                   </div>
                 </div>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
-                    r.status === 'SIGNED'
-                      ? 'bg-emerald-500/10 text-emerald-400'
-                      : r.status === 'REJECTED'
-                      ? 'bg-red-500/10 text-red-400'
-                      : 'bg-slate-800 text-slate-500'
-                  }`}
-                >
-                  {r.status}
-                </span>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
           {isCompleted && (
@@ -284,7 +442,7 @@ export default function DocumentDetailPage() {
                 type="button"
                 disabled={downloading}
                 onClick={handleDownload}
-                className="flex items-center justify-center gap-2 w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 py-2.5 text-xs font-bold text-white transition-all shadow-lg shadow-emerald-950/50 disabled:opacity-50"
+                className="flex items-center justify-center gap-2 w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 py-2.5 text-xs font-bold text-white transition-all shadow-lg shadow-emerald-950/50 disabled:opacity-50 cursor-pointer"
               >
                 <Download className="h-4 w-4" />
                 {downloading ? 'Mengunduh...' : 'Unduh Dokumen (PDF)'}
@@ -293,6 +451,19 @@ export default function DocumentDetailPage() {
           )}
         </aside>
       </div>
+
+      {/* Modal Pengajuan Proxy */}
+      {doc && (
+        <ProxyRequestModal
+          isOpen={showProxyModal}
+          onClose={() => setShowProxyModal(false)}
+          documentId={doc.id}
+          documentTitle={doc.title}
+          defaultTargetUserId={defaultTargetUserId}
+          recipients={doc.recipients}
+          onSuccess={fetchDocAndProxy}
+        />
+      )}
     </div>
   )
 }

@@ -18,8 +18,10 @@ import {
   Square,
   Sparkles,
   ShieldCheck,
+  ShieldAlert,
   QrCode,
 } from 'lucide-react'
+import ProxyRequestModal from '@/components/document/ProxyRequestModal'
 
 interface Field {
   id: string
@@ -124,6 +126,9 @@ export default function SignDocumentPage() {
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
   const [rejecting, setRejecting] = useState(false)
+
+  // Modal Pengajuan Proxy
+  const [showProxyModal, setShowProxyModal] = useState(false)
 
   const [pdfPages, setPdfPages] = useState<Array<{ pageNumber: number; width: number; height: number }>>([])
 
@@ -1334,14 +1339,23 @@ export default function SignDocumentPage() {
               )}
             </div>
           ) : (
-            <div className="rounded-xl border border-amber-900/30 bg-amber-950/20 p-4">
-              <p className="text-xs text-amber-200/70">
+            <div className="rounded-xl border border-amber-900/30 bg-amber-950/20 p-4 space-y-3">
+              <p className="text-xs text-amber-200/80 leading-relaxed">
                 {!myRecipientInDoc
-                  ? 'Anda tidak terdaftar sebagai penandatangan pada dokumen ini.'
+                  ? 'Anda belum terdaftar sebagai penandatangan aktif pada dokumen ini. Jika pejabat/karyawan yang bersangkutan berhalangan, Anda dapat mengajukan izin perwakilan (proxy) kepada Administrator.'
                   : myRecipientInDoc.status === 'SIGNED'
                   ? 'Anda telah selesai menandatangani dokumen ini.'
                   : 'Belum giliran Anda untuk menandatangani dokumen ini.'}
               </p>
+              {!myRecipientInDoc && doc && (
+                <button
+                  type="button"
+                  onClick={() => setShowProxyModal(true)}
+                  className="flex items-center justify-center gap-1.5 w-full rounded-xl bg-blue-600 hover:bg-blue-500 px-3 py-2 text-xs font-bold text-white shadow-md transition-all cursor-pointer"
+                >
+                  <ShieldAlert className="h-4 w-4 text-amber-300" /> Ajukan Izin Mewakili (Proxy)
+                </button>
+              )}
             </div>
           )}
 
@@ -1382,6 +1396,20 @@ export default function SignDocumentPage() {
           </div>
         </aside>
       </div>
+
+      {/* Modal Pengajuan Proxy */}
+      {doc && (
+        <ProxyRequestModal
+          isOpen={showProxyModal}
+          onClose={() => setShowProxyModal(false)}
+          documentId={doc.id}
+          documentTitle={doc.title}
+          recipients={doc.recipients}
+          onSuccess={() => {
+            window.location.reload()
+          }}
+        />
+      )}
     </div>
   )
 }

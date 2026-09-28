@@ -16,13 +16,13 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Document ID diperlukan' }, { status: 400 })
     }
 
-    // Cek apakah ada pengajuan proxy APPROVED di mana pemohonnya adalah user yang sedang login
-    const approvedProxy = await prisma.proxySignRequest.findFirst({
+    // Cek permohonan proxy terbaru dari user ini untuk dokumen ini
+    const latestRequest = await prisma.proxySignRequest.findFirst({
       where: {
         documentId,
         requestedById: session.user.id,
-        status: 'APPROVED',
       },
+      orderBy: { createdAt: 'desc' },
       include: {
         targetUser: {
           select: {
@@ -36,7 +36,12 @@ export async function GET(req: Request) {
       },
     })
 
-    return NextResponse.json({ approvedProxy })
+    const approvedProxy = latestRequest?.status === 'APPROVED' ? latestRequest : null
+
+    return NextResponse.json({
+      approvedProxy,
+      latestRequest,
+    })
   } catch (error) {
     console.error('Error checking proxy status:', error)
     return NextResponse.json({ error: 'Gagal memeriksa status proxy' }, { status: 500 })
