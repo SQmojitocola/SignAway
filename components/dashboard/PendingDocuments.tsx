@@ -281,9 +281,19 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <p className="font-bold text-slate-800">{doc.title}</p>
                               {doc.proxyRequests && doc.proxyRequests.length > 0 && (
-                                <span className="text-[9px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded border border-blue-200">
-                                  Delegasi TTD
-                                </span>
+                                doc.proxyRequests.some((p) => p.status === 'APPROVED') ? (
+                                  <span className="text-[9px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded border border-blue-200">
+                                    Wakil Resmi (Proxy)
+                                  </span>
+                                ) : doc.proxyRequests.some((p) => p.status === 'PENDING') ? (
+                                  <span className="text-[9px] bg-amber-100 text-amber-700 font-bold px-1.5 py-0.5 rounded border border-amber-200">
+                                    Proxy Menunggu Approval
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] bg-red-100 text-red-700 font-bold px-1.5 py-0.5 rounded border border-red-200">
+                                    Proxy Ditolak
+                                  </span>
+                                )
                               )}
                             </div>
                             <p className="text-[10px] text-slate-400">ID: {doc.id.substring(0, 8)}</p>
@@ -331,14 +341,21 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
                         <button
                           onClick={() => {
                             markDocAsSeen(doc.id)
-                            const targetPath = selectedCategory === 'waiting'
+                            const hasApprovedProxy = doc.proxyRequests?.some((p) => p.status === 'APPROVED')
+                            const isDirectSigner = doc.recipients.some(
+                              (r) => r.user.id === userId && (r.status === 'WAITING' || r.status === 'PENDING')
+                            )
+                            const canSign = isDirectSigner || hasApprovedProxy
+                            const targetPath = selectedCategory === 'waiting' && canSign
                               ? `/documents/${doc.id}/sign`
                               : `/documents/${doc.id}`
                             router.push(targetPath)
                           }}
                           className="px-4 py-2 bg-[#1e4273] hover:bg-blue-900 text-white font-semibold rounded-xl text-xs transition-colors"
                         >
-                          {selectedCategory === 'waiting' ? 'Tanda Tangani' : 'Lihat Detail'}
+                          {selectedCategory === 'waiting' && (doc.recipients.some((r) => r.user.id === userId && (r.status === 'WAITING' || r.status === 'PENDING')) || doc.proxyRequests?.some((p) => p.status === 'APPROVED'))
+                            ? 'Tanda Tangani'
+                            : 'Lihat Detail'}
                         </button>
                       </td>
                     </tr>

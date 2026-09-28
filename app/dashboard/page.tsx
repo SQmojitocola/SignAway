@@ -40,7 +40,7 @@ export default async function DashboardPage() {
       OR: [
         { senderId: user.id },
         { recipients: { some: { userId: user.id } } },
-        { proxyRequests: { some: { requestedById: user.id, status: 'APPROVED' } } },
+        { proxyRequests: { some: { requestedById: user.id } } },
       ],
     },
     orderBy: { createdAt: "desc" },
@@ -60,7 +60,7 @@ export default async function DashboardPage() {
         },
       },
       proxyRequests: {
-        where: { requestedById: user.id, status: 'APPROVED' },
+        where: { requestedById: user.id },
         select: {
           id: true,
           requestedById: true,
