@@ -1,14 +1,12 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import Link from "next/link";
 import MaterialIcon from "@/components/ui/MaterialIcon";
 
 export default function SettingsPage() {
   const [profileName, setProfileName] = useState("");
   const [profileEmail, setProfileEmail] = useState("");
   const [profileRole, setProfileRole] = useState("");
-  const [primarySignature, setPrimarySignature] = useState<string | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
@@ -38,11 +36,6 @@ export default function SettingsPage() {
         setProfileName(data.user?.name ?? "");
         setProfileEmail(data.user?.email ?? "");
         setProfileRole(data.user?.role ?? "KARYAWAN");
-        const primary =
-          data.user?.specimens?.[0]?.imageUrl ||
-          data.user?.signatureSpecimen ||
-          null;
-        setPrimarySignature(primary);
       })
       .catch(() => setProfileError("Profil tidak dapat dimuat"))
       .finally(() => setProfileLoading(false));
@@ -322,7 +315,7 @@ export default function SettingsPage() {
                     <MaterialIcon name="fingerprint" className="text-[#003b73]" />
                     Tanda Tangan Digital
                   </h3>
-                  <p className="text-xs text-gray-500 mt-0.5">Spesimen tanda tangan digital yang terhubung dengan akun Anda.</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Atur dan kelola spesimen tanda tangan digital Anda.</p>
                 </div>
               </div>
 
@@ -330,33 +323,44 @@ export default function SettingsPage() {
                 <div className="border border-gray-200 rounded-xl p-5 bg-[#fafbfd] flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-xs font-semibold text-gray-700">Spesimen Utama Terpasang</span>
+                      <span className="text-xs font-semibold text-gray-700">Spesimen Tersimpan</span>
                       <MaterialIcon name="draw" size={18} className="text-[#003b73]" />
                     </div>
-                    <div className="h-36 bg-white rounded-lg border border-dashed border-gray-300 flex flex-col items-center justify-center p-3 relative overflow-hidden">
-                      {primarySignature ? (
-                        <img 
-                          src={primarySignature} 
-                          alt="Spesimen Tanda Tangan" 
-                          className="max-h-28 max-w-full object-contain"
-                        />
-                      ) : (
-                        <div className="text-center text-gray-400">
-                          <MaterialIcon name="draw" size={32} className="mx-auto mb-1 opacity-50" />
-                          <p className="text-xs">Belum ada spesimen tanda tangan utama tersimpan.</p>
-                        </div>
-                      )}
+                    <div className="h-32 bg-white rounded-lg border border-dashed border-gray-300 flex flex-col items-center justify-center p-3 relative overflow-hidden">
+                      <svg className="w-44 h-16 text-[#003b73]" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" viewBox="0 0 200 80">
+                        <path d="M 20 50 C 45 20, 60 70, 75 40 C 90 10, 95 65, 120 45 C 145 25, 140 60, 160 30 C 175 10, 185 45, 190 35"></path>
+                        <path d="M 50 65 L 175 55" strokeWidth="1.5"></path>
+                      </svg>
+                      <span className="text-[10px] font-mono text-gray-400 absolute bottom-1.5 right-2">SHA256: 9b7a...3c41</span>
                     </div>
                   </div>
 
-                  <div className="mt-4 flex flex-col sm:flex-row gap-3">
-                    <Link
-                      href="/specimens"
-                      className="flex-1 bg-white hover:bg-gray-50 border border-gray-200 text-[#003b73] text-xs font-semibold py-2.5 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors text-center"
-                    >
+                  <div className="mt-4 flex flex-col gap-2">
+                    <button type="button" className="w-full bg-white hover:bg-gray-50 border border-gray-200 text-[#003b73] text-xs font-semibold py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors">
                       <MaterialIcon name="draw" size={16} />
-                      Kelola Spesimen di Halaman Atribut Pengesahan
-                    </Link>
+                      Perbarui Tanda Tangan
+                    </button>
+                    <button type="button" className="w-full bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-semibold py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors">
+                      <MaterialIcon name="pin" size={16} />
+                      Atur Ulang PIN Tanda Tangan
+                    </button>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-gray-100">
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={otpRequired}
+                        onChange={(e) => setOtpRequired(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#003b73] focus:ring-[#003b73]" 
+                      />
+                      <div>
+                        <span className="text-xs font-semibold text-gray-900 block">Wajibkan verifikasi OTP saat menandatangani dokumen penting</span>
+                        <span className="text-[11px] text-gray-500">
+                          Sistem akan mengirimkan kode verifikasi 6-digit ke WhatsApp/SMS terdaftar untuk setiap transaksi penandatanganan dokumen legal dan kontrak.
+                        </span>
+                      </div>
+                    </label>
                   </div>
                 </div>
               </div>
