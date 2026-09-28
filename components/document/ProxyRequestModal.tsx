@@ -15,6 +15,13 @@ interface ProxyRequestModalProps {
   onClose: () => void
   documentId: string
   documentTitle: string
+  defaultTargetUserId?: string
+  recipients?: Array<{
+    id: string
+    userId?: string
+    status?: string
+    user: { id: string; name: string; email?: string; department?: string | null }
+  }>
   onSuccess?: () => void
 }
 
@@ -23,14 +30,22 @@ export default function ProxyRequestModal({
   onClose,
   documentId,
   documentTitle,
+  defaultTargetUserId,
+  recipients,
   onSuccess,
 }: ProxyRequestModalProps) {
   const [users, setUsers] = useState<UserOption[]>([])
-  const [targetUserId, setTargetUserId] = useState('')
+  const [targetUserId, setTargetUserId] = useState(defaultTargetUserId || '')
   const [reason, setReason] = useState('')
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+
+  useEffect(() => {
+    if (defaultTargetUserId) {
+      setTargetUserId(defaultTargetUserId)
+    }
+  }, [defaultTargetUserId])
 
   // Ambil daftar karyawan untuk dipilih siapa yang ingin diwakilkan TTD-nya
   useEffect(() => {
@@ -139,6 +154,27 @@ export default function ProxyRequestModal({
               <option value="">-- Pilih Pejabat / Karyawan --</option>
               {loadingUsers ? (
                 <option disabled>Memuat data karyawan...</option>
+              ) : recipients && recipients.length > 0 ? (
+                <>
+                  <optgroup label="Penandatangan Dokumen Ini">
+                    {recipients
+                      .filter((r) => r.status !== 'SIGNED' && r.status !== 'REJECTED')
+                      .map((r) => (
+                        <option key={r.user.id} value={r.user.id}>
+                          {r.user.name} ({r.user.department || 'Penandatangan'} - {r.status || 'Menunggu'})
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="Pengguna Lainnya">
+                    {users
+                      .filter((u) => !recipients.some((r) => r.user.id === u.id))
+                      .map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} ({u.department || 'Umum'})
+                        </option>
+                      ))}
+                  </optgroup>
+                </>
               ) : (
                 users.map((u) => (
                   <option key={u.id} value={u.id}>
