@@ -21,6 +21,8 @@ export async function GET(req: Request) {
           name: true,
           email: true,
           role: true,
+          nip: true,
+          department: true,
           signatureSpecimen: true,
           specimens: {
             where: { isPrimary: true, type: 'SIGNATURE' },
@@ -41,6 +43,8 @@ export async function GET(req: Request) {
         id: true,
         name: true,
         email: true,
+        nip: true,
+        department: true,
       },
     })
 
@@ -62,9 +66,10 @@ export async function PUT(req: Request) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
     }
 
-    const { name, email } = await req.json()
+    const { name, email, nip } = await req.json()
     const normalizedName = typeof name === 'string' ? name.trim() : ''
     const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : ''
+    const normalizedNip = typeof nip === 'string' ? nip.trim() : undefined
 
     if (!normalizedName || !normalizedEmail) {
       return NextResponse.json({ message: 'Nama dan email wajib diisi' }, { status: 400 })
@@ -82,10 +87,27 @@ export async function PUT(req: Request) {
       return NextResponse.json({ message: 'Email sudah digunakan pengguna lain' }, { status: 409 })
     }
 
+    if (normalizedNip) {
+      const existingNip = await prisma.user.findFirst({
+        where: {
+          nip: normalizedNip,
+          NOT: { id: session.user.id },
+        },
+        select: { id: true },
+      })
+      if (existingNip) {
+        return NextResponse.json({ message: 'NIP/NIK sudah digunakan oleh pengguna lain' }, { status: 409 })
+      }
+    }
+
     const user = await prisma.user.update({
       where: { id: session.user.id },
-      data: { name: normalizedName, email: normalizedEmail },
-      select: { id: true, name: true, email: true },
+      data: {
+        name: normalizedName,
+        email: normalizedEmail,
+        ...(normalizedNip !== undefined ? { nip: normalizedNip || null } : {}),
+      },
+      select: { id: true, name: true, email: true, nip: true, department: true },
     })
 
     return NextResponse.json({ user }, { status: 200 })

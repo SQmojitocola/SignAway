@@ -1312,9 +1312,15 @@ export default function DocumentFieldPlottingPage() {
                             <span className="font-bold tracking-wide uppercase underline text-slate-900 truncate max-w-full">
                               {field.recipientName.replace(' (Saya)', '')}
                             </span>
-                            <span className="font-semibold text-slate-700 font-mono tracking-tight mt-0.5 text-[0.9em] truncate max-w-full">
-                              {field.recipientNip || '1751103'}
-                            </span>
+                            {field.recipientNip ? (
+                              <span className="font-semibold text-slate-700 font-mono tracking-tight mt-0.5 text-[0.9em] truncate max-w-full">
+                                {field.recipientNip}
+                              </span>
+                            ) : (
+                              <span className="italic text-amber-600 font-medium tracking-tight mt-0.5 text-[0.75em] truncate max-w-full">
+                                (NIK belum diatur)
+                              </span>
+                            )}
                           </div>
 
                           {/* Indikator Koordinat Real-Time saat Terpilih */}
@@ -1751,6 +1757,25 @@ export default function DocumentFieldPlottingPage() {
                         <li>NIK tercetak di bawah nama (angka saja)</li>
                       </ul>
                     </div>
+
+                    {/* Peringatan jika NIK belum diisi di profil penandatangan */}
+                    {(() => {
+                      const fieldRecipient = recipients.find((r) => r.id === selectedField.recipientId)
+                      if (!fieldRecipient?.nip) {
+                        return (
+                          <div className="rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-[10px] text-amber-800 flex items-start gap-2">
+                            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-semibold text-amber-900">NIK Belum Terdaftar di Profil</p>
+                              <p className="mt-0.5 leading-relaxed text-amber-800">
+                                Akun <strong>{fieldRecipient?.name || 'penandatangan'}</strong> belum memiliki NIK/NIP di profil akunnya. NIK tidak akan tercetak di PDF jika data profil kosong. Silakan lengkapi NIP/NIK melalui menu <em>Pengaturan Profil</em>.
+                              </p>
+                            </div>
+                          </div>
+                        )
+                      }
+                      return null
+                    })()}
                   </div>
                 )}
               </div>
