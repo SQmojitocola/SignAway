@@ -89,6 +89,75 @@ interface PendingClickPlot {
 
 const PDF_VIEWPORT_SCALE = 1.25
 
+interface RecipientColorTheme {
+  border: string
+  bg: string
+  selectedBorder: string
+  selectedBg: string
+  ring: string
+  badgeBg: string
+  text: string
+  icon: string
+}
+
+const RECIPIENT_COLOR_THEMES: RecipientColorTheme[] = [
+  {
+    border: 'border-blue-500',
+    bg: 'bg-blue-50/70',
+    selectedBorder: 'border-blue-600',
+    selectedBg: 'bg-blue-50/90',
+    ring: 'ring-blue-400',
+    badgeBg: 'bg-[#1e4273]',
+    text: 'text-blue-800',
+    icon: 'text-blue-600',
+  },
+  {
+    border: 'border-emerald-500',
+    bg: 'bg-emerald-50/70',
+    selectedBorder: 'border-emerald-600',
+    selectedBg: 'bg-emerald-50/90',
+    ring: 'ring-emerald-400',
+    badgeBg: 'bg-emerald-700',
+    text: 'text-emerald-800',
+    icon: 'text-emerald-600',
+  },
+  {
+    border: 'border-purple-500',
+    bg: 'bg-purple-50/70',
+    selectedBorder: 'border-purple-600',
+    selectedBg: 'bg-purple-50/90',
+    ring: 'ring-purple-400',
+    badgeBg: 'bg-purple-700',
+    text: 'text-purple-800',
+    icon: 'text-purple-600',
+  },
+  {
+    border: 'border-rose-500',
+    bg: 'bg-rose-50/70',
+    selectedBorder: 'border-rose-600',
+    selectedBg: 'bg-rose-50/90',
+    ring: 'ring-rose-400',
+    badgeBg: 'bg-rose-700',
+    text: 'text-rose-800',
+    icon: 'text-rose-600',
+  },
+  {
+    border: 'border-indigo-500',
+    bg: 'bg-indigo-50/70',
+    selectedBorder: 'border-indigo-600',
+    selectedBg: 'bg-indigo-50/90',
+    ring: 'ring-indigo-400',
+    badgeBg: 'bg-indigo-700',
+    text: 'text-indigo-800',
+    icon: 'text-indigo-600',
+  },
+]
+
+function getRecipientTheme(idx: number): RecipientColorTheme {
+  if (idx < 0) return RECIPIENT_COLOR_THEMES[0]
+  return RECIPIENT_COLOR_THEMES[idx % RECIPIENT_COLOR_THEMES.length]
+}
+
 export default function DocumentFieldPlottingPage() {
   const router = useRouter()
   const params = useParams()
@@ -118,6 +187,11 @@ export default function DocumentFieldPlottingPage() {
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const fieldElementsRef = useRef<Record<string, HTMLDivElement | null>>({})
   const interactionRef = useRef<FieldInteraction | null>(null)
+  const fieldsRef = useRef(fields)
+
+  useEffect(() => {
+    fieldsRef.current = fields
+  }, [fields])
 
   // 1. Render PDF.js Viewport
   useEffect(() => {
@@ -315,6 +389,20 @@ export default function DocumentFieldPlottingPage() {
 
           finalPosX = Math.max(0, Math.min(maxW, localX))
           finalPosY = Math.max(0, Math.min(maxH, localY))
+
+          // 📍 Smart Alignment Snapping: Kunci posisi agar presisi sejajar jika mendekati koordinat plot lain (toleransi 8px)
+          const SNAP_THRESHOLD = 8
+          const otherFieldsOnPage = fieldsRef.current.filter(
+            (f) => f.id !== fieldId && f.pageNumber === targetPageNumber
+          )
+          for (const other of otherFieldsOnPage) {
+            if (Math.abs(other.posY - finalPosY) <= SNAP_THRESHOLD) {
+              finalPosY = other.posY
+            }
+            if (Math.abs(other.posX - finalPosX) <= SNAP_THRESHOLD) {
+              finalPosX = other.posX
+            }
+          }
         }
       }
 
@@ -710,7 +798,9 @@ export default function DocumentFieldPlottingPage() {
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-xs font-bold text-slate-600">
+                  <span
+                    className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-white shadow-xs ${getRecipientTheme(idx).badgeBg}`}
+                  >
                     {idx + 1}
                   </span>
                   <div>
@@ -737,7 +827,6 @@ export default function DocumentFieldPlottingPage() {
                     onClick={() => {
                       setPdfInteractive(false)
                       setActiveRecipient(recipient)
-                      setSelectedRecipientId(recipient.id)
                     }}
                     className="text-xs font-bold text-blue-600 hover:underline"
                   >
@@ -827,12 +916,42 @@ export default function DocumentFieldPlottingPage() {
               >
                 <canvas className="absolute inset-0 block" />
 
-                {visibleFields
+                {/* 📍 Garis Panduan Sejajar Horizontal (Alignment Guide Line) */}
+                {selectedField &&
+                  selectedField.pageNumber === page.pageNumber &&
+                  fields.some(
+                    (f) =>
+                      f.id !== selectedField.id &&
+                      f.pageNumber === page.pageNumber &&
+                      Math.abs(f.posY - selectedField.posY) < 1
+                  ) && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: `${selectedField.posY}px`,
+                        left: 0,
+                        right: 0,
+                        height: '1px',
+                        borderTop: '1.5px dashed #2563eb',
+                        pointerEvents: 'none',
+                        zIndex: 25,
+                      }}
+                    >
+                      <span className="absolute -top-3 right-3 text-[9px] font-bold text-blue-700 bg-white/95 px-1.5 py-0.5 rounded border border-blue-200 shadow-xs">
+                        Sejajar (Y: {Math.round(selectedField.posY)})
+                      </span>
+                    </div>
+                  )}
+
+                {/* 📍 Selalu render SEMUA field di halaman ini agar tidak ada plot yang invisible */}
+                {fields
                   .filter((field) => field.pageNumber === page.pageNumber)
                   .map((field) => {
                     const isSelected = selectedFieldId === field.id
                     const isAudit = field.type === 'AUDIT_STAMP'
                     const isParaf = field.type === 'PARAF'
+                    const recipientIndex = recipients.findIndex((r) => r.id === field.recipientId)
+                    const theme = getRecipientTheme(recipientIndex)
 
                     if (isAudit) {
                       return (
@@ -918,6 +1037,13 @@ export default function DocumentFieldPlottingPage() {
                               Timestamp: [Saat Pengesahan]
                             </p>
                           </div>
+
+                          {/* Indikator Koordinat Real-Time saat Terpilih */}
+                          {isSelected && (
+                            <div className="absolute -bottom-2.5 left-2 bg-slate-800/90 text-white text-[8px] font-mono px-1.5 py-0.5 rounded shadow-xs pointer-events-none">
+                              X: {Math.round(field.posX)} · Y: {Math.round(field.posY)}
+                            </div>
+                          )}
 
                           {isSelected && !pdfInteractive && (
                             <button
@@ -1007,13 +1133,13 @@ export default function DocumentFieldPlottingPage() {
                               ? 'border-amber-600 bg-amber-50/90 ring-2 ring-amber-400 shadow-md'
                               : 'border-amber-500 bg-amber-50/70'
                             : isSelected
-                            ? 'border-blue-600 bg-blue-50/90 ring-2 ring-blue-400 shadow-md'
-                            : 'border-blue-500 bg-blue-50/70'
+                            ? `${theme.selectedBorder} ${theme.selectedBg} ring-2 ${theme.ring} shadow-md`
+                            : `${theme.border} ${theme.bg}`
                         }`}
                       >
                         <div
                           className={`absolute -top-3 left-2 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-xs pointer-events-none ${
-                            isParaf ? 'bg-amber-600' : 'bg-[#1e4273]'
+                            isParaf ? 'bg-amber-600' : theme.badgeBg
                           }`}
                         >
                           {field.recipientName} ({isParaf ? 'Paraf' : 'TTD'})
@@ -1027,7 +1153,7 @@ export default function DocumentFieldPlottingPage() {
                             event.stopPropagation()
                             handleDeleteField(field.id)
                           }}
-                          className="absolute -right-3 -top-3 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow hover:bg-red-700"
+                          className="absolute -right-3 -top-3 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow hover:bg-red-700 cursor-pointer"
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -1035,16 +1161,23 @@ export default function DocumentFieldPlottingPage() {
                         {isParaf ? (
                           <FileCheck className="w-4 h-4 text-amber-600 mb-0.5 pointer-events-none" />
                         ) : (
-                          <PenTool className="w-4 h-4 text-blue-600 mb-0.5 pointer-events-none" />
+                          <PenTool className={`w-4 h-4 mb-0.5 pointer-events-none ${theme.icon}`} />
                         )}
 
                         <span
                           className={`text-[10px] font-bold pointer-events-none ${
-                            isParaf ? 'text-amber-800' : 'text-blue-800'
+                            isParaf ? 'text-amber-800' : theme.text
                           }`}
                         >
                           {isParaf ? 'Paraf di sini' : 'Tanda tangan di sini'}
                         </span>
+
+                        {/* Indikator Koordinat Real-Time saat Terpilih */}
+                        {isSelected && (
+                          <div className="absolute -bottom-2.5 left-2 bg-slate-800/90 text-white text-[8px] font-mono px-1.5 py-0.5 rounded shadow-xs pointer-events-none">
+                            X: {Math.round(field.posX)} · Y: {Math.round(field.posY)}
+                          </div>
+                        )}
 
                         {isSelected && !pdfInteractive && (
                           <button
@@ -1078,7 +1211,7 @@ export default function DocumentFieldPlottingPage() {
                               interactionRef.current = interaction
                             }}
                             className={`absolute bottom-0 right-0 h-4 w-4 cursor-se-resize rounded-tl ${
-                              isParaf ? 'bg-amber-600' : 'bg-blue-600'
+                              isParaf ? 'bg-amber-600' : theme.badgeBg
                             }`}
                           />
                         )}
