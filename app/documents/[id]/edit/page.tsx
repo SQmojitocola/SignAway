@@ -18,6 +18,10 @@ import {
   Type,
   AlignLeft,
   AlignCenter,
+  Undo2,
+  Redo2,
+  Minus,
+  Plus,
 } from 'lucide-react'
 import { FieldTypeSelectorModal, FieldPlotType } from '@/components/FieldTypeSelectorModal'
 
@@ -195,6 +199,10 @@ export default function DocumentFieldPlottingPage() {
   const [showLeaveDialog, setShowLeaveDialog] = useState(false)
   const [leaveDialogMode, setLeaveDialogMode] = useState<'back' | 'save'>('back')
 
+  // History State untuk Undo & Redo (Maksimal 50 Riwayat)
+  const [history, setHistory] = useState<SignatureField[][]>([])
+  const [historyIndex, setHistoryIndex] = useState<number>(-1)
+
   const pdfContainerRef = useRef<HTMLDivElement | null>(null)
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const fieldElementsRef = useRef<Record<string, HTMLDivElement | null>>({})
@@ -204,6 +212,75 @@ export default function DocumentFieldPlottingPage() {
   useEffect(() => {
     fieldsRef.current = fields
   }, [fields])
+
+  // Helper untuk Menyimpan Snapshot Riwayat saat Perubahan Terjadi
+  const recordHistory = (newFields: SignatureField[]) => {
+    setHasUnsavedChanges(true)
+    setFields(newFields)
+    setHistory((prev) => {
+      const trimmed = prev.slice(0, historyIndex + 1)
+      const nextHistory = [...trimmed, newFields]
+      if (nextHistory.length > 50) nextHistory.shift()
+      return nextHistory
+    })
+    setHistoryIndex((prev) => {
+      const next = prev + 1
+      return next >= 50 ? 49 : next
+    })
+  }
+
+  // Handler Tombol Undo
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      const targetIndex = historyIndex - 1
+      const targetFields = history[targetIndex]
+      if (targetFields) {
+        setFields(targetFields)
+        setHistoryIndex(targetIndex)
+        setHasUnsavedChanges(true)
+      }
+    }
+  }
+
+  // Handler Tombol Redo
+  const handleRedo = () => {
+    if (historyIndex < history.length - 1) {
+      const targetIndex = historyIndex + 1
+      const targetFields = history[targetIndex]
+      if (targetFields) {
+        setFields(targetFields)
+        setHistoryIndex(targetIndex)
+        setHasUnsavedChanges(true)
+      }
+    }
+  }
+
+  // Keyboard Shortcuts: Ctrl+Z (Undo) & Ctrl+Y / Ctrl+Shift+Z (Redo)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement
+      const tagName = (activeEl?.tagName || '').toLowerCase()
+      if (tagName === 'input' || tagName === 'textarea' || (activeEl as HTMLElement)?.isContentEditable) {
+        return
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        if (e.shiftKey) {
+          e.preventDefault()
+          handleRedo()
+        } else {
+          e.preventDefault()
+          handleUndo()
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault()
+        handleRedo()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [history, historyIndex])
 
   // 1. Render PDF.js Viewport
   useEffect(() => {
@@ -424,9 +501,18 @@ export default function DocumentFieldPlottingPage() {
         element.style.removeProperty('transform')
       }
 
-      setHasUnsavedChanges(true)
-      setFields((currentFields) =>
-        currentFields.map((field) => {
+      const current = fieldsRef.current
+      const prevField = current.find((f) => f.id === fieldId)
+      const isChanged =
+        prevField &&
+        (mode === 'drag'
+          ? prevField.posX !== finalPosX ||
+            prevField.posY !== finalPosY ||
+            prevField.pageNumber !== targetPageNumber
+          : prevField.width !== nextW || prevField.height !== nextH)
+
+      if (isChanged) {
+        const nextFields = current.map((field) => {
           if (field.id !== fieldId) return field
           return mode === 'drag'
             ? { ...field, pageNumber: targetPageNumber, posX: finalPosX, posY: finalPosY }
@@ -436,7 +522,8 @@ export default function DocumentFieldPlottingPage() {
                 height: nextH,
               }
         })
-      )
+        recordHistory(nextFields)
+      }
     }
 
     window.addEventListener('pointermove', handlePointerMove)
@@ -476,27 +563,29 @@ export default function DocumentFieldPlottingPage() {
         const fieldsData = await fieldsResponse.json()
         if (!fieldsResponse.ok) throw new Error(fieldsData.message || 'Gagal memuat posisi TTD')
 
-        setFields(
-          (fieldsData.fields as ApiField[]).map((field) => {
-            const isAudit = field.type === 'AUDIT_STAMP'
-            const isName = field.type === 'NAME'
-            const isParaf = field.type === 'PARAF'
-            return {
-              id: field.id,
-              recipientId: field.recipientId || '',
-              recipientName: isAudit ? 'Sistem E-Sign' : (field.recipient?.user?.name || 'Penandatangan'),
-              recipientNip: isAudit ? null : (field.recipient?.user?.nip || null),
-              type: field.type || 'SIGNATURE',
-              pageNumber: field.pageNumber,
-              posX: field.posX,
-              posY: field.posY,
-              width: field.width || (isAudit ? 220 : isName ? 160 : isParaf ? 100 : 150),
-              height: field.height || (isAudit ? 65 : isName ? 48 : isParaf ? 50 : 70),
-              fontSize: field.fontSize || 10,
-              textAlign: (field.textAlign as 'left' | 'center') || 'center',
-            }
-          })
-        )
+        const loadedFields = (fieldsData.fields as ApiField[]).map((field) => {
+          const isAudit = field.type === 'AUDIT_STAMP'
+          const isName = field.type === 'NAME'
+          const isParaf = field.type === 'PARAF'
+          return {
+            id: field.id,
+            recipientId: field.recipientId || '',
+            recipientName: isAudit ? 'Sistem E-Sign' : (field.recipient?.user?.name || 'Penandatangan'),
+            recipientNip: isAudit ? null : (field.recipient?.user?.nip || null),
+            type: field.type || 'SIGNATURE',
+            pageNumber: field.pageNumber,
+            posX: field.posX,
+            posY: field.posY,
+            width: field.width || (isAudit ? 220 : isName ? 160 : isParaf ? 100 : 150),
+            height: field.height || (isAudit ? 65 : isName ? 48 : isParaf ? 50 : 70),
+            fontSize: field.fontSize || 10,
+            textAlign: (field.textAlign as 'left' | 'center') || 'center',
+          }
+        })
+
+        setFields(loadedFields)
+        setHistory([loadedFields])
+        setHistoryIndex(0)
       } catch (error) {
         alert(error instanceof Error ? error.message : 'Gagal memuat dokumen')
       }
@@ -542,14 +631,11 @@ export default function DocumentFieldPlottingPage() {
       textAlign: 'center',
     }
 
-    setHasUnsavedChanges(true)
-    setFields((currentFields) => {
-      // Jika stempel audit sudah ada sebelumnya, ganti posisinya dengan yang baru
-      if (isAudit) {
-        return [...currentFields.filter((f) => f.type !== 'AUDIT_STAMP'), newField]
-      }
-      return [...currentFields, newField]
-    })
+    const nextFields = isAudit
+      ? [...fields.filter((f) => f.type !== 'AUDIT_STAMP'), newField]
+      : [...fields, newField]
+
+    recordHistory(nextFields)
     setSelectedFieldId(newField.id)
     setPendingPlot(null)
     setActiveRecipient(null)
@@ -598,8 +684,7 @@ export default function DocumentFieldPlottingPage() {
       height: initialHeight,
     }
 
-    setHasUnsavedChanges(true)
-    setFields((prev) => [...prev, newField])
+    recordHistory([...fields, newField])
     setSelectedFieldId(newField.id)
     pageRefs.current[targetPage]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
@@ -616,39 +701,44 @@ export default function DocumentFieldPlottingPage() {
   const handleDeleteField = (fieldId: string) => {
     const targetField = fields.find((f) => f.id === fieldId)
     if (targetField) {
-      setHasUnsavedChanges(true)
-      setFields((currentFields) => currentFields.filter((f) => f.id !== fieldId))
+      recordHistory(fields.filter((f) => f.id !== fieldId))
     }
     setSelectedFieldId(null)
   }
 
   const handleUpdateFieldType = (fieldId: string, type: 'SIGNATURE' | 'PARAF' | 'NAME') => {
-    setHasUnsavedChanges(true)
-    setFields((current) =>
-      current.map((f) => {
-        if (f.id !== fieldId) return f
-        return {
-          ...f,
-          type,
-          width: type === 'NAME' ? 160 : type === 'PARAF' ? 100 : 150,
-          height: type === 'NAME' ? 48 : type === 'PARAF' ? 50 : 70,
-        }
-      })
-    )
+    const nextFields = fields.map((f) => {
+      if (f.id !== fieldId) return f
+      return {
+        ...f,
+        type,
+        width: type === 'NAME' ? 160 : type === 'PARAF' ? 100 : 150,
+        height: type === 'NAME' ? 48 : type === 'PARAF' ? 50 : 70,
+      }
+    })
+    recordHistory(nextFields)
   }
 
   const handleUpdateFieldFontSize = (fieldId: string, fontSize: number) => {
-    setHasUnsavedChanges(true)
-    setFields((current) =>
-      current.map((f) => (f.id === fieldId ? { ...f, fontSize } : f))
-    )
+    const clamped = Math.max(6, Math.min(36, fontSize))
+    const nextFields = fields.map((f) => {
+      if (f.id !== fieldId) return f
+      // Otomatis sesuaikan ukuran box jika font besar membutuhkan ruang lebih
+      const autoMinH = Math.max(48, Math.round(clamped * 2.2 + 10))
+      const autoMinW = Math.max(160, Math.round(clamped * 7.5 + 20))
+      return {
+        ...f,
+        fontSize: clamped,
+        width: Math.max(f.width, autoMinW),
+        height: Math.max(f.height, autoMinH),
+      }
+    })
+    recordHistory(nextFields)
   }
 
   const handleUpdateFieldTextAlign = (fieldId: string, textAlign: 'left' | 'center') => {
-    setHasUnsavedChanges(true)
-    setFields((current) =>
-      current.map((f) => (f.id === fieldId ? { ...f, textAlign } : f))
-    )
+    const nextFields = fields.map((f) => (f.id === fieldId ? { ...f, textAlign } : f))
+    recordHistory(nextFields)
   }
 
   const handleLeaveEditor = async (mode: 'save' | 'discard') => {
@@ -765,6 +855,30 @@ export default function DocumentFieldPlottingPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Undo & Redo Toolbar */}
+          <div className="flex items-center gap-0.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <button
+              type="button"
+              title="Undo (Ctrl+Z)"
+              onClick={handleUndo}
+              disabled={historyIndex <= 0}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-white hover:shadow-xs disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:shadow-none transition-all cursor-pointer disabled:cursor-not-allowed"
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+              <span className="hidden md:inline text-[11px]">Undo</span>
+            </button>
+            <button
+              type="button"
+              title="Redo (Ctrl+Y)"
+              onClick={handleRedo}
+              disabled={historyIndex >= history.length - 1}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-white hover:shadow-xs disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:shadow-none transition-all cursor-pointer disabled:cursor-not-allowed"
+            >
+              <Redo2 className="h-3.5 w-3.5" />
+              <span className="hidden md:inline text-[11px]">Redo</span>
+            </button>
+          </div>
+
           <button
             onClick={() => {
               if (activeRecipient) {
@@ -1515,23 +1629,78 @@ export default function DocumentFieldPlottingPage() {
                 {/* Panel Pengaturan Tipografi saat Tipe Plot adalah NAME (Nama & NIK) */}
                 {selectedField.type === 'NAME' && (
                   <div className="space-y-3.5 border-t border-slate-100 pt-3">
-                    {/* Ukuran Font */}
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
+                    {/* Ukuran Font (6pt - 36pt) */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
                         <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
-                          <Type className="h-3 w-3 text-indigo-600" /> Ukuran Font
+                          <Type className="h-3.5 w-3.5 text-indigo-600" /> Ukuran Font
                         </label>
-                        <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
-                          {selectedField.fontSize || 10} pt
-                        </span>
+                        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                          <button
+                            type="button"
+                            title="Perkecil Font (-1pt)"
+                            disabled={(selectedField.fontSize || 10) <= 6}
+                            onClick={() => handleUpdateFieldFontSize(selectedField.id, (selectedField.fontSize || 10) - 1)}
+                            className="p-1 rounded bg-white text-slate-600 hover:text-indigo-600 disabled:opacity-40 disabled:hover:text-slate-600 shadow-2xs transition-all cursor-pointer disabled:cursor-not-allowed"
+                          >
+                            <Minus className="h-3 w-3" />
+                          </button>
+                          <div className="flex items-center gap-0.5 px-1">
+                            <input
+                              type="number"
+                              min={6}
+                              max={36}
+                              value={selectedField.fontSize || 10}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value, 10)
+                                if (!isNaN(val)) {
+                                  handleUpdateFieldFontSize(selectedField.id, val)
+                                }
+                              }}
+                              className="w-8 text-center text-xs font-bold text-indigo-700 bg-transparent focus:outline-hidden focus:ring-1 focus:ring-indigo-500 rounded"
+                            />
+                            <span className="text-[10px] font-semibold text-slate-400">pt</span>
+                          </div>
+                          <button
+                            type="button"
+                            title="Perbesar Font (+1pt)"
+                            disabled={(selectedField.fontSize || 10) >= 36}
+                            onClick={() => handleUpdateFieldFontSize(selectedField.id, (selectedField.fontSize || 10) + 1)}
+                            className="p-1 rounded bg-white text-slate-600 hover:text-indigo-600 disabled:opacity-40 disabled:hover:text-slate-600 shadow-2xs transition-all cursor-pointer disabled:cursor-not-allowed"
+                          >
+                            <Plus className="h-3 w-3" />
+                          </button>
+                        </div>
                       </div>
-                      <div className="grid grid-cols-5 gap-1">
-                        {[8, 9, 10, 11, 12].map((size) => (
+
+                      {/* Range Slider 6pt - 36pt */}
+                      <div className="px-0.5">
+                        <input
+                          type="range"
+                          min={6}
+                          max={36}
+                          step={1}
+                          value={selectedField.fontSize || 10}
+                          onChange={(e) => handleUpdateFieldFontSize(selectedField.id, Number(e.target.value))}
+                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                        />
+                        <div className="flex justify-between text-[9px] text-slate-400 mt-0.5">
+                          <span>6pt</span>
+                          <span>12pt</span>
+                          <span>18pt</span>
+                          <span>24pt</span>
+                          <span>36pt</span>
+                        </div>
+                      </div>
+
+                      {/* Tombol Preset Cepat */}
+                      <div className="grid grid-cols-4 gap-1 pt-1">
+                        {[8, 10, 12, 14, 18, 24, 30, 36].map((size) => (
                           <button
                             key={size}
                             type="button"
                             onClick={() => handleUpdateFieldFontSize(selectedField.id, size)}
-                            className={`py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                            className={`py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
                               (selectedField.fontSize || 10) === size
                                 ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
                                 : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'

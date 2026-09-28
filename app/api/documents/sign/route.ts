@@ -148,16 +148,21 @@ export async function POST(req: Request) {
         const nipText = effectiveSigner?.nip ? String(effectiveSigner.nip).trim() : ''
         const baseFontSize = (field.fontSize || 10) * 0.95
         const nameFontSize = baseFontSize
-        const nipFontSize = Math.max(6.5, baseFontSize - 1.2)
+        const nipFontSize = Math.max(6.5, baseFontSize * 0.8)
 
         const nameWidth = helveticaBold.widthOfTextAtSize(nameText, nameFontSize)
         const isCenter = (field.textAlign || 'center') === 'center'
         const centerY = pageHeight - boxY - boxHeight / 2
 
+        const underlineThickness = Math.max(0.7, (nameFontSize / 12) * 0.75)
+        const underlineGap = Math.max(1.8, nameFontSize * 0.15)
+        const lineSpacing = Math.max(3, nameFontSize * 0.25)
+
         if (nipText) {
           const nipWidth = helvetica.widthOfTextAtSize(nipText, nipFontSize)
           const nameX = isCenter ? boxX + (boxWidth - nameWidth) / 2 : boxX + 2
-          const nameY = centerY + 2
+          const totalTextHeight = nameFontSize + lineSpacing + nipFontSize
+          const nameY = centerY + (totalTextHeight / 2) - nameFontSize * 0.75
 
           // Teks Nama Penandatangan (Kapital Tebal)
           page.drawText(nameText, {
@@ -169,17 +174,17 @@ export async function POST(req: Request) {
           })
 
           // Garis Bawah (Underline) Nama
-          const underlineY = nameY - 1.8
+          const underlineY = nameY - underlineGap
           page.drawLine({
             start: { x: nameX, y: underlineY },
             end: { x: nameX + nameWidth, y: underlineY },
-            thickness: 0.7,
+            thickness: underlineThickness,
             color: rgb(0, 0, 0),
           })
 
           // Teks NIK Penandatangan (Angka saja di bawah nama)
           const nipX = isCenter ? boxX + (boxWidth - nipWidth) / 2 : boxX + 2
-          const nipY = nameY - nameFontSize - 2.5
+          const nipY = underlineY - lineSpacing - (nipFontSize * 0.75)
           page.drawText(nipText, {
             x: nipX,
             y: nipY,
@@ -190,7 +195,7 @@ export async function POST(req: Request) {
         } else {
           // Hanya Nama saja jika tidak ada NIP
           const nameX = isCenter ? boxX + (boxWidth - nameWidth) / 2 : boxX + 2
-          const nameY = centerY - nameFontSize / 3
+          const nameY = centerY - (nameFontSize * 0.35)
 
           page.drawText(nameText, {
             x: nameX,
@@ -200,11 +205,11 @@ export async function POST(req: Request) {
             color: rgb(0, 0, 0),
           })
 
-          const underlineY = nameY - 1.8
+          const underlineY = nameY - underlineGap
           page.drawLine({
             start: { x: nameX, y: underlineY },
             end: { x: nameX + nameWidth, y: underlineY },
-            thickness: 0.7,
+            thickness: underlineThickness,
             color: rgb(0, 0, 0),
           })
         }
