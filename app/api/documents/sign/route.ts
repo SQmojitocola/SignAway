@@ -282,7 +282,9 @@ export async function POST(req: Request) {
         data: {
           documentId: document.id,
           signerId: userId,
-          signatureImagePath: 'embedded_in_pdf',
+          signatureImagePath: isApprovedProxy && approvedProxy
+            ? `PROXY:${approvedProxy.targetUserId}:${approvedProxy.approvedById || 'ADMIN'}`
+            : 'embedded_in_pdf',
           ipAddress: clientIp,
           signedAt,
         },

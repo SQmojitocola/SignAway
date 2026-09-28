@@ -24,6 +24,13 @@ interface DocumentVerificationData {
     ipAddress: string
     createdAt: string
   }>
+  proxyRequests?: Array<{
+    id: string
+    reason: string
+    requestedBy: { id: string; name: string; email: string }
+    targetUser: { id: string; name: string; email: string }
+    approvedBy: { id: string; name: string } | null
+  }>
 }
 
 export default function PublicVerifierPage() {
@@ -184,6 +191,9 @@ export default function PublicVerifierPage() {
 
                 {doc.recipients.map((recipient) => {
                   const log = doc.logs?.find((l) => l.signerId === recipient.id || l.signerId === recipient.user?.name)
+                  const proxy = doc.proxyRequests?.find(
+                    (p) => p.targetUser.email === recipient.user?.email || p.targetUser.name === recipient.user?.name
+                  )
 
                   return (
                     <div
@@ -197,6 +207,20 @@ export default function PublicVerifierPage() {
                         <p className="text-[10px] text-slate-500">
                           Authentication Level: <span className="text-slate-700 font-medium">Email Session</span>
                         </p>
+
+                        {proxy && (
+                          <div className="mt-2.5 rounded-xl border border-blue-200 bg-blue-50/80 p-2.5 text-[10px] text-blue-900 space-y-0.5 shadow-xs">
+                            <p className="font-bold flex items-center gap-1 text-blue-800">
+                              <ShieldCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" /> Kuasa / Delegasi Sah
+                            </p>
+                            <p className="text-slate-700">
+                              Penandatangan Aktual: <strong className="text-blue-900">{proxy.requestedBy.name}</strong>
+                            </p>
+                            <p className="text-[9px] text-slate-500 italic">
+                              Mewakili: {proxy.targetUser.name} (Disetujui {proxy.approvedBy?.name || 'Administrator'})
+                            </p>
+                          </div>
+                        )}
                       </div>
 
                       <div className="space-y-2">
@@ -229,6 +253,12 @@ export default function PublicVerifierPage() {
                             Persetujuan & Pengesahan Dokumen Digital (Owner/Signer)
                           </span>
                         </p>
+                        {proxy && (
+                          <div className="pt-1.5 border-t border-slate-100 text-[10px] text-slate-600">
+                            <span className="font-semibold text-slate-700">Dasar Mandat:</span>{' '}
+                            <span className="italic text-slate-800">&quot;{proxy.reason}&quot;</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )

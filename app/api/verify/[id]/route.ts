@@ -41,11 +41,22 @@ export async function GET(
             signerId: true,
             ipAddress: true,
             signedAt: true,
+            signatureImagePath: true,
             signer: {
               select: { id: true, name: true, email: true },
             },
           },
           orderBy: { signedAt: 'asc' },
+        },
+        proxyRequests: {
+          where: { status: 'APPROVED' },
+          select: {
+            id: true,
+            reason: true,
+            requestedBy: { select: { id: true, name: true, email: true } },
+            targetUser: { select: { id: true, name: true, email: true } },
+            approvedBy: { select: { id: true, name: true } },
+          },
         },
       },
     })
