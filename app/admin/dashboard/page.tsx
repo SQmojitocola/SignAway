@@ -325,12 +325,15 @@ export default async function AdminDashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {recentDocuments.map((doc) => {
+                  {recentDocuments.map((doc, idx) => {
                     const signerInfo = getSignerPosition(doc)
                     const IconPosition = signerInfo.icon
 
+                    // Selang-seling warna putih dan biru cerah (#f0f7ff)
+                    const rowBg = idx % 2 === 1 ? 'bg-[#f0f7ff]' : 'bg-white'
+
                     return (
-                      <tr key={doc.id} className="hover:bg-slate-50/70 transition-colors">
+                      <tr key={doc.id} className={`${rowBg} hover:bg-blue-100/60 transition-colors`}>
                         {/* 1. Nama Dokumen */}
                         <td className="py-3 px-3 font-semibold text-slate-900">
                           <div className="flex items-center gap-2 max-w-[190px]">

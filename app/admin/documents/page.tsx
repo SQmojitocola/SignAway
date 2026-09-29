@@ -219,13 +219,16 @@ export default async function AdminDocumentsPage(props: PageProps) {
                   </td>
                 </tr>
               ) : (
-                documents.map((doc) => {
+                documents.map((doc, idx) => {
                   const waitingSigner = doc.recipients.find(
                     (r) => r.status === 'WAITING' || r.status === 'PENDING'
                   )
 
+                  // Selang-seling warna putih dan biru cerah (#f0f7ff)
+                  const rowBg = idx % 2 === 1 ? 'bg-[#f0f7ff]' : 'bg-white'
+
                   return (
-                    <tr key={doc.id} className="hover:bg-slate-50/70 transition-colors">
+                    <tr key={doc.id} className={`${rowBg} hover:bg-blue-100/60 transition-colors`}>
                       {/* Judul */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">

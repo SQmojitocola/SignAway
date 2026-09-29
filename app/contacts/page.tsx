@@ -285,10 +285,12 @@ export default function ContactsPage() {
             <div className="py-12 text-center text-xs text-slate-400">Memuat data kontak...</div>
           ) : filteredContacts.length > 0 ? (
             <div className="space-y-2">
-              {filteredContacts.map((contact) => (
+              {filteredContacts.map((contact, idx) => (
                 <div
                   key={contact.id}
-                  className="flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/60 p-3 hover:bg-slate-50 transition-colors"
+                  className={`flex items-center justify-between rounded-xl border border-slate-200/80 p-3 hover:bg-blue-100/60 transition-colors ${
+                    idx % 2 === 1 ? 'bg-[#f0f7ff]' : 'bg-white'
+                  }`}
                 >
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">

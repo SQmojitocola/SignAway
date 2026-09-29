@@ -78,6 +78,9 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
   // Helper cek apakah dokumen menunggu tanda tangan user (langsung atau via proxy)
   const isWaitingForUser = useCallback(
     (doc: DashboardDocument) => {
+      // ⚠️ Dokumen berstatus DRAFT, REJECTED, atau COMPLETED bukan dokumen yang sedang menunggu tanda tangan
+      if (doc.status === 'DRAFT' || doc.status === 'REJECTED' || doc.status === 'COMPLETED') return false
+
       return doc.recipients.some((recipient) => {
         const isDirect = recipient.user.id === userId
         const isProxy = Boolean(
@@ -263,15 +266,18 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
                   </td>
                 </tr>
               ) : (
-                paginatedDocs.map((doc) => {
+                paginatedDocs.map((doc, idx) => {
                   const formattedDate = new Date(doc.createdAt).toLocaleDateString('id-ID', {
                     day: 'numeric',
                     month: 'short',
                     year: 'numeric',
                   })
 
+                  // Selang-seling warna putih dan biru cerah (#f0f7ff)
+                  const rowBg = idx % 2 === 1 ? 'bg-[#f0f7ff]' : 'bg-white'
+
                   return (
-                    <tr key={doc.id} className="hover:bg-slate-50/80 transition-colors">
+                    <tr key={doc.id} className={`${rowBg} hover:bg-blue-100/60 transition-colors`}>
                       <td className="p-4">
                         <div className="flex items-center gap-3">
                           <div className="p-2.5 bg-amber-50 rounded-xl text-amber-600">
