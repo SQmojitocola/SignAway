@@ -44,6 +44,8 @@ interface PageProps {
   }>
 }
 
+import PageHeaderBanner from '@/components/PageHeaderBanner'
+
 export default async function AdminDocumentsPage(props: PageProps) {
   const session = await auth()
   if (!session?.user?.id) redirect('/login')
@@ -63,7 +65,7 @@ export default async function AdminDocumentsPage(props: PageProps) {
   const currentPage = Math.max(1, parseInt(searchParams.page || '1', 10))
   const pageSize = 10
 
-  // Filter Prisma
+  // Filter Prisma (Draft hanya privat untuk masing-masing user, tidak ditampilkan ke admin)
   const whereClause: any = {}
 
   if (statusFilter === 'COMPLETED') {
@@ -72,6 +74,8 @@ export default async function AdminDocumentsPage(props: PageProps) {
     whereClause.status = { in: ['PENDING', 'PARTIAL_SIGNED'] }
   } else if (statusFilter === 'REJECTED') {
     whereClause.status = 'REJECTED'
+  } else {
+    whereClause.status = { not: 'DRAFT' }
   }
 
   if (query) {
@@ -103,7 +107,7 @@ export default async function AdminDocumentsPage(props: PageProps) {
       },
     }),
     Promise.all([
-      prisma.document.count(),
+      prisma.document.count({ where: { status: { not: 'DRAFT' } } }),
       prisma.document.count({ where: { status: { in: ['PENDING', 'PARTIAL_SIGNED'] } } }),
       prisma.document.count({ where: { status: 'COMPLETED' } }),
       prisma.document.count({ where: { status: 'REJECTED' } }),
@@ -115,25 +119,17 @@ export default async function AdminDocumentsPage(props: PageProps) {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 font-sans text-slate-800">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-blue-50 text-blue-700 rounded-xl">
-              <FileSearch className="w-5 h-5" />
-            </div>
-            <h1 className="text-2xl font-extrabold text-[#003b73] tracking-tight">Monitoring Dokumen Instansi</h1>
+      {/* Header Banner Card */}
+      <PageHeaderBanner
+        title="Monitoring Dokumen"
+        subtitle="Pengawasan alur disposisi dan status tanda tangan dokumen instansi."
+        action={
+          <div className="flex sm:flex-col items-start sm:items-end justify-between gap-1 border-t sm:border-t-0 sm:border-l border-white/15 pt-3 sm:pt-0 sm:pl-6 shrink-0">
+            <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-wider">Total Dokumen Aktif</p>
+            <p className="text-2xl font-black text-white leading-none">{allCount}</p>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Pengawasan menyeluruh alur disposisi dan status tanda tangan seluruh dokumen terdaftar.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 text-xs font-semibold bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-slate-400">Total Terdaftar:</span>
-          <span className="text-[#003b73] font-bold">{allCount} Dokumen</span>
-        </div>
-      </div>
+        }
+      />
 
       {/* Filter Tabs & Search */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-4">

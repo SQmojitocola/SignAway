@@ -103,6 +103,9 @@ function getSignerPosition(doc: {
   }
 }
 
+import DocumentDistributionChart from '@/components/dashboard/DocumentDistributionChart'
+import PageHeaderBanner from '@/components/PageHeaderBanner'
+
 export default async function AdminDashboardPage() {
   const session = await auth()
   if (!session?.user?.id) redirect('/login')
@@ -134,6 +137,7 @@ export default async function AdminDashboardPage() {
     }),
     prisma.document.count({ where: { status: 'REJECTED' } }),
     prisma.document.findMany({
+      where: { status: { not: 'DRAFT' } },
       take: 5,
       orderBy: { updatedAt: 'desc' },
       include: {
@@ -151,59 +155,31 @@ export default async function AdminDashboardPage() {
     }),
   ])
 
-  // Total dokumen aktif untuk perhitungan diagram distribusi
+  // Total dokumen aktif untuk persentase statcards
   const activeTotalDocs = completedDocs + inProgressDocs + rejectedDocs || 1
   const completedPct = Number(((completedDocs / activeTotalDocs) * 100).toFixed(1))
   const inProgressPct = Number(((inProgressDocs / activeTotalDocs) * 100).toFixed(1))
   const rejectedPct = Number(((rejectedDocs / activeTotalDocs) * 100).toFixed(1))
 
-  // Parameter geometri untuk SVG Donut Chart
-  const radius = 62
-  const circumference = 2 * Math.PI * radius // ≈ 389.557
-  const strokeWidth = 20
-
-  const strokeCompleted = (completedDocs / activeTotalDocs) * circumference
-  const strokeInProgress = (inProgressDocs / activeTotalDocs) * circumference
-  const strokeRejected = (rejectedDocs / activeTotalDocs) * circumference
-
-  const offsetCompleted = 0
-  const offsetInProgress = -strokeCompleted
-  const offsetRejected = -(strokeCompleted + strokeInProgress)
-
   return (
     <div className="max-w-7xl mx-auto space-y-6 font-sans text-slate-800">
       {/* Header Panel Administrator Instansi */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-gradient-to-r from-[#003b73] via-[#0b4885] to-[#1e4273] rounded-2xl p-6 text-white shadow-md relative overflow-hidden">
-        <div className="relative z-10 space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-white/15 text-blue-100 border border-white/20 backdrop-blur-xs flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Sistem Aktif & Terverifikasi
-            </span>
-            <span className="text-[11px] text-blue-200/80 font-medium">Instansi Pemerintah / BUMN</span>
+      <PageHeaderBanner
+        title="Dashboard Administrator"
+        subtitle="Ringkasan operasional dan pengawasan tanda tangan elektronik instansi."
+        action={
+          <div className="flex sm:flex-col items-start sm:items-end justify-between gap-1 border-t sm:border-t-0 sm:border-l border-white/15 pt-3 sm:pt-0 sm:pl-6">
+            <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-wider">Total Dokumen Terkelola</p>
+            <p className="text-3xl font-black text-white leading-none">{totalDocs}</p>
+            <Link
+              href="/admin/documents"
+              className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-300 hover:text-white transition-colors mt-0.5"
+            >
+              Buka Monitoring <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-white pt-1">
-            Dashboard Pengawasan Dokumen
-          </h1>
-          <p className="text-xs text-blue-100/90 max-w-2xl font-normal leading-relaxed">
-            Selamat datang, <span className="font-semibold text-white">{currentUser?.name}</span>. Pantau alur disposisi, status tanda tangan digital terverifikasi, dan metrik pegawai secara terpusat.
-          </p>
-        </div>
-
-        <div className="relative z-10 flex sm:flex-col items-start sm:items-end justify-between gap-2 border-t sm:border-t-0 sm:border-l border-white/15 pt-3 sm:pt-0 sm:pl-6 shrink-0">
-          <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-wider">Total Dokumen Terkelola</p>
-          <p className="text-3xl font-black text-white leading-none">{totalDocs}</p>
-          <Link
-            href="/admin/documents"
-            className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-300 hover:text-white transition-colors"
-          >
-            Buka Monitoring <ChevronRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-
-        {/* Ornamen Latar Belakang Halus */}
-        <div className="absolute right-0 top-0 w-80 h-80 bg-white/5 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
-      </div>
+        }
+      />
 
       {/* 4 Stat Cards Modern Sesuai Kebutuhan Instansi */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -297,168 +273,14 @@ export default async function AdminDashboardPage() {
 
       {/* Bagian Statistik Bawah Statcards: Diagram Distribusi (Kiri) & Audit Feed Terkini (Kanan) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* FITUR 1: Diagram Status Distribusi Dokumen (Pie/Doughnut Chart + Bar Ringkas) */}
-        <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div>
-              <h2 className="text-base font-bold text-slate-900 tracking-tight">
-                Distribusi Status Dokumen
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Proporsi status dari total {totalDocs} dokumen instansi
-              </p>
-            </div>
-            <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-md bg-slate-100 text-slate-600">
-              REAL-TIME
-            </span>
-          </div>
-
-          {/* SVG Doughnut Visualisation */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-6 py-2">
-            <div className="relative w-44 h-44 shrink-0 flex items-center justify-center">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 160 160">
-                {/* Latar Belakang Ring */}
-                <circle
-                  cx="80"
-                  cy="80"
-                  r={radius}
-                  stroke="#f1f5f9"
-                  strokeWidth={strokeWidth}
-                  fill="transparent"
-                />
-
-                {/* Segmen 1: Selesai (Emerald) */}
-                {completedDocs > 0 && (
-                  <circle
-                    cx="80"
-                    cy="80"
-                    r={radius}
-                    stroke="#10b981"
-                    strokeWidth={strokeWidth}
-                    fill="transparent"
-                    strokeDasharray={`${strokeCompleted} ${circumference}`}
-                    strokeDashoffset={offsetCompleted}
-                    className="transition-all duration-700 ease-out"
-                  />
-                )}
-
-                {/* Segmen 2: Dalam Proses (Amber) */}
-                {inProgressDocs > 0 && (
-                  <circle
-                    cx="80"
-                    cy="80"
-                    r={radius}
-                    stroke="#f59e0b"
-                    strokeWidth={strokeWidth}
-                    fill="transparent"
-                    strokeDasharray={`${strokeInProgress} ${circumference}`}
-                    strokeDashoffset={offsetInProgress}
-                    className="transition-all duration-700 ease-out"
-                  />
-                )}
-
-                {/* Segmen 3: Ditolak (Rose) */}
-                {rejectedDocs > 0 && (
-                  <circle
-                    cx="80"
-                    cy="80"
-                    r={radius}
-                    stroke="#f43f5e"
-                    strokeWidth={strokeWidth}
-                    fill="transparent"
-                    strokeDasharray={`${strokeRejected} ${circumference}`}
-                    strokeDashoffset={offsetRejected}
-                    className="transition-all duration-700 ease-out"
-                  />
-                )}
-              </svg>
-
-              {/* Teks di Tengah Donut */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="text-3xl font-black text-slate-900 leading-none">
-                  {totalDocs}
-                </span>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">
-                  Dokumen
-                </span>
-              </div>
-            </div>
-
-            {/* Bar Ringkas Proporsi Horisontal */}
-            <div className="w-full space-y-3">
-              <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                Proporsi Kumulatif:
-              </p>
-              <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex shadow-inner">
-                <div
-                  style={{ width: `${completedPct}%` }}
-                  className="bg-emerald-500 h-full transition-all duration-500"
-                  title={`Selesai: ${completedDocs} (${completedPct}%)`}
-                />
-                <div
-                  style={{ width: `${inProgressPct}%` }}
-                  className="bg-amber-500 h-full transition-all duration-500"
-                  title={`Dalam Proses: ${inProgressDocs} (${inProgressPct}%)`}
-                />
-                <div
-                  style={{ width: `${rejectedPct}%` }}
-                  className="bg-rose-500 h-full transition-all duration-500"
-                  title={`Ditolak: ${rejectedDocs} (${rejectedPct}%)`}
-                />
-              </div>
-              <p className="text-[10px] text-slate-400 italic">
-                *Visualisasi status dokumen yang aktif dalam siklus penandatanganan.
-              </p>
-            </div>
-          </div>
-
-          {/* Rincian Legenda 3 Status */}
-          <div className="space-y-2.5 pt-2 border-t border-slate-100">
-            {/* 1. Selesai */}
-            <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/50 border border-emerald-100/60">
-              <div className="flex items-center gap-2.5">
-                <span className="w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-emerald-200" />
-                <div>
-                  <p className="text-xs font-bold text-slate-800">Selesai / Ditandatangani Penuh</p>
-                  <p className="text-[10px] text-emerald-700 font-medium">Keabsahan digital lengkap</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <span className="text-xs font-black text-slate-900">{completedDocs} Dok</span>
-                <p className="text-[10px] font-bold text-emerald-600">{completedPct}%</p>
-              </div>
-            </div>
-
-            {/* 2. Sedang Berjalan / Menunggu TTD */}
-            <div className="flex items-center justify-between p-2.5 rounded-xl bg-amber-50/50 border border-amber-100/60">
-              <div className="flex items-center gap-2.5">
-                <span className="w-3 h-3 rounded-full bg-amber-500 ring-2 ring-amber-200" />
-                <div>
-                  <p className="text-xs font-bold text-slate-800">Sedang Berjalan / Menunggu TTD</p>
-                  <p className="text-[10px] text-amber-700 font-medium">Dalam alur giliran penandatangan</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <span className="text-xs font-black text-slate-900">{inProgressDocs} Dok</span>
-                <p className="text-[10px] font-bold text-amber-600">{inProgressPct}%</p>
-              </div>
-            </div>
-
-            {/* 3. Ditolak / Dibatalkan */}
-            <div className="flex items-center justify-between p-2.5 rounded-xl bg-rose-50/50 border border-rose-100/60">
-              <div className="flex items-center gap-2.5">
-                <span className="w-3 h-3 rounded-full bg-rose-500 ring-2 ring-rose-200" />
-                <div>
-                  <p className="text-xs font-bold text-slate-800">Ditolak / Dibatalkan</p>
-                  <p className="text-[10px] text-rose-700 font-medium">Memerlukan revisi pengunggah</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <span className="text-xs font-black text-slate-900">{rejectedDocs} Dok</span>
-                <p className="text-[10px] font-bold text-rose-600">{rejectedPct}%</p>
-              </div>
-            </div>
-          </div>
+        {/* FITUR 1: Diagram Status Distribusi Dokumen (Interaktif dengan Tooltip & Hover) */}
+        <div className="lg:col-span-5">
+          <DocumentDistributionChart
+            totalDocs={totalDocs}
+            completedDocs={completedDocs}
+            inProgressDocs={inProgressDocs}
+            rejectedDocs={rejectedDocs}
+          />
         </div>
 
         {/* FITUR 2: Tabel Aktivitas Dokumen Terbaru (Real-time Audit Feed) */}
@@ -468,14 +290,9 @@ export default async function AdminDashboardPage() {
               <div className="p-2 bg-blue-50 text-[#003b73] rounded-xl">
                 <FileClock className="w-4 h-4" />
               </div>
-              <div>
-                <h2 className="text-base font-bold text-slate-900 tracking-tight">
-                  Aktivitas Dokumen Terbaru
-                </h2>
-                <p className="text-xs text-slate-500">
-                  5 transaksi dan pembaruan dokumen paling mutakhir dalam sistem
-                </p>
-              </div>
+              <h2 className="text-base font-bold text-slate-900 tracking-tight">
+                Aktivitas Dokumen Terbaru
+              </h2>
             </div>
 
             <Link
