@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react'
+import ContactAdminModal from './ContactAdminModal'
 
 // Data Slide Asli
 const baseSlides = [
@@ -55,6 +56,15 @@ export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // State Modal Hubungi Administrator
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false)
+  const [contactModalPurpose, setContactModalPurpose] = useState<'CREATE_ACCOUNT' | 'REPORT_ISSUE'>('CREATE_ACCOUNT')
+
+  const handleOpenContactAdmin = (purpose: 'CREATE_ACCOUNT' | 'REPORT_ISSUE' = 'CREATE_ACCOUNT') => {
+    setContactModalPurpose(purpose)
+    setIsContactModalOpen(true)
+  }
 
   // State Carousel
   const [currentIndex, setCurrentIndex] = useState(1)
@@ -267,8 +277,8 @@ export default function LoginForm() {
             <div className="flex justify-end">
               <button
                 type="button"
-                onClick={() => alert('Silakan hubungi Administrator untuk mereset password Anda.')}
-                className="text-[11px] font-semibold text-blue-600 hover:underline"
+                onClick={() => handleOpenContactAdmin('REPORT_ISSUE')}
+                className="text-[11px] font-semibold text-blue-600 hover:underline cursor-pointer"
               >
                 Lupa Password?
               </button>
@@ -278,7 +288,7 @@ export default function LoginForm() {
             <button
               type="submit"
               disabled={loading}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#003b73] py-3 text-xs font-bold text-white transition-all hover:bg-blue-900 active:scale-[0.99] disabled:opacity-50 shadow-md"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#003b73] py-3 text-xs font-bold text-white transition-all hover:bg-blue-900 active:scale-[0.99] disabled:opacity-50 shadow-md cursor-pointer"
             >
               {loading ? 'Memproses...' : 'Masuk'} <ArrowRight className="h-4 w-4" />
             </button>
@@ -287,7 +297,13 @@ export default function LoginForm() {
           {/* Info Administrator */}
           <p className="mt-8 text-center text-xs text-slate-400">
             Belum memiliki akun?{' '}
-            <span className="font-semibold text-slate-600">Hubungi Administrator</span>
+            <button
+              type="button"
+              onClick={() => handleOpenContactAdmin('CREATE_ACCOUNT')}
+              className="font-bold text-[#003b73] hover:underline cursor-pointer transition-colors"
+            >
+              Hubungi Administrator
+            </button>
           </p>
         </div>
 
@@ -413,6 +429,14 @@ export default function LoginForm() {
           </div>
         </div>
       </div>
+
+      {/* Modal Hubungi Administrator */}
+      <ContactAdminModal
+        isOpen={isContactModalOpen}
+        onClose={() => setIsContactModalOpen(false)}
+        initialEmail={email}
+        initialPurpose={contactModalPurpose}
+      />
     </div>
   )
 }

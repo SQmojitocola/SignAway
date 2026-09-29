@@ -48,6 +48,16 @@ enum SpecimenType {
   PARAF
 }
 
+enum AdminMessageType {
+  CREATE_ACCOUNT
+  REPORT_ISSUE
+}
+
+enum AdminMessageStatus {
+  PENDING
+  RESOLVED
+}
+
 model User {
   id                String    @id @default(uuid())
   email             String    @unique
@@ -190,4 +200,18 @@ model ProxySignRequest {
   approvedBy  User?    @relation("ApprovedBy", fields: [approvedById], references: [id])
 
   @@map("proxy_sign_requests")
+}
+
+// Pesan & Permohonan dari Halaman Login (Hubungi Administrator)
+model AdminMessage {
+  id        String             @id @default(uuid())
+  email     String
+  name      String?
+  purpose   AdminMessageType   @default(CREATE_ACCOUNT)
+  message   String?            @db.Text
+  status    AdminMessageStatus @default(PENDING)
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+
+  @@map("admin_messages")
 }
