@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { FileText, FolderOpen, XCircle, CheckCircle2, Eye, Download } from 'lucide-react'
+import { FileText, FolderOpen, XCircle, CheckCircle2, Eye, Download, Search, ArrowUpDown, ChevronDown, Clock } from 'lucide-react'
 import DeleteDraftButton from '@/components/DeleteDraftButton'
 
 interface DraftItem {
@@ -42,6 +42,45 @@ export default function DraftsTabClient({
 }: DraftsTabClientProps) {
   const [activeTab, setActiveTab] = useState<'drafts' | 'rejected' | 'completed'>('drafts')
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+
+  // 📍 State Pencarian & Sorting
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest')
+  const [showSortDropdown, setShowSortDropdown] = useState(false)
+
+  // 📍 Data tab aktif
+  const activeDocuments = useMemo(() => {
+    if (activeTab === 'drafts') return initialDrafts
+    if (activeTab === 'rejected') return initialRejected
+    return initialCompleted
+  }, [activeTab, initialDrafts, initialRejected, initialCompleted])
+
+  // 📍 Filter & Search Logic
+  const filteredDocuments = useMemo(() => {
+    let result = [...activeDocuments]
+
+    // Search by title or sender/recipient name
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim()
+      result = result.filter((doc) => {
+        const titleMatch = doc.title.toLowerCase().includes(query)
+        const senderMatch = ('sender' in doc && doc.sender?.name.toLowerCase().includes(query)) ?? false
+        const recipientMatch = doc.recipients.some((r) =>
+          r.user.name.toLowerCase().includes(query)
+        )
+        return titleMatch || senderMatch || recipientMatch
+      })
+    }
+
+    // Sort by date
+    result.sort((a, b) => {
+      const dateA = new Date(a.createdAt).getTime()
+      const dateB = new Date(b.createdAt).getTime()
+      return sortOrder === 'newest' ? dateB - dateA : dateA - dateB
+    })
+
+    return result
+  }, [activeDocuments, searchQuery, sortOrder])
 
   const handleDownload = async (docId: string, title: string) => {
     setDownloadingId(docId)
@@ -130,179 +169,208 @@ export default function DraftsTabClient({
         </div>
       </div>
 
-      {/* TAB 1: DRAFT BELUM DIKIRIM */}
-      {activeTab === 'drafts' && (
-        <div>
-          {initialDrafts.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center shadow-sm">
-              <FileText className="mx-auto h-12 w-12 text-slate-300" />
-              <h2 className="mt-4 text-base font-bold text-slate-700">Belum ada draft</h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Dokumen yang sudah diupload tetapi belum dikirim akan tersimpan di sini.
-              </p>
-              <Link
-                href="/upload"
-                className="mt-5 inline-flex rounded-xl bg-[#1e4273] px-4 py-2 text-xs font-semibold text-white hover:bg-blue-900"
-              >
-                Buat Dokumen Baru
-              </Link>
+      {/* 📍 BILAH PENCARIAN & SORTING */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        {/* Search Bar */}
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Cari berdasarkan judul atau nama pengirim/penerima..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-xs text-slate-700 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              <XCircle className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Sort Dropdown */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setShowSortDropdown(!showSortDropdown)}
+            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors min-w-[140px] justify-between"
+          >
+            <div className="flex items-center gap-2">
+              <ArrowUpDown className="h-3.5 w-3.5 text-slate-400" />
+              <span>{sortOrder === 'newest' ? 'Terbaru' : 'Terlama'}</span>
             </div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {initialDrafts.map((draft) => (
-                <div key={draft.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3 hover:border-slate-300 transition-all flex flex-col justify-between overflow-hidden">
-                  <div className="space-y-2 min-w-0">
-                    <div className="flex items-start justify-between gap-3">
-                      <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-600 text-[9px] font-bold uppercase shrink-0">Draft</span>
-                      <div className="rounded-full bg-amber-50 p-2 text-amber-600 shrink-0">
-                        <FolderOpen className="h-4 w-4" />
-                      </div>
-                    </div>
-                    <h2 className="text-sm font-bold text-slate-800 break-all line-clamp-2 leading-snug" title={draft.title}>
-                      {draft.title}
-                    </h2>
-                  </div>
+            <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform ${showSortDropdown ? 'rotate-180' : ''}`} />
+          </button>
 
-                  <div className="space-y-1 text-xs text-slate-500 pt-2 border-t border-slate-100">
-                    <p>
-                      Dibuat:{' '}
-                      {new Date(draft.createdAt).toLocaleDateString('id-ID', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
-                    </p>
-                    <p>Penerima: {draft.recipients.length} orang</p>
-                  </div>
-
-                  <div className="flex gap-2 pt-2">
-                    <Link
-                      href={`/documents/${draft.id}/edit`}
-                      className="flex-1 rounded-xl bg-[#1e4273] px-3 py-2 text-center text-xs font-semibold text-white hover:bg-blue-900"
-                    >
-                      Lanjut Edit
-                    </Link>
-                    <DeleteDraftButton documentId={draft.id} />
-                  </div>
-                </div>
-              ))}
+          {showSortDropdown && (
+            <div className="absolute right-0 top-full mt-1 w-40 rounded-xl border border-slate-200 bg-white shadow-lg z-20 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => {
+                  setSortOrder('newest')
+                  setShowSortDropdown(false)
+                }}
+                className={`w-full flex items-center gap-2 px-4 py-2.5 text-xs font-medium hover:bg-slate-50 transition-colors ${
+                  sortOrder === 'newest' ? 'text-blue-600 bg-blue-50' : 'text-slate-700'
+                }`}
+              >
+                <Clock className="h-3.5 w-3.5" />
+                <span>Terbaru</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSortOrder('oldest')
+                  setShowSortDropdown(false)
+                }}
+                className={`w-full flex items-center gap-2 px-4 py-2.5 text-xs font-medium hover:bg-slate-50 transition-colors ${
+                  sortOrder === 'oldest' ? 'text-blue-600 bg-blue-50' : 'text-slate-700'
+                }`}
+              >
+                <Clock className="h-3.5 w-3.5" />
+                <span>Terlama</span>
+              </button>
             </div>
           )}
         </div>
+      </div>
+
+      {/* Info hasil filter */}
+      {searchQuery && (
+        <div className="flex items-center gap-2 text-xs text-slate-500">
+          <Search className="h-3.5 w-3.5" />
+          <span>
+            Menampilkan {filteredDocuments.length} dari {activeDocuments.length} dokumen
+            {searchQuery && <span> untuk &quot;{searchQuery}&quot;</span>}
+          </span>
+          <button
+            type="button"
+            onClick={() => setSearchQuery('')}
+            className="ml-2 text-blue-600 hover:text-blue-700 font-semibold hover:underline"
+          >
+            Reset
+          </button>
+        </div>
       )}
 
-      {/* TAB 2: DOKUMEN DITOLAK */}
-      {activeTab === 'rejected' && (
-        <div>
-          {initialRejected.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center shadow-sm">
-              <XCircle className="mx-auto h-12 w-12 text-slate-300" />
-              <h2 className="mt-4 text-base font-bold text-slate-700">Tidak ada penolakan</h2>
-              <p className="mt-1 text-xs text-slate-500">Anda belum pernah menolak dokumen apapun.</p>
-            </div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {initialRejected.map((doc) => (
-                <div key={doc.id} className="rounded-2xl border border-red-100 bg-white p-5 shadow-sm space-y-3 hover:border-red-200 transition-all flex flex-col justify-between overflow-hidden">
-                  <div className="space-y-2 min-w-0">
-                    <div className="flex items-start justify-between gap-3">
-                      <span className="px-2 py-0.5 rounded bg-red-50 text-red-600 text-[9px] font-bold uppercase shrink-0">Ditolak</span>
-                      <div className="rounded-full bg-red-50 p-2 text-red-500 shrink-0">
-                        <XCircle className="h-4 w-4" />
-                      </div>
+      {/* 📍 TAMPILKAN HASIL FILTER */}
+      {filteredDocuments.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center shadow-sm">
+          <FileText className="mx-auto h-12 w-12 text-slate-300" />
+          <h2 className="mt-4 text-base font-bold text-slate-700">
+            {searchQuery ? 'Tidak ada dokumen yang cocok' : 'Belum ada dokumen'}
+          </h2>
+          <p className="mt-1 text-xs text-slate-500">
+            {searchQuery
+              ? 'Coba ubah kata kunci pencarian Anda.'
+              : 'Dokumen yang sudah diupload akan tersimpan di sini.'}
+          </p>
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="mt-4 rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              Reset Pencarian
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {filteredDocuments.map((doc) => {
+            const isDraft = activeTab === 'drafts'
+            const isRejected = activeTab === 'rejected'
+            const isCompleted = activeTab === 'completed'
+
+            return (
+              <div
+                key={doc.id}
+                className={`rounded-2xl border bg-white p-5 shadow-sm space-y-3 hover:border-slate-300 transition-all flex flex-col justify-between overflow-hidden ${
+                  isDraft ? 'border-slate-200' : isRejected ? 'border-red-100 hover:border-red-200' : 'border-emerald-100 hover:border-emerald-200'
+                }`}
+              >
+                <div className="space-y-2 min-w-0">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${
+                      isDraft ? 'bg-amber-50 text-amber-600' : isRejected ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
+                    }`}>
+                      {isDraft ? 'Draft' : isRejected ? 'Ditolak' : 'Selesai'}
+                    </span>
+                    <div className={`rounded-full p-2 shrink-0 ${
+                      isDraft ? 'bg-amber-50' : isRejected ? 'bg-red-50' : 'bg-emerald-50'
+                    }`}>
+                      {isDraft && <FolderOpen className={`h-4 w-4 ${isDraft ? 'text-amber-600' : ''}`} />}
+                      {isRejected && <XCircle className="h-4 w-4 text-red-500" />}
+                      {isCompleted && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
                     </div>
-                    <h2 className="text-sm font-bold text-slate-800 break-all line-clamp-2 leading-snug" title={doc.title}>
-                      {doc.title}
-                    </h2>
                   </div>
+                  <h2 className="text-sm font-bold text-slate-800 break-all line-clamp-2 leading-snug" title={doc.title}>
+                    {doc.title}
+                  </h2>
+                </div>
 
-                  <div className="space-y-1 text-xs text-slate-500 pt-2 border-t border-slate-100">
-                    <p className="truncate">Pengirim: <span className="font-semibold text-slate-700">{doc.sender?.name || '-'}</span></p>
-                    <p>
-                      Tanggal:{' '}
-                      {new Date(doc.createdAt).toLocaleDateString('id-ID', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
-                    </p>
-                  </div>
+                <div className="space-y-1 text-xs text-slate-500 pt-2 border-t border-slate-100">
+                  {'sender' in doc && doc.sender && (
+                    <p className="truncate">Pengirim: <span className="font-semibold text-slate-700">{doc.sender.name}</span></p>
+                  )}
+                  {isDraft && <p>Penerima: {doc.recipients.length} orang</p>}
+                  <p>
+                    {isCompleted ? 'Selesai' : 'Dibuat'}:{' '}
+                    {new Date(doc.createdAt).toLocaleDateString('id-ID', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                  </p>
+                </div>
 
-                  <div className="pt-2">
+                <div className="flex gap-2 pt-2">
+                  {isDraft && (
+                    <>
+                      <Link
+                        href={`/documents/${doc.id}/edit`}
+                        className="flex-1 rounded-xl bg-[#1e4273] px-3 py-2 text-center text-xs font-semibold text-white hover:bg-blue-900"
+                      >
+                        Lanjut Edit
+                      </Link>
+                      <DeleteDraftButton documentId={doc.id} />
+                    </>
+                  )}
+                  {isRejected && (
                     <Link
                       href={`/documents/${doc.id}`}
                       className="flex items-center justify-center gap-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors"
                     >
                       <Eye className="h-3.5 w-3.5" /> Lihat Detail Penolakan
                     </Link>
-                  </div>
+                  )}
+                  {isCompleted && (
+                    <>
+                      <Link
+                        href={`/documents/${doc.id}`}
+                        className="flex-1 flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors"
+                      >
+                        <Eye className="h-3.5 w-3.5" /> Lihat Detail
+                      </Link>
+                      <button
+                        type="button"
+                        disabled={downloadingId === doc.id}
+                        onClick={() => handleDownload(doc.id, doc.title)}
+                        className="flex items-center justify-center gap-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-3 py-2 text-xs font-bold text-white transition-colors disabled:opacity-50"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        {downloadingId === doc.id ? 'Mengunduh...' : 'Unduh'}
+                      </button>
+                    </>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* TAB 3: DOKUMEN SELESAI (COMPLETED) */}
-      {activeTab === 'completed' && (
-        <div>
-          {initialCompleted.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center shadow-sm">
-              <CheckCircle2 className="mx-auto h-12 w-12 text-slate-300" />
-              <h2 className="mt-4 text-base font-bold text-slate-700">Belum ada dokumen selesai</h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Dokumen yang sudah selesai ditandatangani oleh semua pihak akan muncul di sini.
-              </p>
-            </div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {initialCompleted.map((doc) => (
-                <div key={doc.id} className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm space-y-3 hover:border-emerald-200 transition-all flex flex-col justify-between overflow-hidden">
-                  <div className="space-y-2 min-w-0">
-                    <div className="flex items-start justify-between gap-3">
-                      <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 text-[9px] font-bold uppercase shrink-0">Selesai</span>
-                      <div className="rounded-full bg-emerald-50 p-2 text-emerald-500 shrink-0">
-                        <CheckCircle2 className="h-4 w-4" />
-                      </div>
-                    </div>
-                    <h2 className="text-sm font-bold text-slate-800 break-all line-clamp-2 leading-snug" title={doc.title}>
-                      {doc.title}
-                    </h2>
-                  </div>
-
-                  <div className="space-y-1 text-xs text-slate-500 pt-2 border-t border-slate-100">
-                    <p className="truncate">Pengirim: <span className="font-semibold text-slate-700">{doc.sender?.name || '-'}</span></p>
-                    <p>
-                      Selesai:{' '}
-                      {new Date(doc.createdAt).toLocaleDateString('id-ID', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
-                    </p>
-                  </div>
-
-                  <div className="flex gap-2 pt-2">
-                    <Link
-                      href={`/documents/${doc.id}`}
-                      className="flex-1 flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors"
-                    >
-                      <Eye className="h-3.5 w-3.5" /> Lihat Detail
-                    </Link>
-                    <button
-                      type="button"
-                      disabled={downloadingId === doc.id}
-                      onClick={() => handleDownload(doc.id, doc.title)}
-                      className="flex items-center justify-center gap-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-3 py-2 text-xs font-bold text-white transition-colors disabled:opacity-50"
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                      {downloadingId === doc.id ? 'Mengunduh...' : 'Unduh'}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
