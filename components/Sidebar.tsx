@@ -15,7 +15,8 @@ import {
   ShieldCheck,
   FileCheck,
   FileSearch,
-  ShieldAlert
+  ShieldAlert,
+  Mail
 } from 'lucide-react'
 
 export default function Sidebar() {
@@ -33,6 +34,7 @@ export default function Sidebar() {
     { name: 'Dashboard Admin', href: '/admin/dashboard', icon: LayoutDashboard },
     // Fitur delegasi disembunyikan sementara sesuai kebijakan instansi
     // { name: 'Izin Proxy TTD', href: '/admin/proxy-requests', icon: FileCheck },
+    { name: 'Inbox Pesan', href: '/admin/inbox', icon: Mail },
     { name: 'Monitoring Dokumen', href: '/admin/documents', icon: FileSearch },
     { name: 'Manajemen Karyawan', href: '/admin/users', icon: Users },
   ]
@@ -53,30 +55,35 @@ export default function Sidebar() {
     <aside className="w-64 bg-[#1e4273] text-white p-6 flex flex-col justify-between h-screen sticky top-0 shrink-0 font-sans">
       <div className="space-y-6">
         {/* Logo Card */}
-        <div className="flex items-center gap-3 bg-white rounded-xl p-3 shadow-md border border-white/20">
-          <div className="relative h-10 w-12 shrink-0">
-            <Image
-              src="/assets/logo-dashboard.png"
-              alt="Logo Surveyor Indonesia"
-              fill
-              sizes="3rem"
-              className="object-contain"
-              priority
-            />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between">
-              <h2 className="font-extrabold text-2xl leading-tight text-[#1e4273]">E-Sign</h2>
-              {isAdmin && (
-                <span className="text-[9px] bg-purple-100 text-purple-800 font-extrabold px-1.5 py-0.5 rounded-md border border-purple-300">
-                  ADMIN
-                </span>
-              )}
+        <div className="flex items-center justify-between bg-white rounded-2xl p-3 shadow-md border border-white/20">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="relative h-9 w-9 shrink-0">
+              <Image
+                src="/assets/logo-surveyor-indonesia-png-svg-removebg-preview.png"
+                alt="Logo Surveyor Indonesia"
+                fill
+                sizes="2.25rem"
+                className="object-contain"
+                priority
+              />
             </div>
-            <p className="text-[8px] font-medium text-blue-500 leading-tight truncate">
-              Platform Tanda Tangan Digital
-            </p>
+            <div className="flex items-center select-none overflow-visible">
+              <span className="text-2xl font-black tracking-tight bg-gradient-to-r from-cyan-500 via-teal-400 to-blue-600 bg-clip-text text-transparent">
+                E-
+              </span>
+              <span
+                style={{ fontFamily: 'var(--font-dancing-script), cursive, sans-serif' }}
+                className="text-2xl font-bold bg-gradient-to-r from-teal-400 to-blue-600 bg-clip-text text-transparent italic -ml-0.5 pr-1 leading-normal"
+              >
+                Sign
+              </span>
+            </div>
           </div>
+          {isAdmin && (
+            <span className="text-[9px] bg-purple-100 text-purple-800 font-extrabold px-1.5 py-0.5 rounded-md border border-purple-200 shrink-0">
+              ADMIN
+            </span>
+          )}
         </div>
 
         {/* Header Kategori & Navigasi */}

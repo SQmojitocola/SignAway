@@ -91,6 +91,21 @@ export default function UserManagementPage() {
 
   useEffect(() => {
     fetchUsers()
+
+    // Cek jika diarahkan dari Inbox Permohonan Akun (quick_add)
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('quick_add') === 'true') {
+        const prefillEmail = params.get('email') || ''
+        const prefillName = params.get('name') || ''
+        setCreateFormData((prev) => ({
+          ...prev,
+          email: prefillEmail,
+          name: prefillName,
+        }))
+        setIsCreateModalOpen(true)
+      }
+    }
   }, [])
 
   // Auto-dismiss toast setelah 4 detik
@@ -491,17 +506,18 @@ export default function UserManagementPage() {
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((user) => {
+                filteredUsers.map((user, idx) => {
                   const isDeleted = user.status === 'DELETED'
                   const isFrozen = user.status === 'FROZEN'
                   const isActive = user.status === 'ACTIVE'
 
+                  const defaultRowBg = idx % 2 === 1 ? 'bg-[#f0f7ff]' : 'bg-white'
+                  const rowBg = isDeleted ? 'bg-slate-100/50 opacity-75' : isFrozen ? 'bg-amber-50/40' : defaultRowBg
+
                   return (
                     <tr
                       key={user.id}
-                      className={`hover:bg-slate-50/80 transition-colors ${
-                        isDeleted ? 'bg-slate-50/40 opacity-75' : isFrozen ? 'bg-amber-50/20' : ''
-                      }`}
+                      className={`${rowBg} hover:bg-blue-100/60 transition-colors`}
                     >
                       {/* Nama & Email */}
                       <td className="p-4">
