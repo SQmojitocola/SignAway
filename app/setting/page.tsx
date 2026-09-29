@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import MaterialIcon from "@/components/ui/MaterialIcon";
+import PageHeaderBanner from "@/components/PageHeaderBanner";
 
 export default function SettingsPage() {
   const [profileName, setProfileName] = useState("");
@@ -128,38 +129,28 @@ export default function SettingsPage() {
       <main className="min-w-0 flex flex-col">
         <div className="p-8 max-w-6xl w-full mx-auto flex flex-col gap-6 pb-16">
           
-          {/* Top Bar / Header */}
-          <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Pengaturan</h2>
-              <p className="text-sm text-gray-500 mt-1">
-                Kelola profil akun, tanda tangan digital, keamanan, dan preferensi notifikasi.
-              </p>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              {/* Notifikasi Bell */}
-              <button className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors relative shadow-sm">
-                <MaterialIcon name="notifications" size={20} />
-                <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"></span>
-              </button>
-
-              {/* User Profile Pill */}
-              <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-full pl-2 pr-4 py-1.5 shadow-sm">
-                <div className="w-8 h-8 rounded-full overflow-hidden bg-[#003b73] text-white flex items-center justify-center font-bold text-xs shrink-0">
-                  {initials}
-                </div>
-                <div className="flex flex-col text-left">
-                  <span className="text-xs font-semibold text-gray-900 leading-tight">
-                    {profileLoading ? "Memuat..." : profileName || "Pengguna"}
-                  </span>
-                  <span className="text-[11px] text-gray-400 leading-tight">
-                    {roleLabel}
-                  </span>
+          {/* Header Banner Card */}
+          <PageHeaderBanner
+            title="Pengaturan Akun"
+            subtitle="Kelola profil akun, NIP, keamanan kata sandi, dan preferensi notifikasi."
+            action={
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5 bg-white/10 backdrop-blur-xs border border-white/20 rounded-full pl-2 pr-4 py-1.5 shadow-sm">
+                  <div className="w-8 h-8 rounded-full overflow-hidden bg-white text-[#003b73] flex items-center justify-center font-bold text-xs shrink-0">
+                    {initials}
+                  </div>
+                  <div className="flex flex-col text-left">
+                    <span className="text-xs font-semibold text-white leading-tight">
+                      {profileLoading ? "Memuat..." : profileName || "Pengguna"}
+                    </span>
+                    <span className="text-[10px] text-blue-200 leading-tight">
+                      {roleLabel}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </section>
+            }
+          />
 
           {/* Navigation Tabs */}
           <div className="border-b border-gray-200 overflow-x-auto">

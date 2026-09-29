@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { FileText, FolderOpen, XCircle, CheckCircle2, Eye, Download, Search, ArrowUpDown, ChevronDown, Clock } from 'lucide-react'
 import DeleteDraftButton from '@/components/DeleteDraftButton'
 
+import PageHeaderBanner from '@/components/PageHeaderBanner'
+
 interface DraftItem {
   id: string
   title: string
@@ -107,14 +109,14 @@ export default function DraftsTabClient({
 
   return (
     <div className="space-y-6">
-      {/* Navigation Sub-Tab */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-600">Manajemen Dokumen</p>
-          <h1 className="text-2xl font-bold text-slate-900 mt-0.5">Draft, Penolakan & Selesai</h1>
-          <p className="text-sm font-normal text-slate-500 mt-1">Pantau dan kelola berkas draf yang belum dikirim, ditolak, serta selesai ditandatangani.</p>
-        </div>
+      {/* Header Banner Card */}
+      <PageHeaderBanner
+        title="Draft Dokumen"
+        subtitle="Kelola draf dokumen pribadi, penolakan, dan arsip selesai Anda."
+      />
 
+      {/* Navigation Sub-Tab */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-4 border-b border-slate-200 pb-4">
         <div className="flex flex-wrap items-center gap-2 bg-slate-100 p-1 rounded-xl">
           {/* Tab 1: Draft */}
           <button

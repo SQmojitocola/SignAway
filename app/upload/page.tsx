@@ -11,6 +11,8 @@ import {
   Save,
 } from 'lucide-react'
 
+import PageHeaderBanner from '@/components/PageHeaderBanner'
+
 interface UserContact {
   id: string
   name: string
@@ -262,13 +264,10 @@ export default function UploadDocumentPage() {
   return (
     <div className="min-h-screen w-full bg-slate-100/80 p-8">
       <div className="mx-auto max-w-6xl space-y-6">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-600">Alur Pengiriman</p>
-          <h1 className="text-2xl font-bold text-slate-900 mt-0.5">Unggah Dokumen Baru</h1>
-          <p className="text-sm font-normal text-slate-500 mt-1">
-            Siapkan dokumen Anda untuk ditandatangani secara digital.
-          </p>
-        </div>
+        <PageHeaderBanner
+          title="Unggah Dokumen"
+          subtitle="Unggah berkas PDF baru dan atur pihak-pihak penandatangan dokumen."
+        />
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Dropzone PDF */}

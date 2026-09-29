@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import { Star, Trash2, Plus, PenTool, FileCheck, X, Eraser, Check } from 'lucide-react'
 
+import PageHeaderBanner from '@/components/PageHeaderBanner'
+
 interface UserSpecimen {
   id: string
   type: 'SIGNATURE' | 'PARAF'
@@ -181,14 +183,13 @@ export default function SpecimensPage() {
 
   return (
     <div className="min-h-screen w-full bg-slate-100/80 p-8 space-y-6">
-      {/* Header Page */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Pustaka Pengesahan</p>
-          <h1 className="text-2xl font-extrabold text-slate-800">Atribut Pengesahan</h1>
-          <p className="text-xs text-slate-500 mt-0.5">Kelola spesimen tanda tangan digital dan paraf resmi Anda.</p>
-        </div>
+      {/* Header Banner Card */}
+      <PageHeaderBanner
+        title="Atribut Pengesahan"
+        subtitle="Kelola spesimen tanda tangan digital dan paraf resmi Anda."
+      />
 
+      <div className="flex flex-col md:flex-row md:items-center justify-end gap-4 border-b border-slate-200 pb-4">
         <div className="flex items-center gap-3">
           {/* Tab Filter */}
           <div className="flex items-center rounded-xl bg-slate-200/70 p-1 border border-slate-300/60">

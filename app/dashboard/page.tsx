@@ -3,6 +3,8 @@ import PendingDocuments, { type DashboardDocument } from "@/components/dashboard
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+import PageHeaderBanner from "@/components/PageHeaderBanner";
+
 function getInitials(name: string) {
   return name
     .split(" ")
@@ -40,7 +42,6 @@ export default async function DashboardPage() {
       OR: [
         { senderId: user.id },
         { recipients: { some: { userId: user.id } } },
-        { proxyRequests: { some: { requestedById: user.id } } },
       ],
     },
     orderBy: { createdAt: "desc" },
@@ -59,15 +60,6 @@ export default async function DashboardPage() {
           user: { select: { id: true, name: true, email: true } },
         },
       },
-      proxyRequests: {
-        where: { requestedById: user.id },
-        select: {
-          id: true,
-          requestedById: true,
-          targetUserId: true,
-          status: true,
-        },
-      },
     },
   });
 
@@ -79,23 +71,20 @@ export default async function DashboardPage() {
     sequential: doc.sequential,
     sender: doc.sender,
     recipients: doc.recipients,
-    proxyRequests: doc.proxyRequests,
   }));
 
   return (
     <main className="min-w-0 flex flex-col w-full">
-      <div className="max-w-7xl mx-auto w-full flex flex-col gap-8">
-        <section className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Halo, {user.name}</h1>
-            <p className="text-sm font-normal text-slate-500 mt-1">Berikut adalah ringkasan dokumen yang memerlukan perhatian Anda hari ini.</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="w-11 h-11 rounded-full border border-gray-200 shadow-sm bg-[#003b73] text-white flex items-center justify-center font-bold text-sm shrink-0">
+      <div className="max-w-7xl mx-auto w-full flex flex-col gap-6">
+        <PageHeaderBanner
+          title={`Halo, ${user.name}`}
+          subtitle="Ringkasan dokumen yang memerlukan perhatian dan tindakan tanda tangan Anda."
+          action={
+            <div className="w-11 h-11 rounded-full border border-white/20 shadow-sm bg-white/10 text-white flex items-center justify-center font-bold text-sm shrink-0">
               {getInitials(user.name)}
             </div>
-          </div>
-        </section>
+          }
+        />
 
         <PendingDocuments documents={dashboardDocuments} userId={user.id} />
       </div>

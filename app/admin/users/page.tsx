@@ -18,6 +18,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
+import PageHeaderBanner from '@/components/PageHeaderBanner'
 
 export type UserStatusType = 'ACTIVE' | 'FROZEN' | 'DELETED'
 
@@ -369,41 +370,36 @@ export default function UserManagementPage() {
         </div>
       )}
 
-      {/* Header Halaman */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold text-[#003b73] tracking-tight flex items-center gap-2">
-            Manajemen Karyawan
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Kelola data akun, kustomisasi password, hak akses, status keaktifan, dan unduh data karyawan PT Surveyor Indonesia.
-          </p>
-        </div>
+      {/* Header Banner Card */}
+      <PageHeaderBanner
+        title="Manajemen Karyawan"
+        subtitle="Kelola data akun, hak akses, status pegawai, dan unduh laporan."
+        action={
+          <div className="flex items-center gap-2">
+            {/* Tombol Unduh Excel */}
+            <button
+              onClick={handleExportExcel}
+              title="Unduh data tabel dalam format spreadsheet Excel (.xlsx)"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold rounded-xl text-xs transition-all backdrop-blur-xs shadow-xs active:scale-95 cursor-pointer"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-300" />
+              <span>Unduh Excel</span>
+            </button>
 
-        <div className="flex items-center gap-2">
-          {/* Tombol Unduh Excel */}
-          <button
-            onClick={handleExportExcel}
-            title="Unduh data tabel dalam format spreadsheet Excel (.xlsx)"
-            className="flex items-center gap-2 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all shadow-sm active:scale-95 cursor-pointer"
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>Unduh Excel</span>
-          </button>
-
-          {/* Tombol Tambah Karyawan */}
-          <button
-            onClick={() => {
-              setModalError('')
-              setIsCreateModalOpen(true)
-            }}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#003b73] hover:bg-blue-900 text-white font-bold rounded-xl text-xs transition-all shadow-md active:scale-95 cursor-pointer"
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>Tambah Karyawan</span>
-          </button>
-        </div>
-      </div>
+            {/* Tombol Tambah Karyawan */}
+            <button
+              onClick={() => {
+                setModalError('')
+                setIsCreateModalOpen(true)
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl text-xs transition-all shadow-sm active:scale-95 cursor-pointer"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>Tambah Karyawan</span>
+            </button>
+          </div>
+        }
+      />
 
       {/* Baris Filter & Pencarian */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">

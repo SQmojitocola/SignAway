@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { Search, UserPlus, Trash2, Mail, CheckCircle2, AlertCircle, Save } from 'lucide-react'
 
+import PageHeaderBanner from '@/components/PageHeaderBanner'
+
 interface Contact {
   id: string
   name: string
@@ -149,13 +151,11 @@ export default function ContactsPage() {
 
   return (
     <div className="min-h-screen w-full bg-slate-100/80 p-8 space-y-6">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-600">Buku Kontak</p>
-        <h1 className="text-2xl font-bold text-slate-900 mt-0.5">Daftar Kontak Penandatangan</h1>
-        <p className="text-sm font-normal text-slate-500 mt-1">
-          Cari email pengguna dan simpan ke daftar kontak untuk mempermudah alur penandatanganan.
-        </p>
-      </div>
+      {/* Header Banner Card */}
+      <PageHeaderBanner
+        title="Daftar Kontak"
+        subtitle="Cari dan simpan kontak rekan untuk alur penandatanganan."
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Panel Cari & Tambah Kontak */}
