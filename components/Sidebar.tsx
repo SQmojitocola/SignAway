@@ -31,7 +31,8 @@ export default function Sidebar() {
   // Menu Khusus Administrator
   const adminMenuItems = [
     { name: 'Dashboard Admin', href: '/admin/dashboard', icon: LayoutDashboard },
-    { name: 'Izin Proxy TTD', href: '/admin/proxy-requests', icon: FileCheck },
+    // Fitur delegasi disembunyikan sementara sesuai kebijakan instansi
+    // { name: 'Izin Proxy TTD', href: '/admin/proxy-requests', icon: FileCheck },
     { name: 'Monitoring Dokumen', href: '/admin/documents', icon: FileSearch },
     { name: 'Manajemen Karyawan', href: '/admin/users', icon: Users },
   ]

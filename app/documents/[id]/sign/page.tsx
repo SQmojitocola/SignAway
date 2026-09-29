@@ -132,7 +132,8 @@ export default function SignDocumentPage() {
   const [rejectReason, setRejectReason] = useState('')
   const [rejecting, setRejecting] = useState(false)
 
-  // Modal Pengajuan Proxy
+  // Modal Pengajuan Proxy (disembunyikan sementara out of system)
+  const SHOW_PROXY_FEATURE = false
   const [showProxyModal, setShowProxyModal] = useState(false)
 
   const [pdfPages, setPdfPages] = useState<Array<{ pageNumber: number; width: number; height: number }>>([])
@@ -1438,7 +1439,7 @@ export default function SignDocumentPage() {
                   ? 'Anda telah selesai menandatangani dokumen ini.'
                   : 'Belum giliran Anda untuk menandatangani dokumen ini.'}
               </p>
-              {!myRecipientInDoc && doc && (
+              {SHOW_PROXY_FEATURE && !myRecipientInDoc && doc && (
                 <button
                   type="button"
                   onClick={() => setShowProxyModal(true)}
@@ -1488,8 +1489,8 @@ export default function SignDocumentPage() {
         </aside>
       </div>
 
-      {/* Modal Pengajuan Proxy */}
-      {doc && (
+      {/* Modal Pengajuan Proxy (Disembunyikan sementara) */}
+      {SHOW_PROXY_FEATURE && doc && (
         <ProxyRequestModal
           isOpen={showProxyModal}
           onClose={() => setShowProxyModal(false)}

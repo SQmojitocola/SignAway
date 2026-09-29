@@ -57,6 +57,8 @@ export default function DocumentDetailPage() {
     approvedProxy: { id: string; targetUser: { id: string; name: string } } | null
     latestRequest: { id: string; status: string; rejectionNote?: string | null; targetUser: { id: string; name: string } } | null
   } | null>(null)
+  // Feature flag untuk menyembunyikan fitur proxy/delegasi (out of system)
+  const SHOW_PROXY_FEATURE = false
   const [showProxyModal, setShowProxyModal] = useState(false)
   const [defaultTargetUserId, setDefaultTargetUserId] = useState<string | undefined>(undefined)
 
@@ -216,7 +218,7 @@ export default function DocumentDetailPage() {
               >
                 <PenTool className="h-3.5 w-3.5" /> Tanda Tangani Dokumen
               </button>
-            ) : (
+            ) : SHOW_PROXY_FEATURE ? (
               <button
                 type="button"
                 onClick={() => {
@@ -227,7 +229,7 @@ export default function DocumentDetailPage() {
               >
                 <ShieldAlert className="h-3.5 w-3.5 text-amber-400" /> Ajukan Proxy TTD
               </button>
-            )
+            ) : null
           )}
 
           <div className="flex items-center gap-1.5">
@@ -320,16 +322,18 @@ export default function DocumentDetailPage() {
               <p className="text-[11px] text-slate-300">
                 {proxyInfo.latestRequest.rejectionNote || 'Ditolak oleh Administrator.'}
               </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setDefaultTargetUserId(undefined)
-                  setShowProxyModal(true)
-                }}
-                className="text-[10px] text-rose-300 hover:underline font-bold pt-1 cursor-pointer"
-              >
-                Ajukan Ulang Permohonan
-              </button>
+              {SHOW_PROXY_FEATURE && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDefaultTargetUserId(undefined)
+                    setShowProxyModal(true)
+                  }}
+                  className="text-[10px] text-rose-300 hover:underline font-bold pt-1 cursor-pointer"
+                >
+                  Ajukan Ulang Permohonan
+                </button>
+              )}
             </div>
           ) : null}
 
@@ -355,7 +359,7 @@ export default function DocumentDetailPage() {
               <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
                 Riwayat Penandatanganan
               </h3>
-              {!isCompleted && !isRejected && !proxyInfo?.approvedProxy && (
+              {SHOW_PROXY_FEATURE && !isCompleted && !isRejected && !proxyInfo?.approvedProxy && (
                 <button
                   type="button"
                   onClick={() => {
@@ -399,7 +403,7 @@ export default function DocumentDetailPage() {
                       </span>
                     )}
 
-                    {canRequestProxyForThis && (
+                    {SHOW_PROXY_FEATURE && canRequestProxyForThis && (
                       <button
                         type="button"
                         onClick={() => {
@@ -452,8 +456,8 @@ export default function DocumentDetailPage() {
         </aside>
       </div>
 
-      {/* Modal Pengajuan Proxy */}
-      {doc && (
+      {/* Modal Pengajuan Proxy (Disembunyikan sementara) */}
+      {SHOW_PROXY_FEATURE && doc && (
         <ProxyRequestModal
           isOpen={showProxyModal}
           onClose={() => setShowProxyModal(false)}
