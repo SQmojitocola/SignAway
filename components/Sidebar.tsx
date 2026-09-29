@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import { 
@@ -55,35 +54,32 @@ export default function Sidebar() {
     <aside className="w-64 bg-[#1e4273] text-white p-6 flex flex-col justify-between h-screen sticky top-0 shrink-0 font-sans">
       <div className="space-y-6">
         {/* Logo Card */}
-        <div className="flex items-center justify-between bg-white rounded-2xl p-3 shadow-md border border-white/20">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="relative h-9 w-9 shrink-0">
-              <Image
-                src="/assets/logo-surveyor-indonesia-png-svg-removebg-preview.png"
-                alt="Logo Surveyor Indonesia"
-                fill
-                sizes="2.25rem"
-                className="object-contain"
-                priority
-              />
-            </div>
+        <div className="bg-white rounded-2xl p-3.5 shadow-md border border-white/20">
+          <div className="flex items-center justify-between">
+            {/* 🏷️ Logo E-Sign (Ukuran & Posisi dapat disesuaikan lewat class text-* dan margin) */}
             <div className="flex items-center select-none overflow-visible">
-              <span className="text-2xl font-black tracking-tight bg-gradient-to-r from-cyan-500 via-teal-400 to-blue-600 bg-clip-text text-transparent">
+              <span className="text-3xl font-black tracking-tight bg-gradient-to-r from-cyan-500 via-teal-400 to-blue-600 bg-clip-text text-transparent">
                 E-
               </span>
               <span
                 style={{ fontFamily: 'var(--font-dancing-script), cursive, sans-serif' }}
-                className="text-2xl font-bold bg-gradient-to-r from-teal-400 to-blue-600 bg-clip-text text-transparent italic -ml-0.5 pr-1 leading-normal"
+                className="text-3xl font-bold bg-gradient-to-r from-teal-400 to-blue-600 bg-clip-text text-transparent italic -ml-1 pr-1 leading-normal"
               >
                 Sign
               </span>
             </div>
+
+            {isAdmin && (
+              <span className="text-[9px] bg-purple-100 text-purple-800 font-extrabold px-2 py-0.5 rounded-md border border-purple-200 shrink-0">
+                ADMIN
+              </span>
+            )}
           </div>
-          {isAdmin && (
-            <span className="text-[9px] bg-purple-100 text-purple-800 font-extrabold px-1.5 py-0.5 rounded-md border border-purple-200 shrink-0">
-              ADMIN
-            </span>
-          )}
+
+          {/* Subteks Platform */}
+          <p className="mt-1 text-[10px] font-semibold text-slate-500 leading-tight">
+            Platform Manajemen Pengesahan
+          </p>
         </div>
 
         {/* Header Kategori & Navigasi */}
