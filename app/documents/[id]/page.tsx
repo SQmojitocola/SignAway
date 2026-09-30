@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, XCircle, Download, CheckCircle2, ShieldAlert, ShieldCheck, Clock, PenTool } from 'lucide-react'
 import ProxyRequestModal from '@/components/document/ProxyRequestModal'
+import CancelDocumentButton from '@/components/admin/CancelDocumentButton'
 
 interface Recipient {
   id: string
@@ -52,7 +53,7 @@ export default function DocumentDetailPage() {
     Array<{ pageNumber: number; width: number; height: number }>
   >([])
 
-  const [currentUser, setCurrentUser] = useState<{ id: string; name: string; email: string } | null>(null)
+  const [currentUser, setCurrentUser] = useState<{ id: string; name: string; email: string; role?: string } | null>(null)
   const [proxyInfo, setProxyInfo] = useState<{
     approvedProxy: { id: string; targetUser: { id: string; name: string } } | null
     latestRequest: { id: string; status: string; rejectionNote?: string | null; targetUser: { id: string; name: string } } | null
@@ -201,6 +202,20 @@ export default function DocumentDetailPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          {currentUser?.role === 'ADMIN' && !isCompleted && !isRejected && (
+            <CancelDocumentButton
+              documentId={documentId}
+              documentTitle={doc.title}
+              documentStatus={doc.status}
+              variant="header"
+              onSuccess={() => {
+                setDoc((prev) =>
+                  prev ? { ...prev, status: 'REJECTED', rejectReason: 'Dibatalkan oleh Administrator' } : null
+                )
+              }}
+            />
+          )}
+
           {!isCompleted && !isRejected && (
             proxyInfo?.approvedProxy ? (
               <button

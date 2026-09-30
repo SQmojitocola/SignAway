@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Filter,
 } from 'lucide-react'
+import CancelDocumentButton from '@/components/admin/CancelDocumentButton'
 
 function getInitials(name: string) {
   return (
@@ -94,13 +95,13 @@ export default async function AdminDocumentsPage(props: PageProps) {
       take: pageSize,
       orderBy: { updatedAt: 'desc' },
       include: {
-        sender: { select: { id: true, name: true, email: true } },
+        sender: { select: { id: true, name: true, email: true, avatarUrl: true } },
         recipients: {
           select: {
             id: true,
             status: true,
             signingOrder: true,
-            user: { select: { id: true, name: true, email: true } },
+            user: { select: { id: true, name: true, email: true, avatarUrl: true } },
           },
           orderBy: { signingOrder: 'asc' },
         },
@@ -249,8 +250,12 @@ export default async function AdminDocumentsPage(props: PageProps) {
                       {/* Uploader */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-[#003b73] text-white flex items-center justify-center font-bold text-[10px] shrink-0">
-                            {getInitials(doc.sender?.name || 'User')}
+                          <div className="w-7 h-7 rounded-full bg-[#003b73] text-white flex items-center justify-center font-bold text-[10px] shrink-0 overflow-hidden shadow-xs border border-white/20">
+                            {doc.sender?.avatarUrl ? (
+                              <img src={doc.sender.avatarUrl} alt={doc.sender?.name || 'User'} className="w-full h-full object-cover" />
+                            ) : (
+                              getInitials(doc.sender?.name || 'User')
+                            )}
                           </div>
                           <div className="min-w-0">
                             <p className="font-semibold text-slate-800 truncate">{doc.sender?.name}</p>
@@ -268,7 +273,7 @@ export default async function AdminDocumentsPage(props: PageProps) {
                                 <div
                                   key={r.id}
                                   title={`${r.user.name} (${r.status})`}
-                                  className={`w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-bold text-white ${
+                                  className={`w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-bold text-white overflow-hidden shadow-xs ${
                                     r.status === 'SIGNED'
                                       ? 'bg-emerald-500'
                                       : r.status === 'REJECTED'
@@ -276,7 +281,11 @@ export default async function AdminDocumentsPage(props: PageProps) {
                                       : 'bg-amber-500'
                                   }`}
                                 >
-                                  {getInitials(r.user.name)}
+                                  {r.user.avatarUrl ? (
+                                    <img src={r.user.avatarUrl} alt={r.user.name} className="w-full h-full object-cover" />
+                                  ) : (
+                                    getInitials(r.user.name)
+                                  )}
                                 </div>
                               ))}
                               {doc.recipients.length > 4 && (
@@ -330,12 +339,21 @@ export default async function AdminDocumentsPage(props: PageProps) {
 
                       {/* Aksi */}
                       <td className="py-3.5 px-4 text-center">
-                        <Link
-                          href={`/documents/${doc.id}`}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#003b73] text-white rounded-lg text-[11px] font-bold hover:bg-[#002d58] transition-colors shadow-xs"
-                        >
-                          Detail <ExternalLink className="w-3 h-3" />
-                        </Link>
+                        <div className="inline-flex items-center gap-1.5 justify-center">
+                          <Link
+                            href={`/documents/${doc.id}`}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#003b73] text-white rounded-lg text-[11px] font-bold hover:bg-[#002d58] transition-colors shadow-xs"
+                          >
+                            Detail <ExternalLink className="w-3 h-3" />
+                          </Link>
+
+                          <CancelDocumentButton
+                            documentId={doc.id}
+                            documentTitle={doc.title}
+                            documentStatus={doc.status}
+                            variant="table"
+                          />
+                        </div>
                       </td>
                     </tr>
                   )
