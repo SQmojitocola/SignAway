@@ -112,7 +112,7 @@ export default async function AdminDashboardPage() {
 
   const currentUser = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, name: true, role: true },
+    select: { id: true, name: true, role: true, avatarUrl: true },
   })
 
   if (currentUser?.role !== 'ADMIN') {
@@ -141,13 +141,13 @@ export default async function AdminDashboardPage() {
       take: 5,
       orderBy: { updatedAt: 'desc' },
       include: {
-        sender: { select: { id: true, name: true, email: true, department: true } },
+        sender: { select: { id: true, name: true, email: true, department: true, avatarUrl: true } },
         recipients: {
           select: {
             id: true,
             status: true,
             signingOrder: true,
-            user: { select: { id: true, name: true, email: true } },
+            user: { select: { id: true, name: true, email: true, avatarUrl: true } },
           },
           orderBy: { signingOrder: 'asc' },
         },
@@ -168,15 +168,35 @@ export default async function AdminDashboardPage() {
         title="Dashboard Administrator"
         subtitle="Ringkasan operasional dan pengawasan tanda tangan elektronik instansi."
         action={
-          <div className="flex sm:flex-col items-start sm:items-end justify-between gap-1 border-t sm:border-t-0 sm:border-l border-white/15 pt-3 sm:pt-0 sm:pl-6">
-            <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-wider">Total Dokumen Terkelola</p>
-            <p className="text-3xl font-black text-white leading-none">{totalDocs}</p>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
             <Link
-              href="/admin/documents"
-              className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-300 hover:text-white transition-colors mt-0.5"
+              href="/setting"
+              title="Buka Pengaturan Profil"
+              className="relative group block shrink-0"
             >
-              Buka Monitoring <ChevronRight className="w-3.5 h-3.5" />
+              <div className="w-16 h-16 sm:w-[72px] sm:h-[72px] rounded-full border-2 border-white/40 shadow-lg bg-[#00284d] text-white flex items-center justify-center font-bold text-lg sm:text-xl shrink-0 overflow-hidden ring-4 ring-white/10 transition-transform duration-200 group-hover:scale-105">
+                {currentUser.avatarUrl ? (
+                  <img
+                    src={currentUser.avatarUrl}
+                    alt={currentUser.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  getInitials(currentUser.name)
+                )}
+              </div>
             </Link>
+
+            <div className="flex sm:flex-col items-start sm:items-end justify-between gap-1 border-t sm:border-t-0 sm:border-l border-white/15 pt-3 sm:pt-0 sm:pl-6">
+              <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-wider">Total Dokumen Terkelola</p>
+              <p className="text-3xl font-black text-white leading-none">{totalDocs}</p>
+              <Link
+                href="/admin/documents"
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-300 hover:text-white transition-colors mt-0.5"
+              >
+                Buka Monitoring <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
           </div>
         }
       />
@@ -352,8 +372,12 @@ export default async function AdminDashboardPage() {
                         {/* 2. Pengunggah (Uploader) */}
                         <td className="py-3 px-3">
                           <div className="flex items-center gap-2 max-w-[140px]">
-                            <div className="w-6 h-6 rounded-full bg-[#003b73] text-white flex items-center justify-center font-bold text-[9px] shrink-0">
-                              {getInitials(doc.sender?.name || 'User')}
+                            <div className="w-6 h-6 rounded-full bg-[#003b73] text-white flex items-center justify-center font-bold text-[9px] shrink-0 overflow-hidden shadow-xs border border-white/20">
+                              {doc.sender?.avatarUrl ? (
+                                <img src={doc.sender.avatarUrl} alt={doc.sender?.name || 'User'} className="w-full h-full object-cover" />
+                              ) : (
+                                getInitials(doc.sender?.name || 'User')
+                              )}
                             </div>
                             <div className="min-w-0">
                               <p className="font-semibold text-slate-800 truncate">

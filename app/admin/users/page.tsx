@@ -31,6 +31,7 @@ interface UserData {
   department: string | null
   status: UserStatusType
   isActive: boolean
+  avatarUrl?: string | null
   createdAt: string
 }
 
@@ -523,7 +524,7 @@ export default function UserManagementPage() {
                       <td className="p-4">
                         <div className="flex items-center gap-3">
                           <div
-                            className={`flex h-9 w-9 items-center justify-center rounded-full font-bold text-xs shrink-0 ${
+                            className={`flex h-9 w-9 items-center justify-center rounded-full font-bold text-xs shrink-0 overflow-hidden shadow-xs border border-white/20 ${
                               isDeleted
                                 ? 'bg-slate-300 text-slate-600'
                                 : isFrozen
@@ -531,7 +532,11 @@ export default function UserManagementPage() {
                                 : 'bg-[#003b73] text-white'
                             }`}
                           >
-                            {user.name.substring(0, 2).toUpperCase()}
+                            {user.avatarUrl ? (
+                              <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+                            ) : (
+                              user.name.substring(0, 2).toUpperCase()
+                            )}
                           </div>
                           <div>
                             <p className="font-bold text-slate-800 flex items-center gap-1.5">

@@ -15,7 +15,19 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
     })
 
-    return NextResponse.json({ contacts }, { status: 200 })
+    const emails = contacts.map((c) => c.email.toLowerCase())
+    const usersWithAvatar = await prisma.user.findMany({
+      where: { email: { in: emails } },
+      select: { email: true, avatarUrl: true },
+    })
+    const avatarMap = new Map(usersWithAvatar.map((u) => [u.email.toLowerCase(), u.avatarUrl]))
+
+    const enrichedContacts = contacts.map((c) => ({
+      ...c,
+      avatarUrl: avatarMap.get(c.email.toLowerCase()) ?? null,
+    }))
+
+    return NextResponse.json({ contacts: enrichedContacts }, { status: 200 })
   } catch (error) {
     console.error('Fetch Contacts Error:', error)
     return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 })

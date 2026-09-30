@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import PendingDocuments, { type DashboardDocument } from "@/components/dashboard/PendingDocuments";
 import { auth } from "@/lib/auth";
@@ -24,7 +25,7 @@ export default async function DashboardPage() {
   // 1. Ambil data user beserta Role-nya dari database
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, name: true, email: true, role: true },
+    select: { id: true, name: true, email: true, role: true, avatarUrl: true },
   });
 
   if (!user) {
@@ -51,13 +52,13 @@ export default async function DashboardPage() {
       createdAt: true,
       status: true,
       sequential: true,
-      sender: { select: { id: true, name: true, email: true } },
+      sender: { select: { id: true, name: true, email: true, avatarUrl: true } },
       recipients: {
         select: {
           id: true,
           status: true,
           signingOrder: true,
-          user: { select: { id: true, name: true, email: true } },
+          user: { select: { id: true, name: true, email: true, avatarUrl: true } },
         },
       },
     },
@@ -80,9 +81,23 @@ export default async function DashboardPage() {
           title={`Halo, ${user.name}`}
           subtitle="Ringkasan dokumen yang memerlukan perhatian dan tindakan tanda tangan Anda."
           action={
-            <div className="w-11 h-11 rounded-full border border-white/20 shadow-sm bg-white/10 text-white flex items-center justify-center font-bold text-sm shrink-0">
-              {getInitials(user.name)}
-            </div>
+            <Link
+              href="/setting"
+              title="Buka Pengaturan Profil"
+              className="relative group block shrink-0"
+            >
+              <div className="w-16 h-16 sm:w-[72px] sm:h-[72px] rounded-full border-2 border-white/40 shadow-lg bg-[#00284d] text-white flex items-center justify-center font-bold text-lg sm:text-xl shrink-0 overflow-hidden ring-4 ring-white/10 transition-transform duration-200 group-hover:scale-105">
+                {user.avatarUrl ? (
+                  <img
+                    src={user.avatarUrl}
+                    alt={user.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  getInitials(user.name)
+                )}
+              </div>
+            </Link>
           }
         />
 

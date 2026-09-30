@@ -37,6 +37,7 @@ export const { handlers, signIn, signOut, auth } = nextAuth({
           email: user.email,
           name: user.name,
           role: user.role,
+          image: user.avatarUrl,
         }
       },
     }),
@@ -50,16 +51,18 @@ export const { handlers, signIn, signOut, auth } = nextAuth({
       if (user) {
         token.id = user.id
         token.role = (user as { role?: string }).role
+        token.picture = (user as { image?: string | null }).image ?? (user as { avatarUrl?: string | null }).avatarUrl
       }
 
-      // 📍 Selalu pastikan role paling fresh dari DB jika token dibaca
+      // 📍 Selalu pastikan role & avatar paling fresh dari DB jika token dibaca
       if (token.id) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
-          select: { role: true }
+          select: { role: true, avatarUrl: true }
         })
         if (dbUser) {
           token.role = dbUser.role
+          token.picture = dbUser.avatarUrl
         }
       }
 
@@ -69,6 +72,7 @@ export const { handlers, signIn, signOut, auth } = nextAuth({
       if (session.user) {
         session.user.id = token.id as string
         session.user.role = token.role as 'ADMIN' | 'KARYAWAN'
+        session.user.image = (token.picture as string) ?? null
       }
       return session
     },

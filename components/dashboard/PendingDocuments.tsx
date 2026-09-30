@@ -19,12 +19,12 @@ export interface DashboardDocument {
   createdAt: Date
   status: 'DRAFT' | 'PENDING' | 'PARTIAL_SIGNED' | 'COMPLETED' | 'REJECTED'
   sequential: boolean
-  sender: { id: string; name: string; email: string }
+  sender: { id: string; name: string; email: string; avatarUrl?: string | null }
   recipients: Array<{
     id: string
     status: 'WAITING' | 'PENDING' | 'SIGNED' | 'REJECTED'
     signingOrder: number | null
-    user: { id: string; name: string; email: string }
+    user: { id: string; name: string; email: string; avatarUrl?: string | null }
   }>
   proxyRequests?: Array<{
     id: string
@@ -294,8 +294,12 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
                       </td>
                       <td className="p-4">
                         <div className="flex items-center gap-2 min-w-0">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1e4273] text-[10px] font-bold text-white shrink-0">
-                            {getInitials(doc.sender.name)}
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1e4273] text-[10px] font-bold text-white shrink-0 overflow-hidden shadow-xs border border-white/20">
+                            {doc.sender.avatarUrl ? (
+                              <img src={doc.sender.avatarUrl} alt={doc.sender.name} className="w-full h-full object-cover" />
+                            ) : (
+                              getInitials(doc.sender.name)
+                            )}
                           </div>
                           <div className="min-w-0">
                             <p className="font-semibold text-slate-700 truncate">{doc.sender.name}</p>
@@ -310,9 +314,13 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
                               <div
                                 key={recipient.id}
                                 title={recipient.user.name}
-                                className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-slate-200 text-[9px] font-bold text-slate-600"
+                                className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-slate-200 text-[9px] font-bold text-slate-600 overflow-hidden shadow-xs"
                               >
-                                {getInitials(recipient.user.name)}
+                                {recipient.user.avatarUrl ? (
+                                  <img src={recipient.user.avatarUrl} alt={recipient.user.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  getInitials(recipient.user.name)
+                                )}
                               </div>
                             ))}
                           </div>

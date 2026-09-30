@@ -9,6 +9,7 @@ interface Contact {
   id: string
   name: string
   email: string
+  avatarUrl?: string | null
   createdAt: string
 }
 
@@ -16,6 +17,7 @@ interface FoundUser {
   id: string
   name: string
   email: string
+  avatarUrl?: string | null
 }
 
 export default function ContactsPage() {
@@ -220,9 +222,18 @@ export default function ContactsPage() {
               <p className="text-[11px] font-bold uppercase tracking-wider text-blue-700">
                 AKUN DITEMUKAN
               </p>
-              <div>
-                <p className="text-xs font-bold text-slate-800">{foundUser.name}</p>
-                <p className="text-[10px] text-slate-500">{foundUser.email}</p>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden shadow-xs border border-white/20">
+                  {foundUser.avatarUrl ? (
+                    <img src={foundUser.avatarUrl} alt={foundUser.name} className="w-full h-full object-cover" />
+                  ) : (
+                    foundUser.name.charAt(0).toUpperCase()
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-800">{foundUser.name}</p>
+                  <p className="text-[10px] text-slate-500">{foundUser.email}</p>
+                </div>
               </div>
               <button
                 type="button"
@@ -293,8 +304,12 @@ export default function ContactsPage() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
-                      {contact.name.charAt(0).toUpperCase()}
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700 shrink-0 overflow-hidden shadow-xs border border-slate-200/60">
+                      {contact.avatarUrl ? (
+                        <img src={contact.avatarUrl} alt={contact.name} className="w-full h-full object-cover" />
+                      ) : (
+                        contact.name.charAt(0).toUpperCase()
+                      )}
                     </div>
                     <div>
                       <p className="text-xs font-bold text-slate-800">{contact.name}</p>

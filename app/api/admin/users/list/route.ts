@@ -30,6 +30,7 @@ export async function GET() {
         department: true,
         status: true,
         isActive: true,
+        avatarUrl: true,
         createdAt: true,
       },
       orderBy: { createdAt: 'desc' },
