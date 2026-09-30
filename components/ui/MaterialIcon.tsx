@@ -1,4 +1,5 @@
 import {
+  AlertCircle,
   Award,
   Badge,
   BadgeCheck,
@@ -27,6 +28,8 @@ import {
   Settings,
   ShieldCheck,
   SlidersHorizontal,
+  Trash2,
+  Upload,
   UploadCloud,
   User,
   Verified,
@@ -43,10 +46,12 @@ const icons = {
   check_circle: CircleCheck,
   corporate_fare: Building2,
   dashboard: LayoutDashboard,
+  delete: Trash2,
   description: FileText,
   devices: MonitorSmartphone,
   draw: Edit3,
   edit_document: FilePenLine,
+  error: AlertCircle,
   filter_list: SlidersHorizontal,
   fingerprint: Fingerprint,
   id_card: IdCard,
@@ -65,6 +70,7 @@ const icons = {
   security: ShieldCheck,
   settings: Settings,
   tune: SlidersHorizontal,
+  upload: Upload,
   upload_file: UploadCloud,
   verified: Verified,
   verified_user: BadgeCheck,
@@ -81,5 +87,7 @@ interface MaterialIconProps extends LucideProps {
 
 export default function MaterialIcon({ name, ...props }: Readonly<MaterialIconProps>) {
   const Icon = icons[name];
+  if (!Icon) return null;
   return <Icon aria-hidden="true" {...props} />;
 }
+

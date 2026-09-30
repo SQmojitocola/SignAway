@@ -12,6 +12,7 @@ export default function SettingsPage() {
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
+  const [profileError, setProfileError] = useState("");
 
   const [activeTab, setActiveTab] = useState("profil");
 
@@ -39,17 +40,37 @@ export default function SettingsPage() {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetch("/api/users?me=true")
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Profil tidak dapat dimuat");
+    let isMounted = true;
+    async function loadProfile() {
+      try {
+        const response = await fetch("/api/users?me=true");
+        if (!response.ok) {
+          throw new Error("Profil tidak dapat dimuat");
+        }
         const data = await response.json();
-        setProfileName(data.user?.name ?? "");
-        setProfileEmail(data.user?.email ?? "");
-        setProfileNip(data.user?.nip ?? "");
-        setProfileRole(data.user?.role ?? "KARYAWAN");
-        setAvatarUrl(data.user?.avatarUrl ?? null);
-      })
-      .finally(() => setProfileLoading(false));
+        if (isMounted) {
+          setProfileName(data.user?.name ?? "");
+          setProfileEmail(data.user?.email ?? "");
+          setProfileNip(data.user?.nip ?? "");
+          setProfileRole(data.user?.role ?? "KARYAWAN");
+          setAvatarUrl(data.user?.avatarUrl ?? null);
+        }
+      } catch (err) {
+        if (isMounted) {
+          console.error(err);
+          setProfileError("Profil tidak dapat dimuat");
+        }
+      } finally {
+        if (isMounted) {
+          setProfileLoading(false);
+        }
+      }
+    }
+
+    void loadProfile();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleProfileSave = async (e?: React.FormEvent) => {
@@ -306,6 +327,13 @@ export default function SettingsPage() {
                 <div className="mb-4 flex items-center gap-2 text-emerald-700 bg-emerald-50 border border-emerald-200 px-4 py-2.5 rounded-lg text-xs font-medium">
                   <MaterialIcon name="check_circle" size={18} />
                   <span>{profileMessage}</span>
+                </div>
+              )}
+
+              {profileError && (
+                <div className="mb-4 flex items-center gap-2 text-red-700 bg-red-50 border border-red-200 px-4 py-2.5 rounded-lg text-xs font-medium">
+                  <MaterialIcon name="error" size={18} />
+                  <span>{profileError}</span>
                 </div>
               )}
 
