@@ -3,18 +3,14 @@ import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
-  FileSearch,
-  Search,
-  CheckCircle2,
-  Clock,
-  XCircle,
   FileText,
   ExternalLink,
   ChevronLeft,
   ChevronRight,
-  Filter,
 } from 'lucide-react'
 import CancelDocumentButton from '@/components/admin/CancelDocumentButton'
+import DocumentFilterBar from '@/components/admin/DocumentFilterBar'
+import PageHeaderBanner from '@/components/PageHeaderBanner'
 
 function getInitials(name: string) {
   return (
@@ -41,11 +37,10 @@ interface PageProps {
   searchParams: Promise<{
     q?: string
     status?: string
+    sender?: string
     page?: string
   }>
 }
-
-import PageHeaderBanner from '@/components/PageHeaderBanner'
 
 export default async function AdminDocumentsPage(props: PageProps) {
   const session = await auth()
@@ -63,6 +58,7 @@ export default async function AdminDocumentsPage(props: PageProps) {
   const searchParams = await props.searchParams
   const query = searchParams.q?.trim() || ''
   const statusFilter = searchParams.status || 'ALL'
+  const senderFilter = searchParams.sender?.trim() || 'ALL'
   const currentPage = Math.max(1, parseInt(searchParams.page || '1', 10))
   const pageSize = 10
 
@@ -79,6 +75,10 @@ export default async function AdminDocumentsPage(props: PageProps) {
     whereClause.status = { not: 'DRAFT' }
   }
 
+  if (senderFilter !== 'ALL') {
+    whereClause.senderId = senderFilter
+  }
+
   if (query) {
     whereClause.OR = [
       { title: { contains: query, mode: 'insensitive' } },
@@ -87,7 +87,9 @@ export default async function AdminDocumentsPage(props: PageProps) {
     ]
   }
 
-  const [totalFiltered, documents, statusCounts] = await Promise.all([
+  const senderWhere = senderFilter !== 'ALL' ? { senderId: senderFilter } : {}
+
+  const [totalFiltered, documents, statusCounts, senders] = await Promise.all([
     prisma.document.count({ where: whereClause }),
     prisma.document.findMany({
       where: whereClause,
@@ -108,15 +110,41 @@ export default async function AdminDocumentsPage(props: PageProps) {
       },
     }),
     Promise.all([
-      prisma.document.count({ where: { status: { not: 'DRAFT' } } }),
-      prisma.document.count({ where: { status: { in: ['PENDING', 'PARTIAL_SIGNED'] } } }),
-      prisma.document.count({ where: { status: 'COMPLETED' } }),
-      prisma.document.count({ where: { status: 'REJECTED' } }),
+      prisma.document.count({ where: { status: { not: 'DRAFT' }, ...senderWhere } }),
+      prisma.document.count({ where: { status: { in: ['PENDING', 'PARTIAL_SIGNED'] }, ...senderWhere } }),
+      prisma.document.count({ where: { status: 'COMPLETED', ...senderWhere } }),
+      prisma.document.count({ where: { status: 'REJECTED', ...senderWhere } }),
     ]),
+    prisma.user.findMany({
+      where: {
+        sentDocuments: {
+          some: {
+            status: { not: 'DRAFT' },
+          },
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        department: true,
+        avatarUrl: true,
+      },
+      orderBy: { name: 'asc' },
+    }),
   ])
 
   const [allCount, inProgressCount, completedCount, rejectedCount] = statusCounts
   const totalPages = Math.ceil(totalFiltered / pageSize) || 1
+
+  const buildPageUrl = (pageNumber: number) => {
+    const params = new URLSearchParams()
+    if (statusFilter && statusFilter !== 'ALL') params.set('status', statusFilter)
+    if (senderFilter && senderFilter !== 'ALL') params.set('sender', senderFilter)
+    if (query) params.set('q', query)
+    if (pageNumber > 1) params.set('page', pageNumber.toString())
+    const qs = params.toString()
+    return `/admin/documents${qs ? `?${qs}` : ''}`
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 font-sans text-slate-800">
@@ -126,73 +154,22 @@ export default async function AdminDocumentsPage(props: PageProps) {
         subtitle="Pengawasan alur disposisi dan status tanda tangan dokumen instansi."
         action={
           <div className="flex sm:flex-col items-start sm:items-end justify-between gap-1 border-t sm:border-t-0 sm:border-l border-white/15 pt-3 sm:pt-0 sm:pl-6 shrink-0">
-            <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-wider">Total Dokumen Aktif</p>
+            <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-wider">
+              {senderFilter !== 'ALL' ? 'Dokumen Pengunggah' : 'Total Dokumen Aktif'}
+            </p>
             <p className="text-2xl font-black text-white leading-none">{allCount}</p>
           </div>
         }
       />
 
-      {/* Filter Tabs & Search */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Status Tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 text-xs font-semibold">
-            <Link
-              href={`/admin/documents?status=ALL${query ? `&q=${encodeURIComponent(query)}` : ''}`}
-              className={`px-3.5 py-2 rounded-xl transition-all whitespace-nowrap ${
-                statusFilter === 'ALL'
-                  ? 'bg-[#003b73] text-white shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              Semua ({allCount})
-            </Link>
-            <Link
-              href={`/admin/documents?status=IN_PROGRESS${query ? `&q=${encodeURIComponent(query)}` : ''}`}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition-all whitespace-nowrap ${
-                statusFilter === 'IN_PROGRESS'
-                  ? 'bg-amber-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <Clock className="w-3.5 h-3.5" /> Dalam Proses ({inProgressCount})
-            </Link>
-            <Link
-              href={`/admin/documents?status=COMPLETED${query ? `&q=${encodeURIComponent(query)}` : ''}`}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition-all whitespace-nowrap ${
-                statusFilter === 'COMPLETED'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" /> Selesai ({completedCount})
-            </Link>
-            <Link
-              href={`/admin/documents?status=REJECTED${query ? `&q=${encodeURIComponent(query)}` : ''}`}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition-all whitespace-nowrap ${
-                statusFilter === 'REJECTED'
-                  ? 'bg-rose-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <XCircle className="w-3.5 h-3.5" /> Ditolak ({rejectedCount})
-            </Link>
-          </div>
-
-          {/* Search Box */}
-          <form method="GET" action="/admin/documents" className="relative min-w-[280px]">
-            <input type="hidden" name="status" value={statusFilter} />
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              name="q"
-              defaultValue={query}
-              placeholder="Cari judul dokumen atau pengunggah..."
-              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-            />
-          </form>
-        </div>
-      </div>
+      {/* Filter Tabs, Sender Dropdown & Search */}
+      <DocumentFilterBar
+        statusFilter={statusFilter}
+        senderFilter={senderFilter}
+        query={query}
+        counts={{ allCount, inProgressCount, completedCount, rejectedCount }}
+        senders={senders}
+      />
 
       {/* Tabel Monitoring */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
@@ -215,7 +192,7 @@ export default async function AdminDocumentsPage(props: PageProps) {
                     <FileText className="w-8 h-8 mx-auto mb-2 text-slate-300" />
                     <p className="font-semibold text-slate-600">Tidak ada dokumen ditemukan</p>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      Coba sesuaikan kata kunci pencarian atau filter status.
+                      Coba sesuaikan kata kunci pencarian, filter status, atau pilihan pengunggah.
                     </p>
                   </td>
                 </tr>
@@ -247,9 +224,15 @@ export default async function AdminDocumentsPage(props: PageProps) {
                         </div>
                       </td>
 
-                      {/* Uploader */}
+                      {/* Uploader (Clickable to quickly filter by this sender) */}
                       <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-2">
+                        <Link
+                          href={`/admin/documents?status=${statusFilter}&sender=${doc.sender?.id || ''}${
+                            query ? `&q=${encodeURIComponent(query)}` : ''
+                          }`}
+                          title={`Filter dokumen hanya dari ${doc.sender?.name || 'Pengunggah'}`}
+                          className="flex items-center gap-2 group hover:opacity-85 transition-opacity"
+                        >
                           <div className="w-7 h-7 rounded-full bg-[#003b73] text-white flex items-center justify-center font-bold text-[10px] shrink-0 overflow-hidden shadow-xs border border-white/20">
                             {doc.sender?.avatarUrl ? (
                               <img src={doc.sender.avatarUrl} alt={doc.sender?.name || 'User'} className="w-full h-full object-cover" />
@@ -258,10 +241,12 @@ export default async function AdminDocumentsPage(props: PageProps) {
                             )}
                           </div>
                           <div className="min-w-0">
-                            <p className="font-semibold text-slate-800 truncate">{doc.sender?.name}</p>
+                            <p className="font-semibold text-slate-800 group-hover:text-blue-700 transition-colors truncate">
+                              {doc.sender?.name}
+                            </p>
                             <p className="text-[10px] text-slate-400 truncate">{doc.sender?.email}</p>
                           </div>
-                        </div>
+                        </Link>
                       </td>
 
                       {/* Alur Penandatangan */}
@@ -373,9 +358,7 @@ export default async function AdminDocumentsPage(props: PageProps) {
             <div className="flex items-center gap-1.5">
               {currentPage > 1 && (
                 <Link
-                  href={`/admin/documents?status=${statusFilter}&page=${currentPage - 1}${
-                    query ? `&q=${encodeURIComponent(query)}` : ''
-                  }`}
+                  href={buildPageUrl(currentPage - 1)}
                   className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors"
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -386,9 +369,7 @@ export default async function AdminDocumentsPage(props: PageProps) {
               </span>
               {currentPage < totalPages && (
                 <Link
-                  href={`/admin/documents?status=${statusFilter}&page=${currentPage + 1}${
-                    query ? `&q=${encodeURIComponent(query)}` : ''
-                  }`}
+                  href={buildPageUrl(currentPage + 1)}
                   className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors"
                 >
                   <ChevronRight className="w-4 h-4" />
