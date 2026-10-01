@@ -195,32 +195,59 @@ export default function LoginForm() {
       }}
     >
       {/* 📍 PANEL KIRI: FORM LOGIN */}
-      <div className="flex flex-1 flex-col justify-between p-6 sm:p-10 lg:p-14">
+      <div className="flex flex-1 flex-col justify-between p-6 sm:p-8 lg:p-6 lg:pl-10 lg:pr-8">
         {/* Header Bar */}
-        <div className="flex items-center justify-between gap-6 w-full">
+        <div className="flex items-center justify-between gap-4 sm:gap-6 w-full">
           {/* Logo E-Sign (Kiri) */}
-          <div className="flex items-center select-none shrink-0 min-w-[220px] pr-8 overflow-visible py-2">
-            <span className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight bg-gradient-to-r from-cyan-500 via-teal-400 to-blue-600 bg-clip-text text-transparent drop-shadow-xs">
+          <div className="flex items-center select-none shrink-0">
+            <span className="text-4xl sm:text-5xl font-black tracking-tight bg-gradient-to-r from-cyan-500 via-teal-400 to-blue-600 bg-clip-text text-transparent drop-shadow-xs">
               E-
             </span>
             <span
               style={{ fontFamily: 'var(--font-dancing-script), cursive, sans-serif' }}
-              className="text-4xl sm:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-teal-400 to-blue-600 bg-clip-text text-transparent italic -ml-1 pr-4 leading-normal"
+              className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-teal-400 to-blue-600 bg-clip-text text-transparent italic -ml-1 pr-2 leading-none"
             >
               Sign
             </span>
           </div>
 
-          {/* Logo PT Surveyor Indonesia (Kanan) */}
-          <div className="relative h-14 w-48 sm:w-60 shrink-0">
-            <Image
-              src="/assets/logo-surveyor-indonesia-png-svg-removebg-preview.png"
-              alt="Logo Surveyor Indonesia"
-              fill
-              sizes="(min-width: 1024px) 15rem, 12rem"
-              className="object-contain object-right"
-              priority
-            />
+          {/* Logo Perusahaan (Kanan): Danantara, IDSurvey, Surveyor Indonesia */}
+          <div className="flex items-center gap-3 sm:gap-4 md:gap-5 shrink-0">
+            {/* Logo Danantara */}
+            <div className="relative h-6 sm:h-7 lg:h-8 w-22 sm:w-28 lg:w-32 shrink-0">
+              <Image
+                src="/assets/Logo_Danantara.png"
+                alt="Logo Danantara Indonesia"
+                fill
+                sizes="(min-width: 1024px) 8rem, 6rem"
+                className="object-contain object-center"
+                priority
+              />
+            </div>
+
+            {/* Logo IDSurvey */}
+            <div className="relative h-6 sm:h-7 lg:h-8 w-26 sm:w-32 lg:w-36 shrink-0">
+              <Image
+                src="/assets/Logo_IDSurvey.png"
+                alt="Logo IDSurvey"
+                fill
+                sizes="(min-width: 1024px) 9rem, 7rem"
+                className="object-contain object-center"
+                priority
+              />
+            </div>
+
+            {/* Logo PT Surveyor Indonesia */}
+            <div className="relative h-7 sm:h-8 lg:h-9 w-9 sm:w-11 lg:w-12 shrink-0">
+              <Image
+                src="/assets/logo-surveyor-indonesia-png-svg.webp"
+                alt="Logo Surveyor Indonesia"
+                fill
+                sizes="(min-width: 1024px) 3rem, 2.5rem"
+                className="object-contain object-center"
+                priority
+              />
+            </div>
           </div>
         </div>
 
