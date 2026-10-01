@@ -241,8 +241,8 @@ export async function POST(req: Request) {
       const drawX = boxX + (boxWidth - drawWidth) / 2
       const drawY = pageHeight - boxY - boxHeight + (boxHeight - drawHeight) / 2
 
-      // 🏷️ JIKA FIELD MERUPAKAN TTD (SIGNATURE), CETAK WATERMARK SESUAI OPSI (OPSI 1 ATAU OPSI 2)
-      if (embeddedWatermark && field.type === 'SIGNATURE') {
+      // 🏷️ JIKA FIELD MERUPAKAN TTD (SIGNATURE), CETAK WATERMARK SESUAI OPSI (OPSI 1, OPSI 2, ATAU NONE)
+      if (embeddedWatermark && field.type === 'SIGNATURE' && field.textAlign !== 'none') {
         if (field.textAlign === 'corner') {
           // Opsi 2: Watermark tajam (opacity 1.0), kecil di pojok kanan bawah TTD
           const cornerH = Math.min(13, boxHeight * 0.25)

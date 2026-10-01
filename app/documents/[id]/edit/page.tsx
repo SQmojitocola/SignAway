@@ -77,7 +77,7 @@ interface SignatureField {
   width: number
   height: number
   fontSize?: number
-  textAlign?: 'left' | 'center' | 'corner'
+  textAlign?: 'left' | 'center' | 'corner' | 'none'
 }
 
 interface FieldInteraction {
@@ -757,8 +757,8 @@ export default function DocumentFieldPlottingPage() {
     recordHistory(nextFields)
   }
 
-  const handleUpdateFieldWatermark = (fieldId: string, watermarkStyle: 'center' | 'corner') => {
-    const nextFields = fields.map((f) => (f.id === fieldId ? { ...f, textAlign: watermarkStyle } : f))
+  const handleUpdateFieldWatermark = (fieldId: string, watermarkStyle: 'center' | 'corner' | 'none') => {
+    const nextFields: SignatureField[] = fields.map((f) => (f.id === fieldId ? { ...f, textAlign: watermarkStyle } : f))
     recordHistory(nextFields)
   }
 
@@ -1448,7 +1448,7 @@ export default function DocumentFieldPlottingPage() {
                         </button>
 
                         {/* Watermark E-Sign untuk Field TTD */}
-                        {!isParaf && (
+                        {!isParaf && field.textAlign !== 'none' && (
                           field.textAlign === 'corner' ? (
                             <div className="absolute bottom-1 right-1 pointer-events-none z-0">
                               <img src="/assets/watermark.png" alt="watermark" className="h-4 object-contain" />
@@ -1656,30 +1656,42 @@ export default function DocumentFieldPlottingPage() {
                     <label className="block text-[11px] font-semibold text-slate-600 mb-1">
                       Watermark E-Sign
                     </label>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-3 gap-1.5">
                       <button
                         type="button"
                         onClick={() => handleUpdateFieldWatermark(selectedField.id, 'center')}
-                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
                           (selectedField.textAlign || 'center') === 'center'
                             ? 'border-blue-600 bg-blue-50/80 ring-2 ring-blue-500/20 text-blue-900 shadow-2xs'
                             : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600'
                         }`}
                       >
-                        <span className="block text-xs font-bold">Opsi 1</span>
-                        <span className="block text-[9.5px] text-slate-500 mt-0.5">Center (Pudar 20%)</span>
+                        <span className="block text-[11px] font-bold">Opsi 1</span>
+                        <span className="block text-[9px] text-slate-500 mt-0.5 leading-tight">Center (20%)</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => handleUpdateFieldWatermark(selectedField.id, 'corner')}
-                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
                           selectedField.textAlign === 'corner'
                             ? 'border-blue-600 bg-blue-50/80 ring-2 ring-blue-500/20 text-blue-900 shadow-2xs'
                             : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600'
                         }`}
                       >
-                        <span className="block text-xs font-bold">Opsi 2</span>
-                        <span className="block text-[9.5px] text-slate-500 mt-0.5">Pojok Kanan Bawah</span>
+                        <span className="block text-[11px] font-bold">Opsi 2</span>
+                        <span className="block text-[9px] text-slate-500 mt-0.5 leading-tight">Pojok Kanan</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateFieldWatermark(selectedField.id, 'none')}
+                        className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                          selectedField.textAlign === 'none'
+                            ? 'border-blue-600 bg-blue-50/80 ring-2 ring-blue-500/20 text-blue-900 shadow-2xs'
+                            : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        <span className="block text-[11px] font-bold">Tanpa WM</span>
+                        <span className="block text-[9px] text-slate-500 mt-0.5 leading-tight">Tidak Ada</span>
                       </button>
                     </div>
                   </div>

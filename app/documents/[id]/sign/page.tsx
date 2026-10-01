@@ -1032,7 +1032,7 @@ export default function SignDocumentPage() {
                       >
                         {filledData ? (
                           <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
-                            {!isParaf && (
+                            {!isParaf && field.textAlign !== 'none' && (
                               field.textAlign === 'corner' ? (
                                 <img src="/assets/watermark.png" alt="watermark" className="absolute bottom-1 right-1 h-3.5 object-contain pointer-events-none z-0" />
                               ) : (
@@ -1055,7 +1055,7 @@ export default function SignDocumentPage() {
                           </div>
                         ) : (
                           <div className="relative w-full h-full flex flex-col items-center justify-center text-center overflow-hidden p-0.5">
-                            {!isParaf && (
+                            {!isParaf && field.textAlign !== 'none' && (
                               field.textAlign === 'corner' ? (
                                 <img src="/assets/watermark.png" alt="watermark" className="absolute bottom-1 right-1 h-3.5 object-contain pointer-events-none z-0" />
                               ) : (
@@ -1294,7 +1294,7 @@ export default function SignDocumentPage() {
                     {bgCropUrl && <div className="absolute inset-0 bg-white/35 pointer-events-none" />}
 
                     {/* Watermark preview in drawing canvas */}
-                    {!isParafTask && (
+                    {!isParafTask && activeField.textAlign !== 'none' && (
                       activeField.textAlign === 'corner' ? (
                         <img
                           src="/assets/watermark.png"
@@ -1396,7 +1396,7 @@ export default function SignDocumentPage() {
                         {bgCropUrl && <div className="absolute inset-0 bg-white/35 pointer-events-none" />}
 
                         {/* Watermark preview in specimen box */}
-                        {!isParafTask && (
+                        {!isParafTask && activeField.textAlign !== 'none' && (
                           activeField.textAlign === 'corner' ? (
                             <img
                               src="/assets/watermark.png"
