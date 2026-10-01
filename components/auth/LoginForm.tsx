@@ -187,7 +187,13 @@ export default function LoginForm() {
       : currentIndex - 1
 
   return (
-    <div className="flex min-h-screen w-full bg-slate-50 font-sans text-slate-800 overflow-hidden">
+    <div
+      className="flex min-h-screen w-full font-sans text-slate-800 overflow-hidden bg-white"
+      style={{
+        backgroundImage: 'radial-gradient(rgba(0, 0, 0, 0.25) 1.25px, transparent 1.25px)',
+        backgroundSize: '24px 24px',
+      }}
+    >
       {/* 📍 PANEL KIRI: FORM LOGIN */}
       <div className="flex flex-1 flex-col justify-between p-6 sm:p-10 lg:p-14">
         {/* Header Bar */}
@@ -218,8 +224,8 @@ export default function LoginForm() {
           </div>
         </div>
 
-        {/* Form Content */}
-        <div className="mx-auto w-full max-w-md my-auto py-6">
+        {/* Form Content in White Rounded Card with Shadow */}
+        <div className="mx-auto w-full max-w-md my-auto py-7 px-6 sm:px-8 bg-white rounded-3xl shadow-xl border border-slate-100">
           <h1 className="text-3xl font-extrabold text-[#003b73] tracking-tight">
             Selamat Datang
           </h1>
@@ -295,7 +301,7 @@ export default function LoginForm() {
           </form>
 
           {/* Info Administrator */}
-          <p className="mt-8 text-center text-xs text-slate-400">
+          <p className="mt-8 text-center text-xs text-slate-500">
             Belum memiliki akun?{' '}
             <button
               type="button"

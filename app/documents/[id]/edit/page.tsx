@@ -193,7 +193,6 @@ export default function DocumentFieldPlottingPage() {
   const [pendingPlot, setPendingPlot] = useState<PendingClickPlot | null>(null)
 
   const [loadingSave, setLoadingSave] = useState(false)
-  const [pdfInteractive, setPdfInteractive] = useState(false)
   const [pdfPages, setPdfPages] = useState<Array<{ pageNumber: number; width: number; height: number }>>([])
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [showLeaveDialog, setShowLeaveDialog] = useState(false)
@@ -922,22 +921,15 @@ export default function DocumentFieldPlottingPage() {
             </button>
           </div>
 
-          <button
-            onClick={() => {
-              if (activeRecipient) {
-                setActiveRecipient(null)
-                return
-              }
-              setPdfInteractive((current) => !current)
-            }}
-            className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            {activeRecipient
-              ? 'Batal Tempatkan'
-              : pdfInteractive
-              ? 'Mode Tempatkan Plot'
-              : 'Scroll / Zoom PDF'}
-          </button>
+          {activeRecipient && (
+            <button
+              type="button"
+              onClick={() => setActiveRecipient(null)}
+              className="rounded-xl border border-red-200 bg-red-50 text-red-700 px-3.5 py-2 text-xs font-semibold hover:bg-red-100 transition-all cursor-pointer shadow-xs"
+            >
+              Batal Tempatkan
+            </button>
+          )}
           <button
             onClick={() => {
               if (!hasUnsavedChanges) {
@@ -1019,7 +1011,6 @@ export default function DocumentFieldPlottingPage() {
 
                   <button
                     onClick={() => {
-                      setPdfInteractive(false)
                       setActiveRecipient(recipient)
                     }}
                     className="text-xs font-bold text-blue-600 hover:underline"
@@ -1155,7 +1146,6 @@ export default function DocumentFieldPlottingPage() {
                             fieldElementsRef.current[field.id] = element
                           }}
                           onPointerDown={(event) => {
-                            if (pdfInteractive) return
                             event.preventDefault()
                             event.stopPropagation()
                             setActiveRecipient(null)
@@ -1191,11 +1181,13 @@ export default function DocumentFieldPlottingPage() {
                             top: `${field.posY}px`,
                             width: `${field.width}px`,
                             height: `${field.height}px`,
+                            touchAction: 'none',
+                            userSelect: 'none',
                           }}
-                          className={`absolute z-10 rounded-md p-1.5 flex items-center gap-2 select-none cursor-move transition-all ${
+                          className={`absolute z-10 rounded-md p-1.5 flex items-center gap-2 select-none cursor-grab active:cursor-grabbing bg-white/60 hover:bg-white/80 backdrop-blur-xs ${
                             isSelected
-                              ? 'border-2 border-dashed border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-400/30'
-                              : 'hover:border hover:border-dashed hover:border-slate-400/60'
+                              ? 'border-2 border-dashed border-emerald-500 ring-2 ring-emerald-400/30'
+                              : 'border border-dashed border-slate-300 hover:border-slate-400'
                           }`}
                         >
                           <div className="absolute -top-3 left-2 bg-emerald-800 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-xs pointer-events-none">
@@ -1216,13 +1208,18 @@ export default function DocumentFieldPlottingPage() {
                           </button>
 
                           {/* Sisi Kiri: Preview QR Code (Lepas / Tanpa Frame Kotak) */}
-                          <div className="h-full aspect-square flex items-center justify-center shrink-0 pointer-events-none">
-                            <QrCode className="w-full h-full text-slate-900" />
+                          <div className="h-full aspect-square flex items-center justify-center shrink-0 pointer-events-none select-none">
+                            <QrCode className="w-full h-full text-slate-900 pointer-events-none select-none" />
                           </div>
 
                           {/* Sisi Kanan: Logo E-Sign Terverifikasi (Lepas / Tanpa Frame Kotak) */}
-                          <div className="flex-1 h-full flex items-center justify-center pointer-events-none p-0.5 overflow-hidden">
-                            <img src="/assets/watermark.png" alt="E-Sign Terverifikasi" className="max-h-full max-w-full object-contain" />
+                          <div className="flex-1 h-full flex items-center justify-center pointer-events-none p-0.5 overflow-hidden select-none">
+                            <img
+                              src="/assets/watermark.png"
+                              alt="E-Sign Terverifikasi"
+                              draggable={false}
+                              className="max-h-full max-w-full object-contain pointer-events-none select-none"
+                            />
                           </div>
 
                           {/* Indikator Koordinat Real-Time saat Terpilih */}
@@ -1243,7 +1240,6 @@ export default function DocumentFieldPlottingPage() {
                             fieldElementsRef.current[field.id] = element
                           }}
                           onPointerDown={(event) => {
-                            if (pdfInteractive) return
                             event.preventDefault()
                             event.stopPropagation()
                             setActiveRecipient(null)
@@ -1334,7 +1330,7 @@ export default function DocumentFieldPlottingPage() {
                             </div>
                           )}
 
-                          {isSelected && !pdfInteractive && (
+                          {isSelected && (
                             <button
                               type="button"
                               aria-label="Ubah ukuran plot"
@@ -1377,7 +1373,6 @@ export default function DocumentFieldPlottingPage() {
                           fieldElementsRef.current[field.id] = element
                         }}
                         onPointerDown={(event) => {
-                          if (pdfInteractive) return
                           event.preventDefault()
                           event.stopPropagation()
                           setActiveRecipient(null)
@@ -1481,7 +1476,7 @@ export default function DocumentFieldPlottingPage() {
                           </div>
                         )}
 
-                        {isSelected && !pdfInteractive && (
+                        {isSelected && (
                           <button
                             type="button"
                             aria-label="Ubah ukuran plot"
