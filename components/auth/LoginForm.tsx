@@ -204,7 +204,7 @@ export default function LoginForm() {
               E-
             </span>
             <span
-              style={{ fontFamily: 'var(--font-dancing-script), cursive, sans-serif' }}
+              style={{ fontFamily: 'cursive, sans-serif' }}
               className="inline-block text-4xl sm:text-5xl font-bold bg-gradient-to-r from-teal-400 to-blue-600 bg-clip-text text-transparent italic -ml-1 pl-1 pr-8 py-2 leading-normal overflow-visible"
             >
               Sign

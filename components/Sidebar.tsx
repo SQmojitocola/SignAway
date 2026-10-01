@@ -62,7 +62,7 @@ export default function Sidebar() {
                 E-
               </span>
               <span
-                style={{ fontFamily: 'var(--font-dancing-script), cursive, sans-serif' }}
+                style={{ fontFamily: 'cursive, sans-serif' }}
                 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-teal-400 to-blue-600 bg-clip-text text-transparent italic -ml-1 pr-1 leading-normal"
               >
                 Sign
