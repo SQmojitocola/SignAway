@@ -1,56 +1,28 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
 /node_modules
 /.pnp
 .pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
 
-# testing
-/coverage
-
-# next.js
+# next.js & build output
 /.next/
 /out/
+/build/
 
-# production
-/build
+# env files (kredensial rahasia)
+.env
+.env*.local
+.env.production
+.env.development
 
-# misc & OS files
-.DS_Store
-Thumbs.db
-desktop.ini
-*.pem
-
-# debug & logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-*.log
-
-# env files (abaikan berkas rahasia, simpan hanya berkas template .env.example)
-.env*
-!.env.example
-
-# vercel
-.vercel
-
-# typescript
+# typescript & cache
 *.tsbuildinfo
 next-env.d.ts
 
-/app/generated/prisma
-
-# uploaded files are runtime data and must not be committed
+# uploaded runtime files
 /public/uploads/*
 !/public/uploads/.gitkeep
 
-# AI assistants, local editors & temporary files
+# AI tools & workspace cache
 .agent/
 .agents/
 .claude/
@@ -58,3 +30,9 @@ next-env.d.ts
 .opencode/
 graphify-out/
 image.png
+
+# logs & system files
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
