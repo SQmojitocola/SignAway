@@ -1,38 +1,35 @@
-'use client'
-
-import Sidebar from '@/components/Sidebar'
-import { usePathname } from 'next/navigation'
-import AuthProvider from '@/components/providers/AuthProvider'
+import type { Metadata } from 'next'
+import { Inter, Dancing_Script } from 'next/font/google'
+import AppShell from '@/components/layout/AppShell'
 import '@/app/globals.css'
+
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+})
+
+const dancingScript = Dancing_Script({
+  subsets: ['latin'],
+  variable: '--font-dancing-script',
+  display: 'swap',
+  weight: ['600', '700'],
+})
+
+export const metadata: Metadata = {
+  title: 'SignAway - Platform Manajemen Pengesahan Dokumen Digital',
+  description: 'Aplikasi pengelolaan tanda tangan dan verifikasi dokumen digital resmi instansi.',
+}
 
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const pathname = usePathname()
-
-  // Sembunyikan Sidebar untuk Login, Register, Editor Plotting, dan Konfirmasi Pengiriman
-  const isHideSidebar = 
-    pathname === '/login' || 
-    pathname === '/register' ||
-    pathname.includes('/edit') || 
-    pathname.includes('/sign') ||
-    pathname.includes('/success')
-
   return (
-    <html lang="id">
-      <body className="bg-slate-100 min-h-screen">
-        <AuthProvider>
-          {isHideSidebar ? (
-            <main className="w-full min-h-screen">{children}</main>
-          ) : (
-            <div className="flex min-h-screen">
-              <Sidebar />
-              <main className="flex-1 p-8">{children}</main>
-            </div>
-          )}
-        </AuthProvider>
+    <html lang="id" className={`${inter.variable} ${dancingScript.variable}`}>
+      <body className="font-sans bg-slate-100 min-h-screen text-slate-800 antialiased selection:bg-blue-100 selection:text-blue-900">
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   )
