@@ -54,28 +54,18 @@ export default function Sidebar() {
   return (
     <aside className="w-64 bg-[#1e4273] text-white p-6 flex flex-col justify-between h-screen sticky top-0 shrink-0 font-sans">
       <div className="space-y-6">
-        {/* Logo Card */}
-        <div className="bg-white rounded-2xl p-4 shadow-md border border-white/20 flex flex-col items-center justify-center">
-          {/* 🏷️ Logo E-Sign */}
-          <div className="relative h-10 w-36 shrink-0">
+        {/* Logo E-Sign Header */}
+        <div className="flex items-center justify-center pt-2">
+          <div className="relative h-16 w-48 shrink-0">
             <Image
-              src="/assets/Logo_E-Sign.png"
+              src="/assets/Logo_Sidebar_E-Sign.png"
               alt="Logo E-Sign"
               fill
-              sizes="9rem"
+              sizes="12rem"
               className="object-contain object-center"
               priority
             />
           </div>
-
-          {/* Label Admin (Hanya untuk Admin, menggantikan subteks platform) */}
-          {isAdmin && (
-            <div className="mt-2 flex justify-center">
-              <span className="text-[9px] bg-purple-100 text-purple-800 font-extrabold px-2.5 py-0.5 rounded-md border border-purple-200 tracking-wider">
-                ADMIN
-              </span>
-            </div>
-          )}
         </div>
 
         {/* Header Kategori & Navigasi */}
@@ -101,9 +91,9 @@ export default function Sidebar() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${isActive
-                      ? 'bg-blue-600 font-semibold text-white shadow-md'
-                      : 'text-blue-100 hover:bg-blue-800/50'
+                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl border transition-all ${isActive
+                      ? 'bg-blue-600 font-semibold text-white shadow-md border-transparent'
+                      : 'text-blue-100 hover:bg-blue-800/50 border-white/10 hover:border-white/25'
                     }`}
                 >
                   <Icon className="w-4 h-4 shrink-0" />
