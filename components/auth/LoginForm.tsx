@@ -183,8 +183,8 @@ export default function LoginForm() {
     currentIndex === 0
       ? baseSlides.length - 1
       : currentIndex === slides.length - 1
-      ? 0
-      : currentIndex - 1
+        ? 0
+        : currentIndex - 1
 
   return (
     <div
@@ -203,7 +203,10 @@ export default function LoginForm() {
             <span className="inline-block text-4xl sm:text-5xl font-black tracking-tight bg-gradient-to-r from-cyan-500 via-teal-400 to-blue-600 bg-clip-text text-transparent py-1 pr-1 leading-normal">
               E-
             </span>
-            <span className="inline-block text-4xl sm:text-5xl font-bold tracking-tight bg-gradient-to-r from-teal-400 to-blue-600 bg-clip-text text-transparent italic -ml-1 pl-1 pr-4 py-1 leading-normal overflow-visible">
+            <span
+              style={{ fontFamily: 'var(--font-dancing-script), cursive, sans-serif' }}
+              className="inline-block text-4xl sm:text-5xl font-bold bg-gradient-to-r from-teal-400 to-blue-600 bg-clip-text text-transparent italic -ml-1 pl-1 pr-8 py-2 leading-normal overflow-visible"
+            >
               Sign
             </span>
           </div>
@@ -356,11 +359,10 @@ export default function LoginForm() {
         >
           {/* Track Slides */}
           <div
-            className={`flex h-full w-full ${
-              isTransitioning && !isDragging
-                ? 'transition-transform duration-700 ease-out'
-                : 'transition-none'
-            }`}
+            className={`flex h-full w-full ${isTransitioning && !isDragging
+              ? 'transition-transform duration-700 ease-out'
+              : 'transition-none'
+              }`}
             style={{
               transform: `translateX(calc(-${currentIndex * 100}% + ${dragOffset}px))`,
             }}
@@ -449,11 +451,10 @@ export default function LoginForm() {
                   setCurrentIndex(idx + 1)
                   resetAutoSlide()
                 }}
-                className={`h-2 rounded-full transition-all cursor-pointer ${
-                  activeDotIndex === idx
-                    ? 'w-8 bg-white'
-                    : 'w-2 bg-white/40 hover:bg-white/70'
-                }`}
+                className={`h-2 rounded-full transition-all cursor-pointer ${activeDotIndex === idx
+                  ? 'w-8 bg-white'
+                  : 'w-2 bg-white/40 hover:bg-white/70'
+                  }`}
               />
             ))}
           </div>

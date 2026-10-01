@@ -61,7 +61,10 @@ export default function Sidebar() {
               <span className="text-3xl font-black tracking-tight bg-gradient-to-r from-cyan-500 via-teal-400 to-blue-600 bg-clip-text text-transparent">
                 E-
               </span>
-              <span className="text-3xl font-bold tracking-tight bg-gradient-to-r from-teal-400 to-blue-600 bg-clip-text text-transparent italic -ml-1 pr-1 leading-normal">
+              <span
+                style={{ fontFamily: 'var(--font-dancing-script), cursive, sans-serif' }}
+                className="text-3xl font-bold tracking-tight bg-gradient-to-r from-teal-400 to-blue-600 bg-clip-text text-transparent italic -ml-1 pr-1 leading-normal"
+              >
                 Sign
               </span>
             </div>
