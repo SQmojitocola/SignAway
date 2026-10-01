@@ -127,6 +127,16 @@ export async function POST(req: Request) {
     const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
     const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica)
 
+    // Embed watermark image (public/assets/watermark.png)
+    let embeddedWatermark: PDFImage | null = null
+    try {
+      const watermarkPath = path.join(process.cwd(), 'public', 'assets', 'watermark.png')
+      const watermarkBytes = await readFile(watermarkPath)
+      embeddedWatermark = await pdfDoc.embedPng(watermarkBytes)
+    } catch (wmErr) {
+      console.error('Failed to load watermark image:', wmErr)
+    }
+
     const effectiveSigner = isApprovedProxy && approvedProxy?.targetUser ? approvedProxy.targetUser : currentUser
 
     // 📍 1. STAMPING MASING-MASING FIELD DENGAN SPESIMEN YANG SESUAI (TTD vs PARAF vs NAMA & NIK)
@@ -231,7 +241,41 @@ export async function POST(req: Request) {
       const drawX = boxX + (boxWidth - drawWidth) / 2
       const drawY = pageHeight - boxY - boxHeight + (boxHeight - drawHeight) / 2
 
-      // TEMPELKAN GAMBAR (Transparan di atas teks/garis dokumen)
+      // 🏷️ JIKA FIELD MERUPAKAN TTD (SIGNATURE), CETAK WATERMARK SESUAI OPSI (OPSI 1 ATAU OPSI 2)
+      if (embeddedWatermark && field.type === 'SIGNATURE') {
+        if (field.textAlign === 'corner') {
+          // Opsi 2: Watermark tajam (opacity 1.0), kecil di pojok kanan bawah TTD
+          const cornerH = Math.min(13, boxHeight * 0.25)
+          const cornerW = cornerH * (embeddedWatermark.width / embeddedWatermark.height)
+          const cornerX = boxX + boxWidth - cornerW - 2
+          const cornerY = pageHeight - boxY - boxHeight + 2
+
+          page.drawImage(embeddedWatermark, {
+            x: cornerX,
+            y: cornerY,
+            width: cornerW,
+            height: cornerH,
+            opacity: 1.0,
+          })
+        } else {
+          // Opsi 1: Watermark pudar 20% (opacity 0.2), center di belakang TTD
+          const wmScale = Math.min((boxWidth * 0.75) / embeddedWatermark.width, (boxHeight * 0.65) / embeddedWatermark.height)
+          const wmW = embeddedWatermark.width * wmScale
+          const wmH = embeddedWatermark.height * wmScale
+          const wmX = boxX + (boxWidth - wmW) / 2
+          const wmY = pageHeight - boxY - boxHeight + (boxHeight - wmH) / 2
+
+          page.drawImage(embeddedWatermark, {
+            x: wmX,
+            y: wmY,
+            width: wmW,
+            height: wmH,
+            opacity: 0.2, // Turun hingga 20%
+          })
+        }
+      }
+
+      // TEMPELKAN GAMBAR (Transparan di atas teks/garis dokumen & di atas watermark)
       page.drawImage(embeddedImage, {
         x: drawX,
         y: drawY,
@@ -254,92 +298,65 @@ export async function POST(req: Request) {
     const qrBase64 = qrCodeDataUrl.replace(/^data:image\/png;base64,/, '')
     const embeddedQrImage = await pdfDoc.embedPng(Buffer.from(qrBase64, 'base64'))
 
-    // 📍 3. STAMPING STEMPEL AUDIT & QR VERIFIKASI (POSISI FLEKSIBEL SESUAI PLOT)
+    // 📍 3. STAMPING STEMPEL AUDIT & QR VERIFIKASI (OPSI 3 - POSISI FLEKSIBEL SESUAI PLOT)
     const totalPages = pdfDoc.getPageCount()
     const auditField = document.fields.find((f) => f.type === 'AUDIT_STAMP')
 
-    let targetPageIndex = 0
-    let boxX = 30
-    let boxY = 40
-    let boxWidth = 220 / 1.25 // Konversi visual scale 1.25 -> PDF scale 1.0 (176 pt)
-    let boxHeight = 65 / 1.25 // (52 pt)
-
     if (auditField) {
-      targetPageIndex = Math.max(0, Math.min(totalPages - 1, (auditField.pageNumber || 1) - 1))
-      boxX = auditField.posX / 1.25
-      boxY = auditField.posY / 1.25
-      boxWidth = (auditField.width || 220) / 1.25
-      boxHeight = (auditField.height || 65) / 1.25
-    } else {
-      // Fallback: Jika tidak diatur secara eksplisit, tempatkan di pojok kanan bawah halaman terakhir
-      targetPageIndex = totalPages - 1
-      const targetPageObj = pdfDoc.getPage(targetPageIndex)
-      const { width: pWidth } = targetPageObj.getSize()
-      boxX = pWidth - 30 - boxWidth
-      boxY = 40
+      const targetPageIndex = Math.max(0, Math.min(totalPages - 1, (auditField.pageNumber || 1) - 1))
+      const boxX = auditField.posX / 1.25
+      const boxY = auditField.posY / 1.25
+      const boxWidth = (auditField.width || 210) / 1.25
+      const boxHeight = (auditField.height || 65) / 1.25
+
+      const stampPage = pdfDoc.getPage(targetPageIndex)
+      const { width: pageWidth, height: pageHeight } = stampPage.getSize()
+
+      // Safety clamping: pastikan koordinat box selalu berada di dalam batas fisik halaman PDF
+      const clampedBoxX = Math.max(10, Math.min(pageWidth - boxWidth - 10, boxX))
+      const clampedBoxY = Math.max(10, Math.min(pageHeight - boxHeight - 10, boxY))
+      const drawY = pageHeight - clampedBoxY - boxHeight
+
+      // A. Gambar Kotak Putih dengan Border Halus (Sesuai Desain Opsi 3)
+      stampPage.drawRectangle({
+        x: clampedBoxX,
+        y: drawY,
+        width: boxWidth,
+        height: boxHeight,
+        color: rgb(1, 1, 1),
+        borderColor: rgb(0.8, 0.83, 0.88),
+        borderWidth: 0.8,
+      })
+
+      // B. Tempel QR Code di Sisi Kiri Kotak (Mengarahkan ke halaman verifikasi dokumen)
+      const qrPadding = 5
+      const qrSize = Math.max(20, boxHeight - qrPadding * 2)
+      stampPage.drawImage(embeddedQrImage, {
+        x: clampedBoxX + qrPadding,
+        y: drawY + qrPadding,
+        width: qrSize,
+        height: qrSize,
+      })
+
+      // C. Tempel Logo E-Sign Terverifikasi di Sisi Kanan Kotak (Sesuai Desain Opsi 3)
+      if (embeddedWatermark) {
+        const availW = boxWidth - qrSize - qrPadding * 3
+        const availH = boxHeight - qrPadding * 2
+        const wmScale = Math.min(availW / embeddedWatermark.width, availH / embeddedWatermark.height)
+        const wmW = embeddedWatermark.width * wmScale
+        const wmH = embeddedWatermark.height * wmScale
+        const wmX = clampedBoxX + qrPadding + qrSize + qrPadding + (availW - wmW) / 2
+        const wmY = drawY + (boxHeight - wmH) / 2
+
+        stampPage.drawImage(embeddedWatermark, {
+          x: wmX,
+          y: wmY,
+          width: wmW,
+          height: wmH,
+          opacity: 1.0,
+        })
+      }
     }
-
-    const stampPage = pdfDoc.getPage(targetPageIndex)
-    const { width: pageWidth, height: pageHeight } = stampPage.getSize()
-
-    // Safety clamping: pastikan koordinat box selalu berada di dalam batas fisik halaman PDF
-    const clampedBoxX = Math.max(10, Math.min(pageWidth - boxWidth - 10, boxX))
-    const clampedBoxY = Math.max(10, Math.min(pageHeight - boxHeight - 10, boxY))
-    const drawY = pageHeight - clampedBoxY - boxHeight
-
-    // A. Gambar Kotak Putih dengan Border Halus (Sesuai Referensi Gambar)
-    stampPage.drawRectangle({
-      x: clampedBoxX,
-      y: drawY,
-      width: boxWidth,
-      height: boxHeight,
-      color: rgb(1, 1, 1),
-      borderColor: rgb(0.8, 0.83, 0.88),
-      borderWidth: 0.8,
-    })
-
-    // B. Tempel QR Code di Sisi Kiri Kotak
-    const qrPadding = 5
-    const qrSize = Math.max(20, boxHeight - qrPadding * 2)
-    stampPage.drawImage(embeddedQrImage, {
-      x: clampedBoxX + qrPadding,
-      y: drawY + qrPadding,
-      width: qrSize,
-      height: qrSize,
-    })
-
-    // C. Cetak Teks Sisi Kanan (Persis Format & Warna Gambar Pengguna)
-    const textX = clampedBoxX + qrPadding + qrSize + 7
-
-    // Baris 1: "Terverifikasi Sistem E-Sign" (Teks Hijau Tebal)
-    stampPage.drawText('Terverifikasi Sistem E-Sign', {
-      x: textX,
-      y: drawY + boxHeight - 15,
-      size: 8.5,
-      font: helveticaBold,
-      color: rgb(0.18, 0.44, 0.18), // Forest green (#2e7d32)
-    })
-
-    // Baris 2: "Doc ID : ..." (Abu-abu Gelap)
-    const docIdDisplay = document.id.toUpperCase().slice(0, 18)
-    stampPage.drawText(`Doc ID : ${docIdDisplay}`, {
-      x: textX,
-      y: drawY + boxHeight - 27,
-      size: 7,
-      font: helvetica,
-      color: rgb(0.35, 0.4, 0.45),
-    })
-
-    // Baris 3: "Timestamp: 11:05:23 11 09 2025" (Format HH:mm:ss DD MM YYYY)
-    const pad = (n: number) => String(n).padStart(2, '0')
-    const timestampStr = `${pad(signedAt.getHours())}:${pad(signedAt.getMinutes())}:${pad(signedAt.getSeconds())} ${pad(signedAt.getDate())} ${pad(signedAt.getMonth() + 1)} ${signedAt.getFullYear()}`
-    stampPage.drawText(`Timestamp: ${timestampStr}`, {
-      x: textX,
-      y: drawY + boxHeight - 39,
-      size: 6.5,
-      font: helvetica,
-      color: rgb(0.4, 0.45, 0.5),
-    })
 
     // 📍 4. HITUNG HASH SHA-256 KRIPTOGRAFI DOKUMEN FINAL
     const updatedPdfBytes = await pdfDoc.save()

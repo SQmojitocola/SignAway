@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import {
   ArrowLeft,
@@ -77,7 +77,7 @@ interface SignatureField {
   width: number
   height: number
   fontSize?: number
-  textAlign?: 'left' | 'center'
+  textAlign?: 'left' | 'center' | 'corner'
 }
 
 interface FieldInteraction {
@@ -199,9 +199,12 @@ export default function DocumentFieldPlottingPage() {
   const [showLeaveDialog, setShowLeaveDialog] = useState(false)
   const [leaveDialogMode, setLeaveDialogMode] = useState<'back' | 'save'>('back')
 
-  // History State untuk Undo & Redo (Maksimal 50 Riwayat)
+  // History State untuk Undo & Redo (Maksimal 50 Riwayat) dengan Ref Synchronization
   const [history, setHistory] = useState<SignatureField[][]>([])
   const [historyIndex, setHistoryIndex] = useState<number>(-1)
+  const historyRef = useRef<SignatureField[][]>([])
+  const historyIndexRef = useRef<number>(-1)
+  const recordHistoryRef = useRef<(newFields: SignatureField[]) => void>(() => {})
 
   const pdfContainerRef = useRef<HTMLDivElement | null>(null)
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({})
@@ -214,46 +217,55 @@ export default function DocumentFieldPlottingPage() {
   }, [fields])
 
   // Helper untuk Menyimpan Snapshot Riwayat saat Perubahan Terjadi
-  const recordHistory = (newFields: SignatureField[]) => {
+  const recordHistory = useCallback((newFields: SignatureField[]) => {
     setHasUnsavedChanges(true)
-    setFields(newFields)
-    setHistory((prev) => {
-      const trimmed = prev.slice(0, historyIndex + 1)
-      const nextHistory = [...trimmed, newFields]
-      if (nextHistory.length > 50) nextHistory.shift()
-      return nextHistory
-    })
-    setHistoryIndex((prev) => {
-      const next = prev + 1
-      return next >= 50 ? 49 : next
-    })
-  }
+    const cloned = newFields.map((f) => ({ ...f }))
+    setFields(cloned)
+    const curHistory = historyRef.current
+    const curIndex = historyIndexRef.current
+    const trimmed = curHistory.slice(0, curIndex + 1)
+    const nextHistory = [...trimmed, cloned]
+    if (nextHistory.length > 50) nextHistory.shift()
+    const nextIndex = nextHistory.length - 1
+    historyRef.current = nextHistory
+    historyIndexRef.current = nextIndex
+    setHistory(nextHistory)
+    setHistoryIndex(nextIndex)
+  }, [])
+
+  useEffect(() => {
+    recordHistoryRef.current = recordHistory
+  }, [recordHistory])
 
   // Handler Tombol Undo
-  const handleUndo = () => {
-    if (historyIndex > 0) {
-      const targetIndex = historyIndex - 1
-      const targetFields = history[targetIndex]
+  const handleUndo = useCallback(() => {
+    const curIndex = historyIndexRef.current
+    if (curIndex > 0) {
+      const targetIndex = curIndex - 1
+      const targetFields = historyRef.current[targetIndex]
       if (targetFields) {
-        setFields(targetFields)
+        historyIndexRef.current = targetIndex
         setHistoryIndex(targetIndex)
+        setFields(targetFields.map((f) => ({ ...f })))
         setHasUnsavedChanges(true)
       }
     }
-  }
+  }, [])
 
   // Handler Tombol Redo
-  const handleRedo = () => {
-    if (historyIndex < history.length - 1) {
-      const targetIndex = historyIndex + 1
-      const targetFields = history[targetIndex]
+  const handleRedo = useCallback(() => {
+    const curIndex = historyIndexRef.current
+    if (curIndex < historyRef.current.length - 1) {
+      const targetIndex = curIndex + 1
+      const targetFields = historyRef.current[targetIndex]
       if (targetFields) {
-        setFields(targetFields)
+        historyIndexRef.current = targetIndex
         setHistoryIndex(targetIndex)
+        setFields(targetFields.map((f) => ({ ...f })))
         setHasUnsavedChanges(true)
       }
     }
-  }
+  }, [])
 
   // Keyboard Shortcuts: Ctrl+Z (Undo) & Ctrl+Y / Ctrl+Shift+Z (Redo)
   useEffect(() => {
@@ -280,7 +292,7 @@ export default function DocumentFieldPlottingPage() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [history, historyIndex])
+  }, [handleUndo, handleRedo])
 
   // 1. Render PDF.js Viewport
   useEffect(() => {
@@ -389,10 +401,24 @@ export default function DocumentFieldPlottingPage() {
         // Transform GPU langsung tanpa delay
         element.style.transform = `translate3d(${deltaX}px, ${deltaY}px, 0)`
       } else {
-        interaction.currentWidth = Math.max(80, interaction.initialWidth + deltaX)
-        interaction.currentHeight = Math.max(40, interaction.initialHeight + deltaY)
-        element.style.width = `${interaction.currentWidth}px`
-        element.style.height = `${interaction.currentHeight}px`
+        const field = fieldsRef.current.find((f) => f.id === interaction.fieldId)
+        const isLockRatio = field?.type === 'SIGNATURE' || field?.type === 'PARAF'
+
+        if (isLockRatio) {
+          const aspectRatio = interaction.initialWidth / Math.max(1, interaction.initialHeight)
+          const rawW = interaction.initialWidth + deltaX
+          const newW = Math.max(90, Math.min(360, rawW))
+          const newH = Math.max(35, Math.round(newW / aspectRatio))
+          interaction.currentWidth = newW
+          interaction.currentHeight = newH
+          element.style.width = `${newW}px`
+          element.style.height = `${newH}px`
+        } else {
+          interaction.currentWidth = Math.max(80, interaction.initialWidth + deltaX)
+          interaction.currentHeight = Math.max(40, interaction.initialHeight + deltaY)
+          element.style.width = `${interaction.currentWidth}px`
+          element.style.height = `${interaction.currentHeight}px`
+        }
       }
     }
 
@@ -522,7 +548,7 @@ export default function DocumentFieldPlottingPage() {
                 height: nextH,
               }
         })
-        recordHistory(nextFields)
+        recordHistoryRef.current(nextFields)
       }
     }
 
@@ -576,15 +602,18 @@ export default function DocumentFieldPlottingPage() {
             pageNumber: field.pageNumber,
             posX: field.posX,
             posY: field.posY,
-            width: field.width || (isAudit ? 220 : isName ? 160 : isParaf ? 100 : 150),
+            width: field.width || (isAudit ? 210 : isName ? 160 : isParaf ? 100 : 150),
             height: field.height || (isAudit ? 65 : isName ? 48 : isParaf ? 50 : 70),
             fontSize: field.fontSize || 10,
             textAlign: (field.textAlign as 'left' | 'center') || 'center',
           }
         })
 
-        setFields(loadedFields)
-        setHistory([loadedFields])
+        const clonedLoaded = loadedFields.map((f) => ({ ...f }))
+        setFields(clonedLoaded)
+        historyRef.current = [clonedLoaded]
+        historyIndexRef.current = 0
+        setHistory([clonedLoaded])
         setHistoryIndex(0)
       } catch (error) {
         alert(error instanceof Error ? error.message : 'Gagal memuat dokumen')
@@ -613,27 +642,24 @@ export default function DocumentFieldPlottingPage() {
   const handleConfirmFieldType = (type: FieldPlotType) => {
     if (!pendingPlot) return
 
-    const isAudit = type === 'AUDIT_STAMP'
     const isName = type === 'NAME'
     const isParaf = type === 'PARAF'
     const newField: SignatureField = {
       id: `field-${crypto.randomUUID()}`,
-      recipientId: isAudit ? '' : (activeRecipient?.id || ''),
-      recipientName: isAudit ? 'Sistem E-Sign' : (activeRecipient?.name || 'Penandatangan'),
-      recipientNip: isAudit ? null : (activeRecipient?.nip || null),
+      recipientId: activeRecipient?.id || '',
+      recipientName: activeRecipient?.name || 'Penandatangan',
+      recipientNip: activeRecipient?.nip || null,
       type,
       pageNumber: pendingPlot.pageNumber,
       posX: pendingPlot.posX,
       posY: pendingPlot.posY,
-      width: isAudit ? 220 : isName ? 160 : isParaf ? 100 : 150,
-      height: isAudit ? 65 : isName ? 48 : isParaf ? 50 : 70,
+      width: isName ? 160 : isParaf ? 100 : 150,
+      height: isName ? 48 : isParaf ? 50 : 70,
       fontSize: 10,
-      textAlign: 'center',
+      textAlign: type === 'SIGNATURE' ? 'center' : type === 'NAME' ? 'center' : undefined,
     }
 
-    const nextFields = isAudit
-      ? [...fields.filter((f) => f.type !== 'AUDIT_STAMP'), newField]
-      : [...fields, newField]
+    const nextFields = [...fields, newField]
 
     recordHistory(nextFields)
     setSelectedFieldId(newField.id)
@@ -643,6 +669,7 @@ export default function DocumentFieldPlottingPage() {
 
   // Helper untuk menambah atau mengarahkan ke Stempel Audit dari Sidebar
   const handleAddAuditStamp = () => {
+    setActiveRecipient(null)
     const existing = fields.find((f) => f.type === 'AUDIT_STAMP')
     if (existing) {
       setSelectedFieldId(existing.id)
@@ -650,17 +677,27 @@ export default function DocumentFieldPlottingPage() {
       return
     }
 
-    // Cari halaman yang sedang paling nampak di layar user
+    // Cari halaman yang sedang paling nampak di scroll container user
     let targetPage = 1
+    const container = pdfContainerRef.current?.parentElement || (typeof document !== 'undefined' ? document.querySelector('main') : null)
     if (pdfPages.length > 0) {
-      const windowCenterY = window.innerHeight / 2
+      const containerRect = container ? container.getBoundingClientRect() : { top: 0, height: window.innerHeight }
+      const centerY = containerRect.top + containerRect.height / 2
+
+      let minDistance = Infinity
       for (const p of pdfPages) {
         const el = pageRefs.current[p.pageNumber]
         if (el) {
           const rect = el.getBoundingClientRect()
-          if (rect.top <= windowCenterY && rect.bottom >= windowCenterY) {
+          if (rect.top <= centerY && rect.bottom >= centerY) {
             targetPage = p.pageNumber
             break
+          }
+          const pageCenter = (rect.top + rect.bottom) / 2
+          const dist = Math.abs(pageCenter - centerY)
+          if (dist < minDistance) {
+            minDistance = dist
+            targetPage = p.pageNumber
           }
         }
       }
@@ -669,7 +706,7 @@ export default function DocumentFieldPlottingPage() {
     const targetPageInfo = pdfPages.find((p) => p.pageNumber === targetPage)
     const pageWidth = targetPageInfo?.width || 744
     const pageHeight = targetPageInfo?.height || 1052
-    const initialWidth = 220
+    const initialWidth = 210
     const initialHeight = 65
 
     const newField: SignatureField = {
@@ -678,8 +715,8 @@ export default function DocumentFieldPlottingPage() {
       recipientName: 'Sistem E-Sign',
       type: 'AUDIT_STAMP',
       pageNumber: targetPage,
-      posX: Math.max(20, pageWidth - initialWidth - 40),
-      posY: Math.max(20, pageHeight - initialHeight - 60),
+      posX: Math.max(20, Math.round(pageWidth - initialWidth - 30)),
+      posY: Math.max(20, Math.round(pageHeight - initialHeight - 50)),
       width: initialWidth,
       height: initialHeight,
     }
@@ -707,15 +744,21 @@ export default function DocumentFieldPlottingPage() {
   }
 
   const handleUpdateFieldType = (fieldId: string, type: 'SIGNATURE' | 'PARAF' | 'NAME') => {
-    const nextFields = fields.map((f) => {
+    const nextFields: SignatureField[] = fields.map((f) => {
       if (f.id !== fieldId) return f
       return {
         ...f,
         type,
         width: type === 'NAME' ? 160 : type === 'PARAF' ? 100 : 150,
         height: type === 'NAME' ? 48 : type === 'PARAF' ? 50 : 70,
+        textAlign: (type === 'SIGNATURE' ? 'center' : type === 'NAME' ? 'center' : undefined) as 'center' | undefined,
       }
     })
+    recordHistory(nextFields)
+  }
+
+  const handleUpdateFieldWatermark = (fieldId: string, watermarkStyle: 'center' | 'corner') => {
+    const nextFields = fields.map((f) => (f.id === fieldId ? { ...f, textAlign: watermarkStyle } : f))
     recordHistory(nextFields)
   }
 
@@ -1112,9 +1155,10 @@ export default function DocumentFieldPlottingPage() {
                             fieldElementsRef.current[field.id] = element
                           }}
                           onPointerDown={(event) => {
-                            if (pdfInteractive || activeRecipient) return
+                            if (pdfInteractive) return
                             event.preventDefault()
                             event.stopPropagation()
+                            setActiveRecipient(null)
 
                             const el = fieldElementsRef.current[field.id]
                             if (el) el.setPointerCapture(event.pointerId)
@@ -1155,7 +1199,7 @@ export default function DocumentFieldPlottingPage() {
                           }`}
                         >
                           <div className="absolute -top-3 left-2 bg-emerald-800 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-xs pointer-events-none">
-                            Stempel Verifikasi (Audit Trail)
+                            Stempel Verifikasi (Opsi 3)
                           </div>
 
                           <button
@@ -1176,57 +1220,16 @@ export default function DocumentFieldPlottingPage() {
                             <QrCode className="w-full h-full text-slate-800" />
                           </div>
 
-                          {/* Sisi Kanan: Teks Persis Referensi Gambar */}
-                          <div className="flex flex-col justify-center overflow-hidden min-w-0 pointer-events-none pr-1">
-                            <p className="text-[10px] sm:text-[11px] font-extrabold text-[#2e7d32] leading-tight truncate">
-                              Terverifikasi Sistem E-Sign
-                            </p>
-                            <p className="text-[8.5px] font-semibold text-slate-600 font-mono mt-0.5 truncate">
-                              Doc ID : {documentId.toUpperCase().slice(0, 16)}
-                            </p>
-                            <p className="text-[8px] text-slate-500 font-mono truncate">
-                              Timestamp: [Saat Pengesahan]
-                            </p>
+                          {/* Sisi Kanan: Logo E-Sign Terverifikasi (Persis Gambar Opsi 3) */}
+                          <div className="flex-1 h-full flex items-center justify-center pointer-events-none p-0.5 overflow-hidden">
+                            <img src="/assets/watermark.png" alt="E-Sign Terverifikasi" className="max-h-full max-w-full object-contain" />
                           </div>
 
                           {/* Indikator Koordinat Real-Time saat Terpilih */}
                           {isSelected && (
                             <div className="absolute -bottom-2.5 left-2 bg-slate-800/90 text-white text-[8px] font-mono px-1.5 py-0.5 rounded shadow-xs pointer-events-none">
-                              X: {Math.round(field.posX)} · Y: {Math.round(field.posY)}
+                              X: {Math.round(field.posX)} · Y: {Math.round(field.posY)} · Fix
                             </div>
-                          )}
-
-                          {isSelected && !pdfInteractive && (
-                            <button
-                              type="button"
-                              aria-label="Ubah ukuran stempel"
-                              onPointerDown={(event) => {
-                                event.preventDefault()
-                                event.stopPropagation()
-
-                                const el = fieldElementsRef.current[field.id]
-                                if (el) el.setPointerCapture(event.pointerId)
-
-                                const interaction: FieldInteraction = {
-                                  mode: 'resize',
-                                  fieldId: field.id,
-                                  initialPageNumber: field.pageNumber,
-                                  startX: event.clientX,
-                                  startY: event.clientY,
-                                  initialX: field.posX,
-                                  initialY: field.posY,
-                                  initialWidth: field.width,
-                                  initialHeight: field.height,
-                                  currentX: field.posX,
-                                  currentY: field.posY,
-                                  currentWidth: field.width,
-                                  currentHeight: field.height,
-                                  pointerId: event.pointerId,
-                                }
-                                interactionRef.current = interaction
-                              }}
-                              className="absolute -bottom-1.5 -right-1.5 z-20 h-4 w-4 cursor-se-resize rounded-full bg-emerald-600 border border-white shadow"
-                            />
                           )}
                         </div>
                       )
@@ -1240,9 +1243,10 @@ export default function DocumentFieldPlottingPage() {
                             fieldElementsRef.current[field.id] = element
                           }}
                           onPointerDown={(event) => {
-                            if (pdfInteractive || activeRecipient) return
+                            if (pdfInteractive) return
                             event.preventDefault()
                             event.stopPropagation()
+                            setActiveRecipient(null)
 
                             const el = fieldElementsRef.current[field.id]
                             if (el) el.setPointerCapture(event.pointerId)
@@ -1373,9 +1377,10 @@ export default function DocumentFieldPlottingPage() {
                           fieldElementsRef.current[field.id] = element
                         }}
                         onPointerDown={(event) => {
-                          if (pdfInteractive || activeRecipient) return
+                          if (pdfInteractive) return
                           event.preventDefault()
                           event.stopPropagation()
+                          setActiveRecipient(null)
 
                           const el = fieldElementsRef.current[field.id]
                           if (el) {
@@ -1442,14 +1447,27 @@ export default function DocumentFieldPlottingPage() {
                           <X className="h-3 w-3" />
                         </button>
 
+                        {/* Watermark E-Sign untuk Field TTD */}
+                        {!isParaf && (
+                          field.textAlign === 'corner' ? (
+                            <div className="absolute bottom-1 right-1 pointer-events-none z-0">
+                              <img src="/assets/watermark.png" alt="watermark" className="h-4 object-contain" />
+                            </div>
+                          ) : (
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+                              <img src="/assets/watermark.png" alt="watermark" className="max-h-[60%] max-w-[80%] object-contain opacity-20" />
+                            </div>
+                          )
+                        )}
+
                         {isParaf ? (
-                          <FileCheck className="w-4 h-4 text-amber-600 mb-0.5 pointer-events-none" />
+                          <FileCheck className="w-4 h-4 text-amber-600 mb-0.5 pointer-events-none relative z-10" />
                         ) : (
-                          <PenTool className={`w-4 h-4 mb-0.5 pointer-events-none ${theme.icon}`} />
+                          <PenTool className={`w-4 h-4 mb-0.5 pointer-events-none relative z-10 ${theme.icon}`} />
                         )}
 
                         <span
-                          className={`text-[10px] font-bold pointer-events-none ${
+                          className={`text-[10px] font-bold pointer-events-none relative z-10 ${
                             isParaf ? 'text-amber-800' : theme.text
                           }`}
                         >
@@ -1631,6 +1649,41 @@ export default function DocumentFieldPlottingPage() {
                     </button>
                   </div>
                 </div>
+
+                {/* Panel Pilihan Watermark E-Sign saat Tipe Plot adalah SIGNATURE (TTD) */}
+                {selectedField.type === 'SIGNATURE' && (
+                  <div className="space-y-2 border-t border-slate-100 pt-3">
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                      Watermark E-Sign
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateFieldWatermark(selectedField.id, 'center')}
+                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                          (selectedField.textAlign || 'center') === 'center'
+                            ? 'border-blue-600 bg-blue-50/80 ring-2 ring-blue-500/20 text-blue-900 shadow-2xs'
+                            : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        <span className="block text-xs font-bold">Opsi 1</span>
+                        <span className="block text-[9.5px] text-slate-500 mt-0.5">Center (Pudar 20%)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateFieldWatermark(selectedField.id, 'corner')}
+                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                          selectedField.textAlign === 'corner'
+                            ? 'border-blue-600 bg-blue-50/80 ring-2 ring-blue-500/20 text-blue-900 shadow-2xs'
+                            : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        <span className="block text-xs font-bold">Opsi 2</span>
+                        <span className="block text-[9.5px] text-slate-500 mt-0.5">Pojok Kanan Bawah</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Panel Pengaturan Tipografi saat Tipe Plot adalah NAME (Nama & NIK) */}
                 {selectedField.type === 'NAME' && (
