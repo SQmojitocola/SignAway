@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { X, PenTool, FileCheck, Check, QrCode, UserCheck } from 'lucide-react'
 
-export type FieldPlotType = 'SIGNATURE' | 'PARAF' | 'AUDIT_STAMP' | 'NAME'
+export type FieldPlotType = 'SIGNATURE' | 'PARAF' | 'NAME'
 
 interface FieldTypeSelectorModalProps {
   isOpen: boolean
@@ -24,7 +24,7 @@ export function FieldTypeSelectorModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl space-y-5">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl space-y-5">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Plotting Dokumen</p>
@@ -43,8 +43,8 @@ export function FieldTypeSelectorModal({
           Tentukan tipe komponen yang ingin ditempatkan pada dokumen untuk {recipientName ? <span className="font-semibold text-slate-700">{recipientName}</span> : 'penandatangan'}:
         </p>
 
-        {/* Pilihan Card TTD / Paraf / Nama & NIK / Stempel Audit */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        {/* Pilihan Card TTD / Paraf / Nama & NIK */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <button
             type="button"
             onClick={() => setSelectedType('SIGNATURE')}
@@ -56,7 +56,7 @@ export function FieldTypeSelectorModal({
           >
             <PenTool className="h-5 w-5 mb-1.5 text-blue-600" />
             <span className="text-[11px] font-bold text-center">Tanda Tangan</span>
-            <span className="text-[9px] text-slate-400 mt-0.5">Standar</span>
+            <span className="text-[9px] text-slate-400 mt-0.5">Standar E-Sign</span>
           </button>
 
           <button
@@ -85,20 +85,6 @@ export function FieldTypeSelectorModal({
             <UserCheck className="h-5 w-5 mb-1.5 text-indigo-600" />
             <span className="text-[11px] font-bold text-center">Nama & NIK</span>
             <span className="text-[9px] text-slate-400 mt-0.5">Font Resmi</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSelectedType('AUDIT_STAMP')}
-            className={`flex flex-col items-center justify-center rounded-xl p-3 border-2 transition-all cursor-pointer ${
-              selectedType === 'AUDIT_STAMP'
-                ? 'border-emerald-600 bg-emerald-50/80 text-emerald-800 shadow-sm ring-2 ring-emerald-500/20'
-                : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'
-            }`}
-          >
-            <QrCode className="h-5 w-5 mb-1.5 text-emerald-600" />
-            <span className="text-[11px] font-bold text-center">Stempel Audit</span>
-            <span className="text-[9px] text-slate-400 mt-0.5">QR & Doc ID</span>
           </button>
         </div>
 

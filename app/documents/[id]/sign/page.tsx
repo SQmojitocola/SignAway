@@ -937,24 +937,14 @@ export default function SignDocumentPage() {
                             width: `${field.width}px`,
                             height: `${field.height}px`,
                           }}
-                          className="flex items-center gap-2.5 rounded-md border border-slate-300 bg-white shadow-sm p-2 z-10 box-border select-none"
+                          className="flex items-center gap-2.5 p-1 z-10 box-border select-none pointer-events-none"
                         >
-                          <div className="absolute -top-3 left-2 bg-emerald-800 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-xs pointer-events-none">
-                            Stempel Verifikasi
+                          <div className="h-full aspect-square flex items-center justify-center shrink-0">
+                            <QrCode className="w-full h-full text-slate-900" />
                           </div>
-                          <div className="h-full aspect-square bg-slate-50 border border-slate-200 rounded p-1 flex items-center justify-center shrink-0">
-                            <QrCode className="w-full h-full text-slate-800" />
-                          </div>
-                          <div className="flex flex-col justify-center overflow-hidden min-w-0 pr-1">
-                            <p className="text-[10px] sm:text-[10.5px] font-extrabold text-[#2e7d32] leading-tight truncate">
-                              Terverifikasi Sistem E-Sign
-                            </p>
-                            <p className="text-[8.5px] font-semibold text-slate-600 font-mono mt-0.5 truncate">
-                              Doc ID : {doc?.id.toUpperCase().slice(0, 16)}
-                            </p>
-                            <p className="text-[8px] text-slate-500 font-mono truncate">
-                              Timestamp: [Otomatis Saat Selesai]
-                            </p>
+                          {/* Sisi Kanan: Logo E-Sign Terverifikasi (Persis Gambar Opsi 3 - Tanpa Frame Kotak) */}
+                          <div className="flex-1 h-full flex items-center justify-center pointer-events-none p-0.5 overflow-hidden">
+                            <img src="/assets/watermark.png" alt="E-Sign Terverifikasi" className="max-h-full max-w-full object-contain" />
                           </div>
                         </div>
                       )
@@ -1025,7 +1015,7 @@ export default function SignDocumentPage() {
                           width: `${field.width}px`,
                           height: `${field.height}px`,
                         }}
-                        className={`flex flex-col items-center justify-center rounded-lg p-1 z-10 box-border select-none transition-all ${
+                        className={`flex flex-col items-center justify-center rounded-lg p-1 z-10 box-border select-none transition-all relative overflow-hidden ${
                           isSigned
                             ? 'border border-emerald-500/40 bg-emerald-500/5 cursor-default'
                             : isMine
@@ -1038,11 +1028,20 @@ export default function SignDocumentPage() {
                         }`}
                       >
                         {filledData ? (
-                          <img
-                            src={filledData}
-                            alt="Preview"
-                            className="h-full w-full object-contain pointer-events-none select-none"
-                          />
+                          <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+                            {!isParaf && field.textAlign !== 'none' && (
+                              field.textAlign === 'corner' ? (
+                                <img src="/assets/watermark.png" alt="watermark" className="absolute bottom-1 right-1 h-3.5 object-contain pointer-events-none z-0" />
+                              ) : (
+                                <img src="/assets/watermark.png" alt="watermark" className="absolute inset-0 m-auto max-h-[65%] max-w-[85%] object-contain opacity-30 pointer-events-none z-0" />
+                              )
+                            )}
+                            <img
+                              src={filledData}
+                              alt="Preview"
+                              className="relative z-10 h-full w-full object-contain pointer-events-none select-none"
+                            />
+                          </div>
                         ) : isSigned ? (
                           <div className="flex flex-col items-center justify-center p-1 w-full h-full pointer-events-none">
                             <div className="flex items-center gap-1 text-emerald-700 font-bold text-[9px] bg-emerald-500/15 px-1.5 py-0.5 rounded border border-emerald-500/30 shadow-xs">
@@ -1052,15 +1051,24 @@ export default function SignDocumentPage() {
                             <span className="text-[7.5px] font-semibold text-emerald-600/80 mt-0.5">Sudah Ditandatangani</span>
                           </div>
                         ) : (
-                          <div className="flex flex-col items-center justify-center text-center overflow-hidden p-0.5 w-full h-full">
-                            {isParaf ? (
-                              <FileCheck className="h-4 w-4 shrink-0 mb-0.5 text-amber-500" />
-                            ) : (
-                              <PenTool className="h-4 w-4 shrink-0 mb-0.5 text-emerald-500" />
+                          <div className="relative w-full h-full flex flex-col items-center justify-center text-center overflow-hidden p-0.5">
+                            {!isParaf && field.textAlign !== 'none' && (
+                              field.textAlign === 'corner' ? (
+                                <img src="/assets/watermark.png" alt="watermark" className="absolute bottom-1 right-1 h-3.5 object-contain pointer-events-none z-0" />
+                              ) : (
+                                <img src="/assets/watermark.png" alt="watermark" className="absolute inset-0 m-auto max-h-[60%] max-w-[80%] object-contain opacity-30 pointer-events-none z-0" />
+                              )
                             )}
-                            <p className="text-[10px] font-bold uppercase truncate w-full">
-                              {field.recipientName} ({isParaf ? 'PARAF' : 'TTD'})
-                            </p>
+                            <div className="relative z-10 flex flex-col items-center justify-center">
+                              {isParaf ? (
+                                <FileCheck className="h-4 w-4 shrink-0 mb-0.5 text-amber-500" />
+                              ) : (
+                                <PenTool className="h-4 w-4 shrink-0 mb-0.5 text-emerald-500" />
+                              )}
+                              <p className="text-[10px] font-bold uppercase truncate w-full">
+                                {field.recipientName} ({isParaf ? 'PARAF' : 'TTD'})
+                              </p>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1282,6 +1290,23 @@ export default function SignDocumentPage() {
                   >
                     {bgCropUrl && <div className="absolute inset-0 bg-white/35 pointer-events-none" />}
 
+                    {/* Watermark preview in drawing canvas */}
+                    {!isParafTask && activeField.textAlign !== 'none' && (
+                      activeField.textAlign === 'corner' ? (
+                        <img
+                          src="/assets/watermark.png"
+                          alt="watermark"
+                          className="absolute bottom-2 right-2 h-5 object-contain pointer-events-none z-0 select-none"
+                        />
+                      ) : (
+                        <img
+                          src="/assets/watermark.png"
+                          alt="watermark"
+                          className="absolute inset-0 m-auto max-h-[55%] max-w-[75%] object-contain opacity-30 pointer-events-none z-0 select-none"
+                        />
+                      )
+                    )}
+
                     <canvas
                       ref={canvasRef}
                       width={activeField.width * 2}
@@ -1367,8 +1392,25 @@ export default function SignDocumentPage() {
                       >
                         {bgCropUrl && <div className="absolute inset-0 bg-white/35 pointer-events-none" />}
 
+                        {/* Watermark preview in specimen box */}
+                        {!isParafTask && activeField.textAlign !== 'none' && (
+                          activeField.textAlign === 'corner' ? (
+                            <img
+                              src="/assets/watermark.png"
+                              alt="watermark"
+                              className="absolute bottom-2 right-2 h-5 object-contain pointer-events-none z-0 select-none"
+                            />
+                          ) : (
+                            <img
+                              src="/assets/watermark.png"
+                              alt="watermark"
+                              className="absolute inset-0 m-auto max-h-[55%] max-w-[75%] object-contain opacity-30 pointer-events-none z-0 select-none"
+                            />
+                          )
+                        )}
+
                         <div
-                          className="absolute pointer-events-none transition-transform duration-75"
+                          className="absolute pointer-events-none transition-transform duration-75 z-10"
                           style={{
                             transform: `translate(${specimenPos.x}px, ${specimenPos.y}px) scale(${specimenScale / 100})`,
                             maxWidth: '85%',
@@ -1392,7 +1434,7 @@ export default function SignDocumentPage() {
                           />
                         </div>
 
-                        <div className="absolute bottom-1 right-1.5 rounded bg-slate-900/60 px-1.5 py-0.5 text-[9px] text-slate-300 pointer-events-none flex items-center gap-1 backdrop-blur-xs">
+                        <div className="absolute bottom-1 right-1.5 rounded bg-slate-900/60 px-1.5 py-0.5 text-[9px] text-slate-300 pointer-events-none flex items-center gap-1 backdrop-blur-xs z-20">
                           <Move className="h-2.5 w-2.5" /> Geser
                         </div>
                       </div>
