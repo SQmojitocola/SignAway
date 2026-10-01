@@ -258,7 +258,7 @@ export async function POST(req: Request) {
             opacity: 1.0,
           })
         } else {
-          // Opsi 1: Watermark pudar 20% (opacity 0.2), center di belakang TTD
+          // Opsi 1: Watermark pudar 30% (opacity 0.3), center di belakang TTD
           const wmScale = Math.min((boxWidth * 0.75) / embeddedWatermark.width, (boxHeight * 0.65) / embeddedWatermark.height)
           const wmW = embeddedWatermark.width * wmScale
           const wmH = embeddedWatermark.height * wmScale
@@ -270,7 +270,7 @@ export async function POST(req: Request) {
             y: wmY,
             width: wmW,
             height: wmH,
-            opacity: 0.2, // Turun hingga 20%
+            opacity: 0.3, // Naikkan ke 30%
           })
         }
       }
@@ -317,19 +317,8 @@ export async function POST(req: Request) {
       const clampedBoxY = Math.max(10, Math.min(pageHeight - boxHeight - 10, boxY))
       const drawY = pageHeight - clampedBoxY - boxHeight
 
-      // A. Gambar Kotak Putih dengan Border Halus (Sesuai Desain Opsi 3)
-      stampPage.drawRectangle({
-        x: clampedBoxX,
-        y: drawY,
-        width: boxWidth,
-        height: boxHeight,
-        color: rgb(1, 1, 1),
-        borderColor: rgb(0.8, 0.83, 0.88),
-        borderWidth: 0.8,
-      })
-
-      // B. Tempel QR Code di Sisi Kiri Kotak (Mengarahkan ke halaman verifikasi dokumen)
-      const qrPadding = 5
+      // A. Tempel QR Code di Sisi Kiri (Tanpa frame kotak luar, lepas saja)
+      const qrPadding = 3
       const qrSize = Math.max(20, boxHeight - qrPadding * 2)
       stampPage.drawImage(embeddedQrImage, {
         x: clampedBoxX + qrPadding,

@@ -937,15 +937,12 @@ export default function SignDocumentPage() {
                             width: `${field.width}px`,
                             height: `${field.height}px`,
                           }}
-                          className="flex items-center gap-2.5 rounded-md border border-slate-300 bg-white shadow-sm p-2 z-10 box-border select-none"
+                          className="flex items-center gap-2.5 p-1 z-10 box-border select-none pointer-events-none"
                         >
-                          <div className="absolute -top-3 left-2 bg-emerald-800 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-xs pointer-events-none">
-                            Stempel Verifikasi
+                          <div className="h-full aspect-square flex items-center justify-center shrink-0">
+                            <QrCode className="w-full h-full text-slate-900" />
                           </div>
-                          <div className="h-full aspect-square bg-slate-50 border border-slate-200 rounded p-1 flex items-center justify-center shrink-0">
-                            <QrCode className="w-full h-full text-slate-800" />
-                          </div>
-                          {/* Sisi Kanan: Logo E-Sign Terverifikasi (Persis Gambar Opsi 3) */}
+                          {/* Sisi Kanan: Logo E-Sign Terverifikasi (Persis Gambar Opsi 3 - Tanpa Frame Kotak) */}
                           <div className="flex-1 h-full flex items-center justify-center pointer-events-none p-0.5 overflow-hidden">
                             <img src="/assets/watermark.png" alt="E-Sign Terverifikasi" className="max-h-full max-w-full object-contain" />
                           </div>
@@ -1036,7 +1033,7 @@ export default function SignDocumentPage() {
                               field.textAlign === 'corner' ? (
                                 <img src="/assets/watermark.png" alt="watermark" className="absolute bottom-1 right-1 h-3.5 object-contain pointer-events-none z-0" />
                               ) : (
-                                <img src="/assets/watermark.png" alt="watermark" className="absolute inset-0 m-auto max-h-[65%] max-w-[85%] object-contain opacity-20 pointer-events-none z-0" />
+                                <img src="/assets/watermark.png" alt="watermark" className="absolute inset-0 m-auto max-h-[65%] max-w-[85%] object-contain opacity-30 pointer-events-none z-0" />
                               )
                             )}
                             <img
@@ -1059,7 +1056,7 @@ export default function SignDocumentPage() {
                               field.textAlign === 'corner' ? (
                                 <img src="/assets/watermark.png" alt="watermark" className="absolute bottom-1 right-1 h-3.5 object-contain pointer-events-none z-0" />
                               ) : (
-                                <img src="/assets/watermark.png" alt="watermark" className="absolute inset-0 m-auto max-h-[60%] max-w-[80%] object-contain opacity-20 pointer-events-none z-0" />
+                                <img src="/assets/watermark.png" alt="watermark" className="absolute inset-0 m-auto max-h-[60%] max-w-[80%] object-contain opacity-30 pointer-events-none z-0" />
                               )
                             )}
                             <div className="relative z-10 flex flex-col items-center justify-center">
@@ -1305,7 +1302,7 @@ export default function SignDocumentPage() {
                         <img
                           src="/assets/watermark.png"
                           alt="watermark"
-                          className="absolute inset-0 m-auto max-h-[55%] max-w-[75%] object-contain opacity-20 pointer-events-none z-0 select-none"
+                          className="absolute inset-0 m-auto max-h-[55%] max-w-[75%] object-contain opacity-30 pointer-events-none z-0 select-none"
                         />
                       )
                     )}
@@ -1407,7 +1404,7 @@ export default function SignDocumentPage() {
                             <img
                               src="/assets/watermark.png"
                               alt="watermark"
-                              className="absolute inset-0 m-auto max-h-[55%] max-w-[75%] object-contain opacity-20 pointer-events-none z-0 select-none"
+                              className="absolute inset-0 m-auto max-h-[55%] max-w-[75%] object-contain opacity-30 pointer-events-none z-0 select-none"
                             />
                           )
                         )}

@@ -1192,10 +1192,10 @@ export default function DocumentFieldPlottingPage() {
                             width: `${field.width}px`,
                             height: `${field.height}px`,
                           }}
-                          className={`absolute z-10 rounded-md border bg-white shadow-sm p-2 flex items-center gap-2.5 select-none cursor-move ${
+                          className={`absolute z-10 rounded-md p-1.5 flex items-center gap-2 select-none cursor-move transition-all ${
                             isSelected
-                              ? 'border-emerald-600 ring-2 ring-emerald-400 shadow-md'
-                              : 'border-slate-300 hover:border-slate-400'
+                              ? 'border-2 border-dashed border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-400/30'
+                              : 'hover:border hover:border-dashed hover:border-slate-400/60'
                           }`}
                         >
                           <div className="absolute -top-3 left-2 bg-emerald-800 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-xs pointer-events-none">
@@ -1215,12 +1215,12 @@ export default function DocumentFieldPlottingPage() {
                             <X className="h-3 w-3" />
                           </button>
 
-                          {/* Sisi Kiri: Preview QR Code */}
-                          <div className="h-full aspect-square bg-slate-50 border border-slate-200 rounded p-1 flex items-center justify-center shrink-0 pointer-events-none">
-                            <QrCode className="w-full h-full text-slate-800" />
+                          {/* Sisi Kiri: Preview QR Code (Lepas / Tanpa Frame Kotak) */}
+                          <div className="h-full aspect-square flex items-center justify-center shrink-0 pointer-events-none">
+                            <QrCode className="w-full h-full text-slate-900" />
                           </div>
 
-                          {/* Sisi Kanan: Logo E-Sign Terverifikasi (Persis Gambar Opsi 3) */}
+                          {/* Sisi Kanan: Logo E-Sign Terverifikasi (Lepas / Tanpa Frame Kotak) */}
                           <div className="flex-1 h-full flex items-center justify-center pointer-events-none p-0.5 overflow-hidden">
                             <img src="/assets/watermark.png" alt="E-Sign Terverifikasi" className="max-h-full max-w-full object-contain" />
                           </div>
@@ -1455,7 +1455,7 @@ export default function DocumentFieldPlottingPage() {
                             </div>
                           ) : (
                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-                              <img src="/assets/watermark.png" alt="watermark" className="max-h-[60%] max-w-[80%] object-contain opacity-20" />
+                              <img src="/assets/watermark.png" alt="watermark" className="max-h-[60%] max-w-[80%] object-contain opacity-30" />
                             </div>
                           )
                         )}
@@ -1667,7 +1667,7 @@ export default function DocumentFieldPlottingPage() {
                         }`}
                       >
                         <span className="block text-[11px] font-bold">Opsi 1</span>
-                        <span className="block text-[9px] text-slate-500 mt-0.5 leading-tight">Center (20%)</span>
+                        <span className="block text-[9px] text-slate-500 mt-0.5 leading-tight">Center (30%)</span>
                       </button>
                       <button
                         type="button"
