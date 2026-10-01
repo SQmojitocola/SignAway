@@ -197,15 +197,15 @@ export default function LoginForm() {
       {/* 📍 PANEL KIRI: FORM LOGIN */}
       <div className="flex flex-1 flex-col justify-between p-6 sm:p-8 lg:p-6 lg:pl-10 lg:pr-8">
         {/* Header Bar */}
-        <div className="flex items-center justify-between gap-4 sm:gap-6 w-full">
+        <div className="flex items-center justify-between gap-4 sm:gap-6 w-full overflow-visible">
           {/* Logo E-Sign (Kiri) */}
-          <div className="flex items-center select-none shrink-0">
-            <span className="text-4xl sm:text-5xl font-black tracking-tight bg-gradient-to-r from-cyan-500 via-teal-400 to-blue-600 bg-clip-text text-transparent drop-shadow-xs">
+          <div className="flex items-center select-none shrink-0 overflow-visible py-1">
+            <span className="inline-block text-4xl sm:text-5xl font-black tracking-tight bg-gradient-to-r from-cyan-500 via-teal-400 to-blue-600 bg-clip-text text-transparent py-1 pr-1 leading-normal">
               E-
             </span>
             <span
               style={{ fontFamily: 'var(--font-dancing-script), cursive, sans-serif' }}
-              className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-teal-400 to-blue-600 bg-clip-text text-transparent italic -ml-1 pr-2 leading-none"
+              className="inline-block text-4xl sm:text-5xl font-bold bg-gradient-to-r from-teal-400 to-blue-600 bg-clip-text text-transparent italic -ml-1 pl-1 pr-8 py-2 leading-normal overflow-visible"
             >
               Sign
             </span>
@@ -256,7 +256,7 @@ export default function LoginForm() {
           <h1 className="text-3xl font-extrabold text-[#003b73] tracking-tight">
             Selamat Datang
           </h1>
-          <p className="mt-2 text-xs sm:text-sm text-slate-500 leading-relaxed">
+          <p className="mt-4 text-xs sm:text-sm text-slate-500 leading-relaxed">
             Platform terpadu untuk Pengesahan Tanda Tangan Digital & Manajemen Dokumen yang modern dan efisien.
           </p>
 
@@ -266,7 +266,7 @@ export default function LoginForm() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          <form onSubmit={handleSubmit} className="mt-4 space-y-4">
             {/* Input Email */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">Email</label>
