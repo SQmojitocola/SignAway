@@ -23,6 +23,7 @@ export async function GET(req: Request) {
           role: true,
           nip: true,
           department: true,
+          avatarUrl: true,
           signatureSpecimen: true,
           specimens: {
             where: { isPrimary: true, type: 'SIGNATURE' },

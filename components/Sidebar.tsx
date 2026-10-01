@@ -3,14 +3,14 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
-import { 
-  LayoutDashboard, 
-  Users, 
-  Upload, 
-  Settings, 
-  LogOut, 
-  FolderOpen, 
-  PenTool, 
+import {
+  LayoutDashboard,
+  Users,
+  Upload,
+  Settings,
+  LogOut,
+  FolderOpen,
+  PenTool,
   ShieldCheck,
   FileCheck,
   FileSearch,
@@ -105,11 +105,10 @@ export default function Sidebar() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    isActive
+                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${isActive
                       ? 'bg-blue-600 font-semibold text-white shadow-md'
                       : 'text-blue-100 hover:bg-blue-800/50'
-                  }`}
+                    }`}
                 >
                   <Icon className="w-4 h-4 shrink-0" />
                   <span className="text-xs">{item.name}</span>
@@ -124,16 +123,15 @@ export default function Sidebar() {
       <div className="space-y-1.5 text-sm border-t border-blue-800/60 pt-4">
         <Link
           href="/setting"
-          className={`flex items-center gap-3 px-3.5 py-2 rounded-xl transition-all ${
-            pathname === '/setting'
+          className={`flex items-center gap-3 px-3.5 py-2 rounded-xl transition-all ${pathname === '/setting'
               ? 'bg-blue-600 font-semibold text-white shadow-md'
               : 'text-blue-200 hover:text-white hover:bg-blue-800/50'
-          }`}
+            }`}
         >
-          <Settings className="w-4 h-4" /> 
+          <Settings className="w-4 h-4" />
           <span className="text-xs font-medium">Settings</span>
         </Link>
-        
+
         <button
           onClick={() => {
             void signOut({ callbackUrl: '/login' })
@@ -141,7 +139,7 @@ export default function Sidebar() {
           }}
           className="flex items-center gap-3 px-3.5 py-2 text-red-300 hover:text-red-100 w-full text-left rounded-xl hover:bg-red-500/20 transition-all cursor-pointer"
         >
-          <LogOut className="w-4 h-4" /> 
+          <LogOut className="w-4 h-4" />
           <span className="text-xs font-semibold">Logout</span>
         </button>
       </div>

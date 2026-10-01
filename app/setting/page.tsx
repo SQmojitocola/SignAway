@@ -12,7 +12,7 @@ export default function SettingsPage() {
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
-  const [profileError, setProfileError] = useState("");
+
   const [activeTab, setActiveTab] = useState("profil");
 
   // State ubah password
@@ -30,6 +30,14 @@ export default function SettingsPage() {
   const [notifWeekly, setNotifWeekly] = useState(false);
   const [otpRequired, setOtpRequired] = useState(true);
 
+  // State untuk Avatar
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarError, setAvatarError] = useState("");
+  const [avatarMessage, setAvatarMessage] = useState("");
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     fetch("/api/users?me=true")
       .then(async (response) => {
@@ -39,8 +47,8 @@ export default function SettingsPage() {
         setProfileEmail(data.user?.email ?? "");
         setProfileNip(data.user?.nip ?? "");
         setProfileRole(data.user?.role ?? "KARYAWAN");
+        setAvatarUrl(data.user?.avatarUrl ?? null);
       })
-      .catch(() => setProfileError("Profil tidak dapat dimuat"))
       .finally(() => setProfileLoading(false));
   }, []);
 
@@ -65,6 +73,88 @@ export default function SettingsPage() {
       setProfileError(error instanceof Error ? error.message : "Profil gagal disimpan");
     } finally {
       setProfileSaving(false);
+    }
+  };
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validasi tipe file
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowedTypes.includes(file.type)) {
+      setAvatarError('Format file tidak didukung. Gunakan JPG, PNG, WebP, atau GIF.');
+      return;
+    }
+
+    // Validasi ukuran file (maks 5MB)
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setAvatarError('Ukuran file terlalu besar. Maksimal 5MB.');
+      return;
+    }
+
+    setAvatarError('');
+    setAvatarMessage('');
+
+    // Buat preview
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setAvatarPreview(event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleAvatarUpload = async () => {
+    if (!fileInputRef.current?.files?.[0]) return;
+
+    setAvatarUploading(true);
+    setAvatarError('');
+    setAvatarMessage('');
+
+    try {
+      const formData = new FormData();
+      formData.append('avatar', fileInputRef.current.files[0]);
+
+      const response = await fetch('/api/users/avatar', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message ?? 'Gagal mengunggah avatar');
+
+      setAvatarUrl(data.user.avatarUrl);
+      setAvatarPreview(null);
+      setAvatarMessage('Avatar berhasil diunggah!');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch (error) {
+      setAvatarError(error instanceof Error ? error.message : 'Gagal mengunggah avatar');
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  const handleAvatarDelete = async () => {
+    setAvatarUploading(true);
+    setAvatarError('');
+    setAvatarMessage('');
+
+    try {
+      const response = await fetch('/api/users/avatar', {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message ?? 'Gagal menghapus avatar');
+
+      setAvatarUrl(null);
+      setAvatarPreview(null);
+      setAvatarMessage('Avatar berhasil dihapus!');
+    } catch (error) {
+      setAvatarError(error instanceof Error ? error.message : 'Gagal menghapus avatar');
+    } finally {
+      setAvatarUploading(false);
     }
   };
 
@@ -112,23 +202,23 @@ export default function SettingsPage() {
     profileRole === "ADMIN"
       ? "Administrator"
       : profileRole === "ATASAN"
-      ? "Atasan / Verifikator"
-      : "Karyawan / Staf";
+        ? "Atasan / Verifikator"
+        : "Karyawan / Staf";
 
   const initials = profileName
     ? profileName
-        .split(" ")
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((n) => n[0].toUpperCase())
-        .join("")
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((n) => n[0].toUpperCase())
+      .join("")
     : "U";
 
   return (
     <div className="bg-[#f8fafc] text-gray-900 min-h-screen font-sans">
       <main className="min-w-0 flex flex-col">
         <div className="p-8 max-w-6xl w-full mx-auto flex flex-col gap-6 pb-16">
-          
+
           {/* Header Banner Card */}
           <PageHeaderBanner
             title="Pengaturan Akun"
@@ -155,49 +245,45 @@ export default function SettingsPage() {
           {/* Navigation Tabs */}
           <div className="border-b border-gray-200 overflow-x-auto">
             <nav className="flex space-x-6 min-w-max">
-              <button 
+              <button
                 onClick={() => setActiveTab("profil")}
-                className={`pb-3 px-1 text-sm font-semibold flex items-center gap-2 border-b-2 transition-all ${
-                  activeTab === "profil" 
-                    ? "text-[#003b73] border-[#003b73]" 
-                    : "text-gray-500 border-transparent hover:text-gray-900"
-                }`}
+                className={`pb-3 px-1 text-sm font-semibold flex items-center gap-2 border-b-2 transition-all ${activeTab === "profil"
+                  ? "text-[#003b73] border-[#003b73]"
+                  : "text-gray-500 border-transparent hover:text-gray-900"
+                  }`}
               >
                 <MaterialIcon name="person" size={20} />
                 Profil Pengguna
               </button>
 
-              <button 
+              <button
                 onClick={() => setActiveTab("signature")}
-                className={`pb-3 px-1 text-sm font-medium flex items-center gap-2 border-b-2 transition-all ${
-                  activeTab === "signature" 
-                    ? "text-[#003b73] border-[#003b73] font-semibold" 
-                    : "text-gray-500 border-transparent hover:text-gray-900"
-                }`}
+                className={`pb-3 px-1 text-sm font-medium flex items-center gap-2 border-b-2 transition-all ${activeTab === "signature"
+                  ? "text-[#003b73] border-[#003b73] font-semibold"
+                  : "text-gray-500 border-transparent hover:text-gray-900"
+                  }`}
               >
                 <MaterialIcon name="draw" size={20} />
-                Atur Tanda Tangan Digital 
+                Atur Tanda Tangan Digital
               </button>
 
-              <button 
+              <button
                 onClick={() => setActiveTab("security")}
-                className={`pb-3 px-1 text-sm font-medium flex items-center gap-2 border-b-2 transition-all ${
-                  activeTab === "security" 
-                    ? "text-[#003b73] border-[#003b73] font-semibold" 
-                    : "text-gray-500 border-transparent hover:text-gray-900"
-                }`}
+                className={`pb-3 px-1 text-sm font-medium flex items-center gap-2 border-b-2 transition-all ${activeTab === "security"
+                  ? "text-[#003b73] border-[#003b73] font-semibold"
+                  : "text-gray-500 border-transparent hover:text-gray-900"
+                  }`}
               >
                 <MaterialIcon name="lock_reset" size={20} />
                 Keamanan & Sandi
               </button>
 
-              <button 
+              <button
                 onClick={() => setActiveTab("notif")}
-                className={`pb-3 px-1 text-sm font-medium flex items-center gap-2 border-b-2 transition-all ${
-                  activeTab === "notif" 
-                    ? "text-[#003b73] border-[#003b73] font-semibold" 
-                    : "text-gray-500 border-transparent hover:text-gray-900"
-                }`}
+                className={`pb-3 px-1 text-sm font-medium flex items-center gap-2 border-b-2 transition-all ${activeTab === "notif"
+                  ? "text-[#003b73] border-[#003b73] font-semibold"
+                  : "text-gray-500 border-transparent hover:text-gray-900"
+                  }`}
               >
                 <MaterialIcon name="notifications_active" size={20} />
                 Notifikasi
@@ -223,16 +309,33 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {profileError && (
-                <div className="mb-4 flex items-center gap-2 text-red-700 bg-red-50 border border-red-200 px-4 py-2.5 rounded-lg text-xs font-medium">
-                  <MaterialIcon name="logout" size={18} />
-                  <span>{profileError}</span>
-                </div>
-              )}
+
 
               <div className="flex flex-col sm:flex-row sm:items-center gap-6 mb-8 pb-6 border-b border-gray-100">
-                <div className="w-20 h-20 rounded-full overflow-hidden bg-[#003b73] text-white border-2 border-blue-100 flex items-center justify-center font-bold text-2xl shrink-0 shadow-inner">
-                  {initials}
+                <div className="relative group">
+                  <div className="w-20 h-20 rounded-full overflow-hidden bg-[#003b73] text-white border-2 border-blue-100 flex items-center justify-center font-bold text-2xl shrink-0 shadow-inner">
+                    {avatarPreview ? (
+                      <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
+                    ) : avatarUrl ? (
+                      <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      initials
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                  >
+                    <MaterialIcon name="photo_camera" size={20} className="text-white" />
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    onChange={handleAvatarChange}
+                    className="hidden"
+                  />
                 </div>
                 <div className="flex flex-col gap-1">
                   <h4 className="text-sm font-bold text-slate-800">{profileName || "Pengguna"}</h4>
@@ -243,18 +346,74 @@ export default function SettingsPage() {
                 </div>
               </div>
 
+              {/* Avatar Upload Actions */}
+              {(avatarPreview || avatarUrl) && (
+                <div className="mb-6 space-y-3">
+                  {avatarMessage && (
+                    <div className="flex items-center gap-2 text-emerald-700 bg-emerald-50 border border-emerald-200 px-4 py-2.5 rounded-lg text-xs font-medium">
+                      <MaterialIcon name="check_circle" size={18} />
+                      <span>{avatarMessage}</span>
+                    </div>
+                  )}
+
+                  {avatarError && (
+                    <div className="flex items-center gap-2 text-red-700 bg-red-50 border border-red-200 px-4 py-2.5 rounded-lg text-xs font-medium">
+                      <MaterialIcon name="error" size={18} />
+                      <span>{avatarError}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-3">
+                    {avatarPreview && (
+                      <button
+                        type="button"
+                        onClick={handleAvatarUpload}
+                        disabled={avatarUploading}
+                        className="px-4 py-2 bg-[#003b73] hover:bg-[#002d58] disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+                      >
+                        <MaterialIcon name="upload" size={16} />
+                        {avatarUploading ? "Mengunggah..." : "Unggah Avatar"}
+                      </button>
+                    )}
+                    {avatarUrl && !avatarPreview && (
+                      <button
+                        type="button"
+                        onClick={handleAvatarDelete}
+                        disabled={avatarUploading}
+                        className="px-4 py-2 border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer"
+                      >
+                        <MaterialIcon name="delete" size={16} />
+                        {avatarUploading ? "Menghapus..." : "Hapus Avatar"}
+                      </button>
+                    )}
+                    {avatarPreview && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAvatarPreview(null);
+                          if (fileInputRef.current) fileInputRef.current.value = '';
+                        }}
+                        className="px-4 py-2 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                      >
+                        Batal
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <form onSubmit={handleProfileSave} className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1.5">Nama Lengkap</label>
                   <div className="relative">
                     <MaterialIcon name="person" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       required
                       value={profileName}
                       onChange={(event) => setProfileName(event.target.value)}
                       disabled={profileLoading || profileSaving}
-                      className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003b73]" 
+                      className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003b73]"
                     />
                   </div>
                 </div>
@@ -263,13 +422,13 @@ export default function SettingsPage() {
                   <label className="block text-xs font-semibold text-gray-700 mb-1.5">Email Perusahaan</label>
                   <div className="relative">
                     <MaterialIcon name="mail" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input 
-                      type="email" 
+                    <input
+                      type="email"
                       required
                       value={profileEmail}
                       onChange={(event) => setProfileEmail(event.target.value)}
                       disabled={profileLoading || profileSaving}
-                      className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003b73]" 
+                      className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003b73]"
                     />
                   </div>
                 </div>
@@ -278,13 +437,13 @@ export default function SettingsPage() {
                   <label className="block text-xs font-semibold text-gray-700 mb-1.5">NIP / NIK Karyawan</label>
                   <div className="relative">
                     <MaterialIcon name="badge" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       placeholder="Contoh: 1751103 atau PTSI-261324"
                       value={profileNip}
                       onChange={(event) => setProfileNip(event.target.value)}
                       disabled={profileLoading || profileSaving}
-                      className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003b73]" 
+                      className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003b73]"
                     />
                   </div>
                   <p className="text-[10px] text-gray-400 mt-1">Dicantumkan pada plot Nama & NIK saat menandatangani dokumen.</p>
@@ -294,11 +453,11 @@ export default function SettingsPage() {
                   <label className="block text-xs font-semibold text-gray-700 mb-1.5">Peran / Hak Akses</label>
                   <div className="relative">
                     <MaterialIcon name="corporate_fare" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       readOnly
                       value={roleLabel}
-                      className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-500 cursor-not-allowed outline-none" 
+                      className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-500 cursor-not-allowed outline-none"
                     />
                   </div>
                 </div>
@@ -358,11 +517,11 @@ export default function SettingsPage() {
 
                   <div className="mt-6 pt-4 border-t border-gray-100">
                     <label className="flex items-start gap-3 cursor-pointer">
-                      <input 
-                        type="checkbox" 
+                      <input
+                        type="checkbox"
                         checked={otpRequired}
                         onChange={(e) => setOtpRequired(e.target.checked)}
-                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#003b73] focus:ring-[#003b73]" 
+                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#003b73] focus:ring-[#003b73]"
                       />
                       <div>
                         <span className="text-xs font-semibold text-gray-900 block">Wajibkan verifikasi OTP saat menandatangani dokumen penting</span>
@@ -408,16 +567,16 @@ export default function SettingsPage() {
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">Kata Sandi Saat Ini</label>
                       <div className="relative">
-                        <input 
-                          type={showCurrentPassword ? "text" : "password"} 
+                        <input
+                          type={showCurrentPassword ? "text" : "password"}
                           required
                           value={currentPassword}
                           onChange={(e) => setCurrentPassword(e.target.value)}
                           placeholder="Masukkan kata sandi lama"
-                          className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003b73]" 
+                          className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003b73]"
                         />
-                        <button 
-                          type="button" 
+                        <button
+                          type="button"
                           onClick={() => setShowCurrentPassword(!showCurrentPassword)}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
                         >
@@ -429,16 +588,16 @@ export default function SettingsPage() {
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">Kata Sandi Baru</label>
                       <div className="relative">
-                        <input 
-                          type={showNewPassword ? "text" : "password"} 
+                        <input
+                          type={showNewPassword ? "text" : "password"}
                           required
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
                           placeholder="Minimal 8 karakter"
-                          className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003b73]" 
+                          className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003b73]"
                         />
-                        <button 
-                          type="button" 
+                        <button
+                          type="button"
                           onClick={() => setShowNewPassword(!showNewPassword)}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
                         >
@@ -450,16 +609,16 @@ export default function SettingsPage() {
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">Konfirmasi Kata Sandi Baru</label>
                       <div className="relative">
-                        <input 
-                          type={showConfirmPassword ? "text" : "password"} 
+                        <input
+                          type={showConfirmPassword ? "text" : "password"}
                           required
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
                           placeholder="Ulangi kata sandi baru"
-                          className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003b73]" 
+                          className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003b73]"
                         />
-                        <button 
-                          type="button" 
+                        <button
+                          type="button"
                           onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
                         >
@@ -515,16 +674,14 @@ export default function SettingsPage() {
                     <p className="text-xs font-semibold text-gray-900">Laporan mingguan dokumen selesai</p>
                     <p className="text-[11px] text-gray-500 mt-0.5">Kirim rekapitulasi performa audit & jumlah dokumen yang berhasil ditandatangani setiap Senin pagi.</p>
                   </div>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={() => setNotifWeekly(!notifWeekly)}
-                    className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 shrink-0 ml-4 ${
-                      notifWeekly ? "bg-[#00529c]" : "bg-gray-200"
-                    }`}
+                    className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 shrink-0 ml-4 ${notifWeekly ? "bg-[#00529c]" : "bg-gray-200"
+                      }`}
                   >
-                    <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
-                      notifWeekly ? "translate-x-5" : "translate-x-0"
-                    }`} />
+                    <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${notifWeekly ? "translate-x-5" : "translate-x-0"
+                      }`} />
                   </button>
                 </div>
               </div>

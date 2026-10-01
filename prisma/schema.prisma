@@ -69,6 +69,7 @@ model User {
   isActive          Boolean     @default(true) @map("is_active")
   passwordHash      String    @map("password_hash")
   signatureSpecimen String?   @map("signature_specimen")
+  avatarUrl         String?   @map("avatar_url")
   createdAt         DateTime  @default(now()) @map("signed_at")
 
   sentDocuments     Document[]          @relation("SenderRelation")
