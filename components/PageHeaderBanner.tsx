@@ -5,6 +5,7 @@ interface PageHeaderBannerProps {
   subtitle?: string
   action?: React.ReactNode
   badge?: React.ReactNode
+  className?: string
 }
 
 export default function PageHeaderBanner({
@@ -12,33 +13,36 @@ export default function PageHeaderBanner({
   subtitle,
   action,
   badge,
+  className = '',
 }: PageHeaderBannerProps) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-gradient-to-r from-[#003b73] via-[#0b4885] to-[#1e4273] rounded-2xl p-6 text-white shadow-md relative overflow-hidden">
-      <div className="relative z-10 space-y-1">
-        {badge && (
-          <div className="mb-1">
-            {badge}
+    <div
+      className={`relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#0d2a4a] via-[#143c68] to-[#1e4b82] p-6 sm:p-7 text-white shadow-md border border-white/10 ${className}`}
+    >
+      <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1.5 min-w-0">
+          {badge && <div className="inline-flex items-center">{badge}</div>}
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white leading-snug">
+            {title}
+          </h1>
+          {subtitle && (
+            <p className="text-xs sm:text-sm text-blue-100/85 max-w-2xl font-normal leading-relaxed">
+              {subtitle}
+            </p>
+          )}
+        </div>
+
+        {action && (
+          <div className="relative z-10 flex items-center gap-3 shrink-0">
+            {action}
           </div>
-        )}
-        <h1 className="text-2xl font-black tracking-tight text-white leading-tight">
-          {title}
-        </h1>
-        {subtitle && (
-          <p className="text-xs text-blue-100/90 max-w-2xl font-normal leading-relaxed">
-            {subtitle}
-          </p>
         )}
       </div>
 
-      {action && (
-        <div className="relative z-10 flex items-center gap-3 shrink-0">
-          {action}
-        </div>
-      )}
-
-      {/* Ornamen Latar Belakang Halus */}
-      <div className="absolute right-0 top-0 w-80 h-80 bg-white/5 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+      {/* Modern Ambient Glow & Mesh Elements */}
+      <div className="pointer-events-none absolute -right-12 -top-12 h-64 w-64 rounded-full bg-cyan-400/10 blur-3xl" />
+      <div className="pointer-events-none absolute right-24 -bottom-16 h-56 w-56 rounded-full bg-blue-500/15 blur-2xl" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white/5 via-transparent to-transparent" />
     </div>
   )
 }
