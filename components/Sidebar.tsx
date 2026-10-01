@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import {
@@ -56,17 +57,16 @@ export default function Sidebar() {
         {/* Logo Card */}
         <div className="bg-white rounded-2xl p-3.5 shadow-md border border-white/20">
           <div className="flex items-center justify-between">
-            {/* 🏷️ Logo E-Sign (Ukuran & Posisi dapat disesuaikan lewat class text-* dan margin) */}
-            <div className="flex items-center select-none overflow-visible">
-              <span className="text-3xl font-black tracking-tight bg-gradient-to-r from-cyan-500 via-teal-400 to-blue-600 bg-clip-text text-transparent">
-                E-
-              </span>
-              <span
-                style={{ fontFamily: 'cursive, sans-serif' }}
-                className="text-3xl font-bold tracking-tight bg-gradient-to-r from-teal-400 to-blue-600 bg-clip-text text-transparent italic -ml-1 pr-1 leading-normal"
-              >
-                Sign
-              </span>
+            {/* 🏷️ Logo E-Sign */}
+            <div className="relative h-8 w-28 shrink-0">
+              <Image
+                src="/assets/Logo_E-Sign.png"
+                alt="Logo E-Sign"
+                fill
+                sizes="7rem"
+                className="object-contain object-left"
+                priority
+              />
             </div>
 
             {isAdmin && (

@@ -199,16 +199,15 @@ export default function LoginForm() {
         {/* Header Bar */}
         <div className="flex items-center justify-between gap-4 sm:gap-6 w-full overflow-visible">
           {/* Logo E-Sign (Kiri) */}
-          <div className="flex items-center select-none shrink-0 overflow-visible py-1">
-            <span className="inline-block text-4xl sm:text-5xl font-black tracking-tight bg-gradient-to-r from-cyan-500 via-teal-400 to-blue-600 bg-clip-text text-transparent py-1 pr-1 leading-normal">
-              E-
-            </span>
-            <span
-              style={{ fontFamily: 'cursive, sans-serif' }}
-              className="inline-block text-4xl sm:text-5xl font-bold bg-gradient-to-r from-teal-400 to-blue-600 bg-clip-text text-transparent italic -ml-1 pl-1 pr-8 py-2 leading-normal overflow-visible"
-            >
-              Sign
-            </span>
+          <div className="relative h-8 sm:h-9 lg:h-10 w-28 sm:w-32 lg:w-36 shrink-0">
+            <Image
+              src="/assets/Logo_E-Sign.png"
+              alt="Logo E-Sign"
+              fill
+              sizes="(min-width: 1024px) 9rem, 7rem"
+              className="object-contain object-left"
+              priority
+            />
           </div>
 
           {/* Logo Perusahaan (Kanan): Danantara, IDSurvey, Surveyor Indonesia */}
