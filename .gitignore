@@ -20,18 +20,22 @@
 # production
 /build
 
-# misc
+# misc & OS files
 .DS_Store
+Thumbs.db
+desktop.ini
 *.pem
 
-# debug
+# debug & logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
 
-# env files (can opt-in for committing if needed)
+# env files (abaikan berkas rahasia, simpan hanya berkas template .env.example)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -45,3 +49,12 @@ next-env.d.ts
 # uploaded files are runtime data and must not be committed
 /public/uploads/*
 !/public/uploads/.gitkeep
+
+# AI assistants, local editors & temporary files
+.agent/
+.agents/
+.claude/
+.windsurf/
+.opencode/
+graphify-out/
+image.png
