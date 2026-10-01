@@ -203,10 +203,7 @@ export default function LoginForm() {
             <span className="inline-block text-4xl sm:text-5xl font-black tracking-tight bg-gradient-to-r from-cyan-500 via-teal-400 to-blue-600 bg-clip-text text-transparent py-1 pr-1 leading-normal">
               E-
             </span>
-            <span
-              style={{ fontFamily: 'var(--font-dancing-script), cursive, sans-serif' }}
-              className="inline-block text-4xl sm:text-5xl font-bold bg-gradient-to-r from-teal-400 to-blue-600 bg-clip-text text-transparent italic -ml-1 pl-1 pr-8 py-2 leading-normal overflow-visible"
-            >
+            <span className="inline-block text-4xl sm:text-5xl font-bold tracking-tight bg-gradient-to-r from-teal-400 to-blue-600 bg-clip-text text-transparent italic -ml-1 pl-1 pr-4 py-1 leading-normal overflow-visible">
               Sign
             </span>
           </div>
