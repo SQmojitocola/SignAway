@@ -55,31 +55,27 @@ export default function Sidebar() {
     <aside className="w-64 bg-[#1e4273] text-white p-6 flex flex-col justify-between h-screen sticky top-0 shrink-0 font-sans">
       <div className="space-y-6">
         {/* Logo Card */}
-        <div className="bg-white rounded-2xl p-3.5 shadow-md border border-white/20">
-          <div className="flex items-center justify-between">
-            {/* 🏷️ Logo E-Sign */}
-            <div className="relative h-8 w-28 shrink-0">
-              <Image
-                src="/assets/Logo_E-Sign.png"
-                alt="Logo E-Sign"
-                fill
-                sizes="7rem"
-                className="object-contain object-left"
-                priority
-              />
-            </div>
-
-            {isAdmin && (
-              <span className="text-[9px] bg-purple-100 text-purple-800 font-extrabold px-2 py-0.5 rounded-md border border-purple-200 shrink-0">
-                ADMIN
-              </span>
-            )}
+        <div className="bg-white rounded-2xl p-4 shadow-md border border-white/20 flex flex-col items-center justify-center">
+          {/* 🏷️ Logo E-Sign */}
+          <div className="relative h-10 w-36 shrink-0">
+            <Image
+              src="/assets/Logo_E-Sign.png"
+              alt="Logo E-Sign"
+              fill
+              sizes="9rem"
+              className="object-contain object-center"
+              priority
+            />
           </div>
 
-          {/* Subteks Platform */}
-          <p className="mt-1 text-[10px] font-semibold text-slate-500 leading-tight">
-            Platform Manajemen Pengesahan
-          </p>
+          {/* Label Admin (Hanya untuk Admin, menggantikan subteks platform) */}
+          {isAdmin && (
+            <div className="mt-2 flex justify-center">
+              <span className="text-[9px] bg-purple-100 text-purple-800 font-extrabold px-2.5 py-0.5 rounded-md border border-purple-200 tracking-wider">
+                ADMIN
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Header Kategori & Navigasi */}

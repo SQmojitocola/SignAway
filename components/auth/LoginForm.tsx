@@ -199,12 +199,12 @@ export default function LoginForm() {
         {/* Header Bar */}
         <div className="flex items-center justify-between gap-4 sm:gap-6 w-full overflow-visible">
           {/* Logo E-Sign (Kiri) */}
-          <div className="relative h-8 sm:h-9 lg:h-10 w-28 sm:w-32 lg:w-36 shrink-0">
+          <div className="relative h-11 sm:h-12 lg:h-14 w-36 sm:w-44 lg:w-52 shrink-0">
             <Image
               src="/assets/Logo_E-Sign.png"
               alt="Logo E-Sign"
               fill
-              sizes="(min-width: 1024px) 9rem, 7rem"
+              sizes="(min-width: 1024px) 13rem, (min-width: 640px) 11rem, 9rem"
               className="object-contain object-left"
               priority
             />
