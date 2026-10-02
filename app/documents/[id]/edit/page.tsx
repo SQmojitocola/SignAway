@@ -875,7 +875,7 @@ export default function DocumentFieldPlottingPage() {
       )}
 
       {/* Header Bar */}
-      <header className="flex h-16 items-center justify-between border-b bg-white px-6 shadow-xs">
+      <header className="flex h-16 items-center justify-between border-b border-slate-800 bg-[#0d2a4a] px-6 shadow-md text-white">
         <div className="flex items-center gap-3">
           <button
             onClick={() => {
@@ -886,25 +886,25 @@ export default function DocumentFieldPlottingPage() {
               setLeaveDialogMode('back')
               setShowLeaveDialog(true)
             }}
-            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+            className="rounded-lg p-2 text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div>
-            <h1 className="text-sm font-bold text-slate-800">{documentTitle}</h1>
-            <p className="text-[11px] text-slate-400">Penempatan Tanda Tangan & Paraf</p>
+            <h1 className="text-sm font-bold text-white tracking-tight">{documentTitle}</h1>
+            <p className="text-[11px] text-blue-200/80">Penempatan Tanda Tangan & Paraf</p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
           {/* Undo & Redo Toolbar */}
-          <div className="flex items-center gap-0.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+          <div className="flex items-center gap-0.5 bg-[#08182b] p-1 rounded-xl border border-white/10">
             <button
               type="button"
               title="Undo (Ctrl+Z)"
               onClick={handleUndo}
               disabled={historyIndex <= 0}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-white hover:shadow-xs disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:shadow-none transition-all cursor-pointer disabled:cursor-not-allowed"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-blue-100 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition-all cursor-pointer disabled:cursor-not-allowed"
             >
               <Undo2 className="h-3.5 w-3.5" />
               <span className="hidden md:inline text-[11px]">Undo</span>
@@ -914,7 +914,7 @@ export default function DocumentFieldPlottingPage() {
               title="Redo (Ctrl+Y)"
               onClick={handleRedo}
               disabled={historyIndex >= history.length - 1}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-white hover:shadow-xs disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:shadow-none transition-all cursor-pointer disabled:cursor-not-allowed"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-blue-100 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition-all cursor-pointer disabled:cursor-not-allowed"
             >
               <Redo2 className="h-3.5 w-3.5" />
               <span className="hidden md:inline text-[11px]">Redo</span>
@@ -925,7 +925,7 @@ export default function DocumentFieldPlottingPage() {
             <button
               type="button"
               onClick={() => setActiveRecipient(null)}
-              className="rounded-xl border border-red-200 bg-red-50 text-red-700 px-3.5 py-2 text-xs font-semibold hover:bg-red-100 transition-all cursor-pointer shadow-xs"
+              className="rounded-xl border border-red-400/30 bg-red-950/40 text-red-300 px-3.5 py-2 text-xs font-semibold hover:bg-red-900/50 transition-all cursor-pointer shadow-xs"
             >
               Batal Tempatkan
             </button>
@@ -940,7 +940,7 @@ export default function DocumentFieldPlottingPage() {
               setShowLeaveDialog(true)
             }}
             disabled={loadingSave}
-            className="flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold text-white hover:bg-white/20 transition-all cursor-pointer"
           >
             <Save className="h-4 w-4" /> Simpan Draft
           </button>
@@ -953,7 +953,7 @@ export default function DocumentFieldPlottingPage() {
               })
             }}
             disabled={!canSend || loadingSave}
-            className="flex items-center gap-2 rounded-xl bg-[#1e4273] px-4 py-2 text-xs font-semibold text-white hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-50 shadow-sm"
+            className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50 shadow-md transition-all cursor-pointer"
           >
             <Send className="h-4 w-4" /> Kirim untuk Ditandatangani
           </button>
@@ -963,11 +963,11 @@ export default function DocumentFieldPlottingPage() {
       {/* Main Workspace */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar Kiri: Daftar Penandatangan */}
-        <aside className="w-72 border-r bg-white p-4 space-y-6 overflow-y-auto">
-          <div>
-            <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Instruksi</h3>
-            <p className="text-xs text-slate-500">
-              Klik <span className="font-semibold text-blue-600">Tempatkan</span> lalu klik area dokumen untuk memilih menambah TTD atau Paraf.
+        <aside className="w-72 border-r border-slate-200/90 bg-[#f8fafc] p-4 space-y-5 overflow-y-auto shrink-0">
+          <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-3.5">
+            <h3 className="text-[11px] font-bold uppercase tracking-wider text-blue-900 mb-1">Instruksi</h3>
+            <p className="text-xs text-blue-800/85 leading-relaxed">
+              Klik <span className="font-bold text-blue-700">Tempatkan</span> lalu klik area dokumen untuk memilih menambah TTD atau Paraf.
             </p>
           </div>
 
@@ -979,8 +979,8 @@ export default function DocumentFieldPlottingPage() {
                 key={recipient.id}
                 className={`p-3 rounded-xl border transition-all ${
                   activeRecipient?.id === recipient.id || selectedRecipientId === recipient.id
-                    ? 'border-blue-600 bg-blue-50/50 shadow-sm'
-                    : 'border-slate-200 bg-slate-50'
+                    ? 'border-blue-600 bg-blue-50/70 ring-2 ring-blue-500/20 shadow-xs'
+                    : 'border-slate-200/90 bg-white shadow-2xs hover:border-slate-300'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
@@ -989,13 +989,13 @@ export default function DocumentFieldPlottingPage() {
                   >
                     {idx + 1}
                   </span>
-                  <div>
-                    <p className="text-xs font-bold text-slate-800">{recipient.name}</p>
-                    <p className="text-[10px] text-slate-500">{recipient.email}</p>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-800 truncate">{recipient.name}</p>
+                    <p className="text-[10px] text-slate-500 truncate">{recipient.email}</p>
                   </div>
                 </div>
 
-                <div className="mt-3 flex items-center justify-between border-t border-slate-200/60 pt-2">
+                <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2">
                   {(() => {
                     const recipientFieldCount = fields.filter((field) => field.recipientId === recipient.id).length
                     return recipientFieldCount > 0 ? (
@@ -1013,7 +1013,7 @@ export default function DocumentFieldPlottingPage() {
                     onClick={() => {
                       setActiveRecipient(recipient)
                     }}
-                    className="text-xs font-bold text-blue-600 hover:underline"
+                    className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
                   >
                     {activeRecipient?.id === recipient.id ? 'Mencari Posisi...' : 'Tempatkan'}
                   </button>
@@ -1025,11 +1025,11 @@ export default function DocumentFieldPlottingPage() {
           {/* 📍 KARTU STEMPEL AUDIT (QR & DOC-ID) */}
           <div className="pt-4 border-t border-slate-200">
             <div className="flex items-center justify-between mb-1.5">
-              <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+              <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Stempel Verifikasi
               </h3>
               {fields.some((f) => f.type === 'AUDIT_STAMP') && (
-                <span className="text-[9px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">
+                <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full">
                   Aktif
                 </span>
               )}
@@ -1042,7 +1042,7 @@ export default function DocumentFieldPlottingPage() {
               const auditField = fields.find((f) => f.type === 'AUDIT_STAMP')
               if (auditField) {
                 return (
-                  <div className="p-3 rounded-xl border border-emerald-300 bg-emerald-50/60 space-y-2">
+                  <div className="p-3 rounded-xl border border-emerald-300 bg-emerald-50/70 space-y-2 shadow-2xs">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-bold text-emerald-900 flex items-center gap-1">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Hal. {auditField.pageNumber}
@@ -1075,7 +1075,7 @@ export default function DocumentFieldPlottingPage() {
                 <button
                   type="button"
                   onClick={handleAddAuditStamp}
-                  className="w-full flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-all cursor-pointer shadow-xs"
+                  className="w-full flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold text-emerald-700 bg-white hover:bg-emerald-50 border border-emerald-200 rounded-xl transition-all cursor-pointer shadow-2xs"
                 >
                   <QrCode className="w-4 h-4 text-emerald-600" /> + Tempatkan Stempel Audit
                 </button>
@@ -1085,7 +1085,7 @@ export default function DocumentFieldPlottingPage() {
         </aside>
 
         {/* Panel Tengah: Canvas PDF */}
-        <main className="flex-1 bg-slate-200/70 p-8 overflow-y-auto flex justify-center">
+        <main className="flex-1 bg-slate-700/80 p-8 overflow-y-auto flex justify-center">
           <div ref={pdfContainerRef} className="flex flex-col items-center gap-4 pb-8">
             {pdfPages.map((page) => (
               <div
@@ -1521,14 +1521,14 @@ export default function DocumentFieldPlottingPage() {
         </main>
 
         {/* Sidebar Kanan: Properti Field */}
-        <aside className="w-64 border-l bg-white p-4 space-y-6">
-          <h3 className="text-xs font-bold text-slate-800 border-b pb-2 flex items-center gap-1.5">
+        <aside className="w-64 border-l border-slate-200/90 bg-[#f8fafc] p-4 space-y-5 overflow-y-auto shrink-0">
+          <h3 className="text-xs font-bold text-slate-800 border-b border-slate-200 pb-2.5 flex items-center gap-1.5">
             <Sliders className="h-3.5 w-3.5 text-blue-600" /> Properti Field
           </h3>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-2">Filter Penandatangan</label>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1.5">Filter Penandatangan</label>
               <select
                 value={selectedRecipientId ?? ''}
                 onChange={(event) => {
@@ -1536,7 +1536,7 @@ export default function DocumentFieldPlottingPage() {
                   setSelectedRecipientId(recipientId)
                   setSelectedFieldId(null)
                 }}
-                className="mb-3 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs text-slate-700 focus:ring-2 focus:ring-blue-500/20"
+                className="mb-3 w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-700 shadow-2xs focus:ring-2 focus:ring-blue-500/20 outline-none"
               >
                 <option value="">Semua penandatangan</option>
                 {recipients.map((recipient) => (
@@ -1556,10 +1556,10 @@ export default function DocumentFieldPlottingPage() {
                         setSelectedFieldId(field.id)
                         setSelectedRecipientId(field.recipientId)
                       }}
-                      className={`w-full rounded-lg border p-2 text-left text-[11px] transition-all ${
+                      className={`w-full rounded-xl border p-2.5 text-left text-[11px] transition-all cursor-pointer ${
                         selectedFieldId === field.id
-                          ? 'border-blue-500 bg-blue-50/80 shadow-xs'
-                          : 'border-slate-200 bg-slate-50 hover:bg-slate-100/80'
+                          ? 'border-blue-500 bg-blue-50/90 ring-2 ring-blue-500/20 shadow-xs'
+                          : 'border-slate-200/90 bg-white hover:border-slate-300 shadow-2xs'
                       }`}
                     >
                       <span className="flex items-center justify-between font-bold text-slate-700">
@@ -1592,28 +1592,28 @@ export default function DocumentFieldPlottingPage() {
             </div>
 
             {selectedField ? (
-              <div className="space-y-4 border-t pt-4">
+              <div className="space-y-4 border-t border-slate-200 pt-4">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Ditugaskan Kepada</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Ditugaskan Kepada</label>
                   <input
                     type="text"
                     disabled
                     value={selectedField.recipientName}
-                    className="w-full rounded-lg border border-slate-200 bg-slate-100 p-2 text-xs font-semibold text-slate-700"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-100/90 p-2.5 text-xs font-semibold text-slate-700"
                   />
                 </div>
 
                 {/* Switcher Tipe Field Terpilih */}
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Tipe Pengesahan</label>
-                  <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1.5">Tipe Pengesahan</label>
+                  <div className="grid grid-cols-3 gap-1 bg-slate-200/70 p-1 rounded-xl border border-slate-300/60">
                     <button
                       type="button"
                       onClick={() => handleUpdateFieldType(selectedField.id, 'SIGNATURE')}
-                      className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         selectedField.type === 'SIGNATURE'
                           ? 'bg-white text-blue-600 shadow-xs'
-                          : 'text-slate-500 hover:text-slate-800'
+                          : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
                       <PenTool className="h-3 w-3" /> TTD
@@ -1622,10 +1622,10 @@ export default function DocumentFieldPlottingPage() {
                     <button
                       type="button"
                       onClick={() => handleUpdateFieldType(selectedField.id, 'PARAF')}
-                      className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         selectedField.type === 'PARAF'
                           ? 'bg-white text-amber-600 shadow-xs'
-                          : 'text-slate-500 hover:text-slate-800'
+                          : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
                       <FileCheck className="h-3 w-3" /> Paraf
@@ -1634,10 +1634,10 @@ export default function DocumentFieldPlottingPage() {
                     <button
                       type="button"
                       onClick={() => handleUpdateFieldType(selectedField.id, 'NAME')}
-                      className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         selectedField.type === 'NAME'
                           ? 'bg-white text-indigo-600 shadow-xs'
-                          : 'text-slate-500 hover:text-slate-800'
+                          : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
                       <UserCheck className="h-3 w-3" /> Nama
@@ -1647,8 +1647,8 @@ export default function DocumentFieldPlottingPage() {
 
                 {/* Panel Pilihan Watermark E-Sign saat Tipe Plot adalah SIGNATURE (TTD) */}
                 {selectedField.type === 'SIGNATURE' && (
-                  <div className="space-y-2 border-t border-slate-100 pt-3">
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <div className="space-y-2 border-t border-slate-200 pt-3">
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
                       Watermark E-Sign
                     </label>
                     <div className="grid grid-cols-3 gap-1.5">
@@ -1657,8 +1657,8 @@ export default function DocumentFieldPlottingPage() {
                         onClick={() => handleUpdateFieldWatermark(selectedField.id, 'center')}
                         className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
                           (selectedField.textAlign || 'center') === 'center'
-                            ? 'border-blue-600 bg-blue-50/80 ring-2 ring-blue-500/20 text-blue-900 shadow-2xs'
-                            : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600'
+                            ? 'border-blue-600 bg-blue-50/90 ring-2 ring-blue-500/20 text-blue-900 shadow-2xs font-semibold'
+                            : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700 shadow-2xs'
                         }`}
                       >
                         <span className="block text-[11px] font-bold">Opsi 1</span>
@@ -1669,8 +1669,8 @@ export default function DocumentFieldPlottingPage() {
                         onClick={() => handleUpdateFieldWatermark(selectedField.id, 'corner')}
                         className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
                           selectedField.textAlign === 'corner'
-                            ? 'border-blue-600 bg-blue-50/80 ring-2 ring-blue-500/20 text-blue-900 shadow-2xs'
-                            : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600'
+                            ? 'border-blue-600 bg-blue-50/90 ring-2 ring-blue-500/20 text-blue-900 shadow-2xs font-semibold'
+                            : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700 shadow-2xs'
                         }`}
                       >
                         <span className="block text-[11px] font-bold">Opsi 2</span>
@@ -1681,8 +1681,8 @@ export default function DocumentFieldPlottingPage() {
                         onClick={() => handleUpdateFieldWatermark(selectedField.id, 'none')}
                         className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
                           selectedField.textAlign === 'none'
-                            ? 'border-blue-600 bg-blue-50/80 ring-2 ring-blue-500/20 text-blue-900 shadow-2xs'
-                            : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600'
+                            ? 'border-blue-600 bg-blue-50/90 ring-2 ring-blue-500/20 text-blue-900 shadow-2xs font-semibold'
+                            : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700 shadow-2xs'
                         }`}
                       >
                         <span className="block text-[11px] font-bold">Tanpa WM</span>
@@ -1694,20 +1694,20 @@ export default function DocumentFieldPlottingPage() {
 
                 {/* Panel Pengaturan Tipografi saat Tipe Plot adalah NAME (Nama & NIK) */}
                 {selectedField.type === 'NAME' && (
-                  <div className="space-y-3.5 border-t border-slate-100 pt-3">
+                  <div className="space-y-3.5 border-t border-slate-200 pt-3">
                     {/* Ukuran Font (6pt - 36pt) */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                        <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
                           <Type className="h-3.5 w-3.5 text-indigo-600" /> Ukuran Font
                         </label>
-                        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                        <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200 shadow-2xs">
                           <button
                             type="button"
                             title="Perkecil Font (-1pt)"
                             disabled={(selectedField.fontSize || 10) <= 6}
                             onClick={() => handleUpdateFieldFontSize(selectedField.id, (selectedField.fontSize || 10) - 1)}
-                            className="p-1 rounded bg-white text-slate-600 hover:text-indigo-600 disabled:opacity-40 disabled:hover:text-slate-600 shadow-2xs transition-all cursor-pointer disabled:cursor-not-allowed"
+                            className="p-1 rounded bg-slate-100 text-slate-700 hover:text-indigo-600 disabled:opacity-40 disabled:hover:text-slate-600 transition-all cursor-pointer disabled:cursor-not-allowed"
                           >
                             <Minus className="h-3 w-3" />
                           </button>
@@ -1732,7 +1732,7 @@ export default function DocumentFieldPlottingPage() {
                             title="Perbesar Font (+1pt)"
                             disabled={(selectedField.fontSize || 10) >= 36}
                             onClick={() => handleUpdateFieldFontSize(selectedField.id, (selectedField.fontSize || 10) + 1)}
-                            className="p-1 rounded bg-white text-slate-600 hover:text-indigo-600 disabled:opacity-40 disabled:hover:text-slate-600 shadow-2xs transition-all cursor-pointer disabled:cursor-not-allowed"
+                            className="p-1 rounded bg-slate-100 text-slate-700 hover:text-indigo-600 disabled:opacity-40 disabled:hover:text-slate-600 transition-all cursor-pointer disabled:cursor-not-allowed"
                           >
                             <Plus className="h-3 w-3" />
                           </button>
@@ -1780,17 +1780,17 @@ export default function DocumentFieldPlottingPage() {
 
                     {/* Kesejajaran Teks */}
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
                         Kesejajaran Teks
                       </label>
-                      <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                      <div className="grid grid-cols-2 gap-1.5 bg-slate-200/70 p-1 rounded-xl border border-slate-300/60">
                         <button
                           type="button"
                           onClick={() => handleUpdateFieldTextAlign(selectedField.id, 'left')}
                           className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                             selectedField.textAlign === 'left'
                               ? 'bg-white text-indigo-600 shadow-xs'
-                              : 'text-slate-500 hover:text-slate-800'
+                              : 'text-slate-600 hover:text-slate-900'
                           }`}
                         >
                           <AlignLeft className="h-3.5 w-3.5" /> Rata Kiri
@@ -1801,7 +1801,7 @@ export default function DocumentFieldPlottingPage() {
                           className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                             (selectedField.textAlign || 'center') === 'center'
                               ? 'bg-white text-indigo-600 shadow-xs'
-                              : 'text-slate-500 hover:text-slate-800'
+                              : 'text-slate-600 hover:text-slate-900'
                           }`}
                         >
                           <AlignCenter className="h-3.5 w-3.5" /> Rata Tengah
@@ -1810,7 +1810,7 @@ export default function DocumentFieldPlottingPage() {
                     </div>
 
                     {/* Catatan Format */}
-                    <div className="rounded-lg bg-indigo-50/70 border border-indigo-100 p-2 text-[10px] text-indigo-900/80 leading-relaxed">
+                    <div className="rounded-xl bg-indigo-50/80 border border-indigo-100 p-2.5 text-[10px] text-indigo-900/80 leading-relaxed">
                       <p className="font-semibold text-indigo-900 mb-0.5">Format Teks Otomatis:</p>
                       <ul className="list-disc list-inside space-y-0.5 text-[9.5px]">
                         <li>Nama kapital dengan garis bawah (<u>UNDERLINE</u>)</li>
@@ -1823,7 +1823,7 @@ export default function DocumentFieldPlottingPage() {
                       const fieldRecipient = recipients.find((r) => r.id === selectedField.recipientId)
                       if (!fieldRecipient?.nip) {
                         return (
-                          <div className="rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-[10px] text-amber-800 flex items-start gap-2">
+                          <div className="rounded-xl bg-amber-50 border border-amber-200 p-2.5 text-[10px] text-amber-800 flex items-start gap-2">
                             <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
                             <div>
                               <p className="font-semibold text-amber-900">NIK Belum Terdaftar di Profil</p>
