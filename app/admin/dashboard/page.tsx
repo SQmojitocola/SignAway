@@ -350,10 +350,10 @@ export default async function AdminDashboardPage() {
                     const IconPosition = signerInfo.icon
 
                     // Selang-seling warna putih dan biru cerah (#f0f7ff)
-                    const rowBg = idx % 2 === 1 ? 'bg-[#f0f7ff]' : 'bg-white'
+                    const rowBg = idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'
 
                     return (
-                      <tr key={doc.id} className={`${rowBg} hover:bg-blue-100/60 transition-colors`}>
+                      <tr key={doc.id} className={`${rowBg} hover:bg-blue-50/50 transition-colors`}>
                         {/* 1. Nama Dokumen */}
                         <td className="py-3 px-3 font-semibold text-slate-900">
                           <div className="flex items-center gap-2 max-w-[190px]">
@@ -395,13 +395,12 @@ export default async function AdminDashboardPage() {
                           <div className="flex items-center gap-1.5 max-w-[170px]">
                             <IconPosition className={`w-3.5 h-3.5 shrink-0 ${signerInfo.iconClass}`} />
                             <span
-                              className={`text-[11px] font-semibold truncate ${
-                                signerInfo.iconClass.includes('emerald')
+                              className={`text-[11px] font-semibold truncate ${signerInfo.iconClass.includes('emerald')
                                   ? 'text-emerald-700'
                                   : signerInfo.iconClass.includes('rose')
-                                  ? 'text-rose-700'
-                                  : 'text-slate-700'
-                              }`}
+                                    ? 'text-rose-700'
+                                    : 'text-slate-700'
+                                }`}
                               title={signerInfo.text}
                             >
                               {signerInfo.text}
@@ -412,23 +411,22 @@ export default async function AdminDashboardPage() {
                         {/* 4. Status Badge */}
                         <td className="py-3 px-3">
                           <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
-                              doc.status === 'COMPLETED'
+                            className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${doc.status === 'COMPLETED'
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                 : doc.status === 'REJECTED'
-                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                                : doc.status === 'PARTIAL_SIGNED'
-                                ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                                : 'bg-amber-50 text-amber-700 border border-amber-200'
-                            }`}
+                                  ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                  : doc.status === 'PARTIAL_SIGNED'
+                                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                              }`}
                           >
                             {doc.status === 'COMPLETED'
                               ? 'Completed'
                               : doc.status === 'REJECTED'
-                              ? 'Rejected'
-                              : doc.status === 'PARTIAL_SIGNED'
-                              ? 'Partial Signed'
-                              : 'Pending'}
+                                ? 'Rejected'
+                                : doc.status === 'PARTIAL_SIGNED'
+                                  ? 'Partial Signed'
+                                  : 'Pending'}
                           </span>
                         </td>
 
