@@ -179,11 +179,18 @@ npx tsx scripts/test-fields.ts
 
 # Uji coba penempelan TTD fisik ke PDF (Stamping Engine)
 npx tsx scripts/test-stamping.ts
-
 ```
 
+---
 
+## 📋 Rencana Pengembangan & Backlog Fitur (Roadmap)
 
-```
+Berikut adalah daftar fitur potensial yang dicatat untuk pengembangan di masa mendatang:
 
-```
+### 1. Ekstraksi & Vektorisasi Foto Spesimen Tanda Tangan (*Image-to-Vector Specimen*)
+* **Deskripsi:**
+  Memungkinkan pengguna mengunggah foto tanda tangan atau paraf fisik dari kertas (format JPG/PNG), lalu sistem secara otomatis membersihkan latar belakang kertas (*background removal*) dan melakukan vektorisasi goresan menjadi spesimen digital transparan berkualitas tinggi.
+* **Pertimbangan Teknis & Mitigasi Risiko:**
+  * **Pembersihan Noise & Kertas Fisik:** Menggunakan algoritma *adaptive binarization / thresholding* untuk memisahkan goresan tinta dari bayangan tangan, pencahayaan tidak merata, atau tekstur kertas bergaris.
+  * **Kompatibilitas Mesin PDF (`pdf-lib`):** Backend penandatanganan saat ini menempelkan gambar via `pdfDoc.embedPng()`. Hasil vektorisasi (kurva Bézier/SVG) akan diekspor kembali ke format *High-Resolution Transparent PNG* agar 100% kompatibel dan tidak merusak alur penandatanganan dokumen yang sudah ada.
+  * **Arsitektur Pemrosesan:** Menggunakan *Client-Side Canvas API* di peramban pengguna (*browser*) yang dilengkapi *Interactive Modal Tuning* (slider sensitivitas ambang kontras, pilihan warna tinta hitam/biru instansi, alat penghapus noda/eraser, dan *auto-crop* area kosong) untuk mencegah *deployment crash* dari dependensi native C++ di server.
