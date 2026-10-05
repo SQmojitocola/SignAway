@@ -16,12 +16,21 @@ export async function GET(
 
     const { id } = await params
     const userId = session.user.id
+    const userRole = session.user.role
 
-    // Cari dokumen yang dimiliki pengirim atau terdaftar sebagai penerima
+    // Cari dokumen yang dimiliki pengirim, terdaftar sebagai penerima, memiliki izin proxy approved, atau jika admin
     const document = await prisma.document.findFirst({
       where: {
         id,
-        OR: [{ senderId: userId }, { recipients: { some: { userId: userId } } }],
+        ...(userRole === 'ADMIN'
+          ? {}
+          : {
+              OR: [
+                { senderId: userId },
+                { recipients: { some: { userId: userId } } },
+                { proxyRequests: { some: { requestedById: userId, status: 'APPROVED' } } },
+              ],
+            }),
       },
       select: {
         id: true,

@@ -21,9 +21,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: 'ID Dokumen wajib diisi' }, { status: 400 })
     }
 
-    const recipient = await prisma.documentRecipient.findFirst({
+    let recipient = await prisma.documentRecipient.findFirst({
       where: { documentId, userId: session.user.id },
     })
+
+    if (!recipient) {
+      const approvedProxy = await prisma.proxySignRequest.findFirst({
+        where: {
+          documentId,
+          requestedById: session.user.id,
+          status: 'APPROVED',
+        },
+      })
+      if (approvedProxy) {
+        recipient = await prisma.documentRecipient.findFirst({
+          where: { documentId, userId: approvedProxy.targetUserId },
+        })
+      }
+    }
 
     if (!recipient) {
       return NextResponse.json(

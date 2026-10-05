@@ -31,6 +31,13 @@ export async function GET(
       return NextResponse.json({ message: 'Dokumen tidak ditemukan' }, { status: 404 })
     }
 
+    if (document.status !== 'COMPLETED') {
+      return NextResponse.json(
+        { message: 'Sertifikat hanya dapat diterbitkan untuk dokumen yang telah selesai ditandatangani (COMPLETED).' },
+        { status: 400 }
+      )
+    }
+
     // 1. Buat Dokumen PDF Baru untuk Sertifikat (Ukuran Standar A4)
     const pdfDoc = await PDFDocument.create()
     const page = pdfDoc.addPage([595.28, 841.89]) // A4

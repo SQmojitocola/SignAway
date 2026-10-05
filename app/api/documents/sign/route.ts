@@ -90,6 +90,13 @@ export async function POST(req: Request) {
       )
     }
 
+    if (document.sequential && recipient.status !== 'WAITING') {
+      return NextResponse.json(
+        { message: 'Belum giliran Anda untuk menandatangani dokumen ini.' },
+        { status: 403 }
+      )
+    }
+
     const fields = document.fields.filter((field) => field.recipientId === recipient.id)
     if (fields.length === 0) {
       return NextResponse.json({ message: 'Plot TTD/Paraf belum ditentukan' }, { status: 400 })
