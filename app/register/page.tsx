@@ -4,7 +4,6 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import BackgroundSlider from '@/components/auth/BackgroundSlider'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -89,12 +88,9 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center py-10 px-4">
-      {/* Background Transisi Carousel */}
-      <BackgroundSlider />
-
+    <div className="flex min-h-screen items-center justify-center py-10 px-4 bg-dot-pattern">
       {/* Card Form Register */}
-      <div className="w-full max-w-2xl rounded-2xl bg-white/95 backdrop-blur-md p-6 shadow-2xl border border-white/20 relative z-10">
+      <div className="w-full max-w-2xl rounded-3xl bg-white p-8 shadow-xl border border-slate-100">
         <div className="mb-6 text-center">
           <div className="relative mx-auto h-20 w-64 mb-3">
             <Image
@@ -122,7 +118,7 @@ export default function RegisterPage() {
                 type="text"
                 required
                 placeholder="Contoh: Budi Santoso, S.T."
-                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm outline-none focus:border-blue-800 bg-white/80"
+                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm outline-none focus:border-blue-800 bg-white"
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
             </div>
@@ -132,7 +128,7 @@ export default function RegisterPage() {
                 type="text"
                 required
                 placeholder="PTS-2024-XXXX"
-                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm outline-none focus:border-blue-800 bg-white/80"
+                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm outline-none focus:border-blue-800 bg-white"
                 onChange={(e) => setForm({ ...form, nip: e.target.value })}
               />
             </div>
@@ -144,7 +140,7 @@ export default function RegisterPage() {
               type="email"
               required
               placeholder="nama.pegawai@surveyor.id"
-              className="w-full rounded-lg border border-slate-300 p-2.5 text-sm outline-none focus:border-blue-800 bg-white/80"
+              className="w-full rounded-lg border border-slate-300 p-2.5 text-sm outline-none focus:border-blue-800 bg-white"
               onChange={(e) => setForm({ ...form, email: e.target.value })}
             />
           </div>
@@ -155,7 +151,7 @@ export default function RegisterPage() {
               <input
                 type="password"
                 required
-                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm outline-none focus:border-blue-800 bg-white/80"
+                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm outline-none focus:border-blue-800 bg-white"
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
               />
             </div>
@@ -164,7 +160,7 @@ export default function RegisterPage() {
               <input
                 type="password"
                 required
-                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm outline-none focus:border-blue-800 bg-white/80"
+                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm outline-none focus:border-blue-800 bg-white"
                 onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
               />
             </div>

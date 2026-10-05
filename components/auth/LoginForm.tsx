@@ -25,7 +25,7 @@ const baseSlides = [
     credit: 'PT Surveyor Indonesia',
   },
   {
-    image: '/assets/bg7.jpg',
+    image: '/assets/bg2.jpeg',
     title: 'Ruang Kerja Modern & Terintegrasi',
     description:
       'Pengelolaan alur penandatanganan dokumen dari mana saja, kapan saja dengan keamanan kriptografi tingkat tinggi.',
@@ -38,6 +38,34 @@ const baseSlides = [
     title: 'Transformasi Layanan Umum',
     description:
       'Solusi modern terpadu bagi produktivitas, integritas data, dan efisiensi manajemen berkas perusahaan.',
+    credit: 'PT Surveyor Indonesia',
+  },
+  {
+    image: '/assets/bg3.jpg',
+    title: 'Penandatanganan Dokumen Tanpa Batas',
+    description:
+      'Tandatangani dan kelola dokumen secara digital tanpa terikat ruang dan waktu untuk mendukung kolaborasi yang lebih fleksibel.',
+    credit: 'PT Surveyor Indonesia',
+  },
+  {
+    image: '/assets/bg4.jpeg',
+    title: 'Keamanan dalam Setiap Persetujuan',
+    description:
+      'Menjaga integritas dan keaslian dokumen melalui teknologi digital yang mendukung proses persetujuan lebih aman dan terpercaya.',
+    credit: 'PT Surveyor Indonesia',
+  },
+  {
+    image: '/assets/bg5.jpg',
+    title: 'Efisiensi untuk Setiap Proses Bisnis',
+    description:
+      'Sederhanakan proses administrasi dengan alur penandatanganan digital yang praktis, cepat, dan terorganisasi.',
+    credit: 'PT Surveyor Indonesia',
+  },
+  {
+    image: '/assets/bg7.jpg',
+    title: 'Kolaborasi Digital yang Lebih Mudah',
+    description:
+      'Hubungkan tim dan mitra kerja dalam satu alur persetujuan dokumen yang terpadu untuk meningkatkan produktivitas bersama.',
     credit: 'PT Surveyor Indonesia',
   },
 ]
@@ -187,13 +215,7 @@ export default function LoginForm() {
         : currentIndex - 1
 
   return (
-    <div
-      className="flex min-h-screen w-full font-sans text-slate-800 overflow-hidden bg-white"
-      style={{
-        backgroundImage: 'radial-gradient(rgba(0, 0, 0, 0.25) 1.25px, transparent 1.25px)',
-        backgroundSize: '24px 24px',
-      }}
-    >
+    <div className="flex min-h-screen w-full font-sans text-slate-800 overflow-hidden bg-dot-pattern">
       {/* 📍 PANEL KIRI: FORM LOGIN */}
       <div className="flex flex-1 flex-col justify-between p-6 sm:p-8 lg:p-6 lg:pl-10 lg:pr-8">
         {/* Header Bar */}
