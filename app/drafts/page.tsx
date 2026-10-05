@@ -27,15 +27,14 @@ export default async function DraftsPage() {
       },
     }),
 
-    // 2. Fetch Dokumen yang Ditolak oleh Penerima yang Login
+    // 2. Fetch Dokumen yang Ditolak (baik yang dikirim oleh user ini atau ditolak oleh penerima)
     prisma.document.findMany({
       where: {
-        recipients: {
-          some: {
-            userId: userId,
-            status: 'REJECTED',
-          },
-        },
+        status: 'REJECTED',
+        OR: [
+          { senderId: userId },
+          { recipients: { some: { userId: userId } } },
+        ],
       },
       orderBy: { createdAt: 'desc' },
       include: {
@@ -62,7 +61,7 @@ export default async function DraftsPage() {
   ])
 
   return (
-    <main className="w-full max-w-6xl mx-auto py-8 px-6">
+    <div className="w-full max-w-6xl mx-auto space-y-6">
       <DraftsTabClient
         initialDrafts={drafts.map((d) => ({
           ...d,
@@ -77,6 +76,6 @@ export default async function DraftsPage() {
           createdAt: d.createdAt.toISOString(),
         }))}
       />
-    </main>
+    </div>
   )
 }

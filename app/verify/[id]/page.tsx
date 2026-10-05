@@ -16,11 +16,12 @@ interface DocumentVerificationData {
     id: string
     status: string
     updatedAt: string
-    user: { name: string; email: string }
+    user: { id?: string; name: string; email: string }
   }>
   logs: Array<{
     id: string
     signerId: string
+    signerName?: string
     ipAddress: string
     createdAt: string
   }>
@@ -86,10 +87,8 @@ export default function PublicVerifierPage() {
       setLoading(false)
     }
   }
-
   return (
-    // 📍 Gunakan w-full bg-slate-100/80 agar rapi sejajar dengan Sidebar & tema aplikasi
-    <div className="min-h-screen w-full bg-slate-100/80 p-8 space-y-6">
+    <div className="max-w-5xl mx-auto w-full space-y-6">
       {/* Header Verifikator */}
       <div className="flex items-center justify-between border-b border-slate-200 pb-4">
         <div className="flex items-center gap-3">
@@ -111,7 +110,7 @@ export default function PublicVerifierPage() {
         </button>
       </div>
 
-      <main className="space-y-6">
+      <div className="space-y-6">
         {/* Box Upload Manual Verifikasi */}
         {(!documentId || documentId === 'check') && (
           <div className="rounded-2xl border border-slate-200/80 bg-white p-10 text-center space-y-4 shadow-sm max-w-3xl mx-auto">
@@ -190,7 +189,12 @@ export default function PublicVerifierPage() {
                 </div>
 
                 {doc.recipients.map((recipient) => {
-                  const log = doc.logs?.find((l) => l.signerId === recipient.id || l.signerId === recipient.user?.name)
+                  const log = doc.logs?.find(
+                    (l) =>
+                      l.signerId === recipient.user?.id ||
+                      l.signerId === recipient.id ||
+                      (l.signerName && l.signerName === recipient.user?.name)
+                  )
                   const proxy = doc.proxyRequests?.find(
                     (p) => p.targetUser.email === recipient.user?.email || p.targetUser.name === recipient.user?.name
                   )
@@ -275,7 +279,7 @@ export default function PublicVerifierPage() {
             </p>
           </div>
         ) : null}
-      </main>
+      </div>
     </div>
   )
 }
