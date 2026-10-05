@@ -1,30 +1,29 @@
-// app/layout.tsx
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
+import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
+import AppShell from '@/components/layout/AppShell'
+import '@/app/globals.css'
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
-  title: "SurveyorSign - Corporate Portal",
-  description: "Platform Tanda Tangan Digital PT Surveyor Indonesia",
-};
+  title: 'SignAway - Platform Manajemen Pengesahan Dokumen Digital',
+  description: 'Aplikasi pengelolaan tanda tangan dan verifikasi dokumen digital resmi instansi.',
+}
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
   return (
-    <html lang="id">
-      <head>
-        {/* WAJIB: Panggil Google Material Symbols agar icon tidak berubah jadi teks */}
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
-        />
-      </head>
-      <body className={inter.className}>{children}</body>
+    <html lang="id" className={inter.variable}>
+      <body className="font-sans bg-dot-pattern min-h-screen text-slate-800 antialiased selection:bg-blue-100 selection:text-blue-900">
+        <AppShell>{children}</AppShell>
+      </body>
     </html>
-  );
+  )
 }

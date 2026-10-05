@@ -1,86 +1,427 @@
-import React from "react";
+'use client'
 
-const mockDocuments = [
-  { id: "ST-2023-10-045", name: "Surat Tugas Pemeriksaan Lapangan", sender: "Budi Santoso", div: "Divisi Operasional", date: "24 Okt 2023", time: "09:30 WIB", deadline: "Hari Ini", status: "MENUNGGU" },
-  { id: "LHS-KLT-2023-992", name: "Laporan Hasil Survey Tambang", sender: "Siti Aminah", div: "Tim Ekspedisi", date: "23 Okt 2023", time: "14:15 WIB", deadline: "26 Okt 2023", status: "MENUNGGU" },
-  { id: "BAST-PJ-004-X", name: "Berita Acara Serah Terima", sender: "Admin Pusat", div: "HRD & General Affairs", date: "22 Okt 2023", time: "08:00 WIB", deadline: "28 Okt 2023", status: "MENUNGGU" },
-];
+import { useCallback, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import {
+  CheckCircle2,
+  Clock3,
+  FileText,
+  Search,
+  Upload,
+  XCircle,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react'
 
-export default function PendingDocuments() {
+export interface DashboardDocument {
+  id: string
+  title: string
+  createdAt: Date
+  status: 'DRAFT' | 'PENDING' | 'PARTIAL_SIGNED' | 'COMPLETED' | 'REJECTED'
+  sequential: boolean
+  sender: { id: string; name: string; email: string; avatarUrl?: string | null }
+  recipients: Array<{
+    id: string
+    status: 'WAITING' | 'PENDING' | 'SIGNED' | 'REJECTED'
+    signingOrder: number | null
+    user: { id: string; name: string; email: string; avatarUrl?: string | null }
+  }>
+  proxyRequests?: Array<{
+    id: string
+    requestedById: string
+    targetUserId: string
+    status: string
+  }>
+}
+
+export type DashboardCategory = 'waiting' | 'uploaded' | 'rejected' | 'completed'
+
+interface PendingDocumentsProps {
+  documents: DashboardDocument[]
+  userId: string
+}
+
+const categoryConfig = [
+  { key: 'waiting', title: 'Menunggu Tanda Tangan', badgeIcon: 'hourglass_top', colorClass: 'text-amber-500', bgBadgeClass: 'bg-amber-50' },
+  { key: 'uploaded', title: 'Diupload', badgeIcon: 'upload', colorClass: 'text-blue-500', bgBadgeClass: 'bg-blue-50' },
+  { key: 'rejected', title: 'Ditolak', badgeIcon: 'close', colorClass: 'text-red-500', bgBadgeClass: 'bg-red-50' },
+  { key: 'completed', title: 'Diterima / Selesai', badgeIcon: 'done_all', colorClass: 'text-emerald-500', bgBadgeClass: 'bg-emerald-50' },
+] as const
+
+const DASHBOARD_SEEN_KEY = 'signaway_dashboard_seen_docs'
+
+const readSeenDocs = (): Record<string, boolean> => {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = window.localStorage.getItem(DASHBOARD_SEEN_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+export default function PendingDocuments({ documents, userId }: PendingDocumentsProps) {
+  const router = useRouter()
+  const [search, setSearch] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState<DashboardCategory>('waiting')
+  const [seenDocs, setSeenDocs] = useState<Record<string, boolean>>(() => {
+    if (typeof window !== 'undefined') {
+      return readSeenDocs()
+    }
+    return {}
+  })
+
+  // 📍 STATE LIMIT DISPLAY & PAGINATION
+  const [pageSize, setPageSize] = useState<number>(5)
+  const [currentPage, setCurrentPage] = useState<number>(1)
+
+  // Helper cek apakah dokumen menunggu tanda tangan user (langsung atau via proxy)
+  const isWaitingForUser = useCallback(
+    (doc: DashboardDocument) => {
+      // ⚠️ Dokumen berstatus DRAFT, REJECTED, atau COMPLETED bukan dokumen yang sedang menunggu tanda tangan
+      if (doc.status === 'DRAFT' || doc.status === 'REJECTED' || doc.status === 'COMPLETED') return false
+
+      return doc.recipients.some((recipient) => {
+        const isDirect = recipient.user.id === userId
+        const isProxy = Boolean(
+          doc.proxyRequests?.some(
+            (p) => p.status === 'APPROVED' && p.targetUserId === recipient.user.id
+          )
+        )
+        return (isDirect || isProxy) && (recipient.status === 'WAITING' || recipient.status === 'PENDING')
+      })
+    },
+    [userId]
+  )
+
+  // Helper cek apakah dokumen selesai untuk user
+  const isCompletedForUser = useCallback(
+    (doc: DashboardDocument) => {
+      if (doc.status === 'COMPLETED') return true
+      return doc.recipients.some((recipient) => {
+        const isDirect = recipient.user.id === userId
+        const isProxy = Boolean(
+          doc.proxyRequests?.some(
+            (p) => p.status === 'APPROVED' && p.targetUserId === recipient.user.id
+          )
+        )
+        return (isDirect || isProxy) && recipient.status === 'SIGNED'
+      })
+    },
+    [userId]
+  )
+
+  // Reset ke halaman 1 setiap kali ganti kategori atau pencarian
+  const handleCategoryChange = (cat: DashboardCategory) => {
+    setSelectedCategory(cat)
+    setCurrentPage(1)
+  }
+
+  const handleSearchChange = (val: string) => {
+    setSearch(val)
+    setCurrentPage(1)
+  }
+
+  const markDocAsSeen = (docId: string) => {
+    const next = { ...seenDocs, [docId]: true }
+    setSeenDocs(next)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(DASHBOARD_SEEN_KEY, JSON.stringify(next))
+    }
+  }
+
+  // Hitung statistik untuk 4 kartu
+  const counts = useMemo(() => {
+    const waiting = documents.filter(isWaitingForUser).length
+    const uploaded = documents.filter((doc) => doc.sender.id === userId && doc.status !== 'DRAFT').length
+    const rejected = documents.filter((doc) => doc.sender.id === userId && doc.status === 'REJECTED').length
+    const completed = documents.filter(isCompletedForUser).length
+
+    return { waiting, uploaded, rejected, completed }
+  }, [documents, userId, isWaitingForUser, isCompletedForUser])
+
+  // Filter daftar dokumen berdasarkan tab aktif
+  const filteredDocs = useMemo(() => {
+    const query = search.toLowerCase()
+
+    const base = documents.filter((doc) => {
+      const matchesText =
+        doc.title.toLowerCase().includes(query) ||
+        doc.sender.name.toLowerCase().includes(query) ||
+        doc.sender.email.toLowerCase().includes(query)
+
+      if (!query) return true
+      return matchesText
+    })
+
+    switch (selectedCategory) {
+      case 'waiting':
+        return base.filter(isWaitingForUser)
+      case 'uploaded':
+        return base.filter((doc) => doc.sender.id === userId && doc.status !== 'DRAFT')
+      case 'rejected':
+        return base.filter((doc) => doc.sender.id === userId && doc.status === 'REJECTED')
+      case 'completed':
+        return base.filter(isCompletedForUser)
+      default:
+        return base
+    }
+  }, [documents, search, selectedCategory, userId, isWaitingForUser, isCompletedForUser])
+
+  // 📍 PAGINATED / SLICED DOCUMENTS UNTUK DITAMPILKAN PADA TABEL
+  const totalItems = filteredDocs.length
+  const totalPages = Math.ceil(totalItems / pageSize) || 1
+  const startItem = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1
+  const endItem = Math.min(currentPage * pageSize, totalItems)
+
+  const paginatedDocs = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredDocs.slice(start, start + pageSize)
+  }, [filteredDocs, currentPage, pageSize])
+
+  const panelTitle = {
+    waiting: 'Dokumen Menunggu Tanda Tangan',
+    uploaded: 'Dokumen Saya Upload',
+    rejected: 'Dokumen Ditolak',
+    completed: 'Dokumen Diterima / Selesai',
+  }[selectedCategory]
+
+  const getInitials = (name: string) =>
+    name
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? '')
+      .join('') || 'U'
+
   return (
-    <section className="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
-      {/* Header Tabel */}
-      <div className="p-6 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h3 className="text-lg font-semibold text-gray-900">Dokumen Menunggu Tanda Tangan</h3>
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="relative w-full sm:w-64">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[20px]">search</span>
-            <input 
-              type="text" 
-              placeholder="Cari dokumen..." 
-              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#003b73] focus:bg-white transition-all" 
-            />
-          </div>
-          <button className="w-10 h-10 flex items-center justify-center border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 transition-colors shrink-0">
-            <span className="material-symbols-outlined text-[20px]">filter_list</span>
-          </button>
-        </div>
-      </div>
-      
-      {/* Isi Tabel */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse min-w-[800px]">
-          <thead>
-            <tr className="bg-[#f4f5f8] border-b border-gray-200">
-              <th className="py-3 px-6 text-xs text-gray-500 uppercase font-semibold">Nama Dokumen</th>
-              <th className="py-3 px-6 text-xs text-gray-500 uppercase font-semibold">Pengirim</th>
-              <th className="py-3 px-6 text-xs text-gray-500 uppercase font-semibold">Tanggal Diterima</th>
-              <th className="py-3 px-6 text-xs text-gray-500 uppercase font-semibold">Deadline</th>
-              <th className="py-3 px-6 text-xs text-gray-500 uppercase font-semibold">Status</th>
-              <th className="py-3 px-6 text-xs text-gray-500 uppercase font-semibold text-right">Aksi</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200 bg-white">
-            {mockDocuments.map((doc, index) => (
-              <tr key={index} className="hover:bg-gray-50 transition-colors">
-                <td className="py-4 px-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded bg-[#fff8e6] text-[#d97706] flex items-center justify-center shrink-0 border border-[#fde68a]">
-                      <span className="material-symbols-outlined text-[16px]">description</span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">{doc.name}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{doc.id}</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="py-4 px-6 text-sm text-gray-800">{doc.sender}<br/><span className="text-gray-400 text-xs block mt-0.5">{doc.div}</span></td>
-                <td className="py-4 px-6 text-sm text-gray-800">{doc.date}<br/><span className="text-gray-400 text-xs block mt-0.5">{doc.time}</span></td>
-                <td className={`py-4 px-6 text-sm font-medium ${doc.deadline === 'Hari Ini' ? 'text-red-500' : 'text-gray-800'}`}>{doc.deadline}</td>
-                <td className="py-4 px-6">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#fff8e6] text-[#d97706] border border-[#fde68a]">
-                    {doc.status}
-                  </span>
-                </td>
-                <td className="py-4 px-6 text-right">
-                  <button className="inline-flex items-center justify-center h-9 px-4 rounded-lg bg-[#003b73] text-white text-xs font-semibold hover:bg-[#002d58] transition-colors shadow-sm whitespace-nowrap">
-                    Tanda Tangani
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <div className="space-y-6">
+      {/* 4 Grid Kartu Ringkasan Statistik */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {categoryConfig.map((category) => {
+          const Icon =
+            category.badgeIcon === 'hourglass_top' ? Clock3 :
+            category.badgeIcon === 'upload' ? Upload :
+            category.badgeIcon === 'close' ? XCircle : CheckCircle2
 
-      {/* Pagination Footer */}
-      <div className="p-4 border-t border-gray-200 bg-[#f8fafc] flex items-center justify-between">
-        <p className="text-xs text-gray-500">Menampilkan 3 dari 12 dokumen</p>
-        <div className="flex items-center gap-2">
-          <button className="px-3 py-1.5 rounded bg-white border border-gray-200 text-gray-400 text-xs font-medium cursor-not-allowed" disabled>Sebelumnya</button>
-          <button className="px-3 py-1.5 rounded bg-white border border-gray-200 text-gray-700 text-xs font-medium hover:bg-gray-50 transition-colors shadow-sm">Selanjutnya</button>
+          return (
+            <button
+              key={category.key}
+              type="button"
+              onClick={() => handleCategoryChange(category.key)}
+              className={`relative w-full bg-white p-5 rounded-2xl border text-left transition-all ${
+                selectedCategory === category.key ? 'border-blue-500 ring-1 ring-blue-500 shadow-sm' : 'border-slate-200 shadow-sm hover:border-slate-300'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">{category.title}</p>
+                  <h3 className="mt-2 text-3xl font-extrabold text-slate-800">{counts[category.key]}</h3>
+                </div>
+                <div className={`p-3 rounded-2xl ${category.bgBadgeClass}`}>
+                  <Icon className={`h-6 w-6 ${category.colorClass}`} />
+                </div>
+              </div>
+            </button>
+          )
+        })}
+      </section>
+
+      {/* Panel Tabel Dokumen */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100">
+          <h3 className="text-sm font-bold text-slate-800">{panelTitle}</h3>
+
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 sm:w-60">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Cari dokumen..."
+                value={search}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-600"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="bg-slate-50/80 border-b border-slate-100 text-slate-400 font-bold uppercase text-[10px] tracking-wider">
+                <th className="p-4">Nama Dokumen</th>
+                <th className="p-4">Pengirim</th>
+                <th className="p-4">Penerima</th>
+                <th className="p-4">Tanggal Diterima</th>
+                <th className="p-4">Status</th>
+                <th className="p-4 text-center">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {paginatedDocs.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-10 text-center text-slate-400">
+                    Tidak ada dokumen di kategori ini.
+                  </td>
+                </tr>
+              ) : (
+                paginatedDocs.map((doc, idx) => {
+                  const formattedDate = new Date(doc.createdAt).toLocaleDateString('id-ID', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                  })
+
+                  // Selang-seling warna putih dan biru cerah (#f0f7ff)
+                  const rowBg = idx % 2 === 1 ? 'bg-[#f0f7ff]' : 'bg-white'
+
+                  return (
+                    <tr key={doc.id} className={`${rowBg} hover:bg-blue-100/60 transition-colors`}>
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-amber-50 rounded-xl text-amber-600">
+                            <FileText className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="font-bold text-slate-800">{doc.title}</p>
+                              {/* Proxy badge disembunyikan sementara (out-of-system) */}
+                            </div>
+                            <p className="text-[10px] text-slate-400">ID: {doc.id.substring(0, 8)}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1e4273] text-[10px] font-bold text-white shrink-0 overflow-hidden shadow-xs border border-white/20">
+                            {doc.sender.avatarUrl ? (
+                              <img src={doc.sender.avatarUrl} alt={doc.sender.name} className="w-full h-full object-cover" />
+                            ) : (
+                              getInitials(doc.sender.name)
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-700 truncate">{doc.sender.name}</p>
+                            <p className="text-[10px] text-slate-400 truncate">{doc.sender.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        {doc.recipients.length > 0 ? (
+                          <div className="flex items-center -space-x-2">
+                            {doc.recipients.slice(0, 4).map((recipient) => (
+                              <div
+                                key={recipient.id}
+                                title={recipient.user.name}
+                                className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-slate-200 text-[9px] font-bold text-slate-600 overflow-hidden shadow-xs"
+                              >
+                                {recipient.user.avatarUrl ? (
+                                  <img src={recipient.user.avatarUrl} alt={recipient.user.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  getInitials(recipient.user.name)
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </td>
+                      <td className="p-4 text-slate-600 font-medium">{formattedDate}</td>
+                      <td className="p-4">
+                        <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase ${
+                          doc.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' :
+                          doc.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {doc.status}
+                        </span>
+                      </td>
+                      <td className="p-4 text-center">
+                        <button
+                          onClick={() => {
+                            markDocAsSeen(doc.id)
+                            const hasApprovedProxy = doc.proxyRequests?.some((p) => p.status === 'APPROVED')
+                            const isDirectSigner = doc.recipients.some(
+                              (r) => r.user.id === userId && (r.status === 'WAITING' || r.status === 'PENDING')
+                            )
+                            const canSign = isDirectSigner || hasApprovedProxy
+                            const targetPath = selectedCategory === 'waiting' && canSign
+                              ? `/documents/${doc.id}/sign`
+                              : `/documents/${doc.id}`
+                            router.push(targetPath)
+                          }}
+                          className="px-4 py-2 bg-[#1e4273] hover:bg-blue-900 text-white font-semibold rounded-xl text-xs transition-colors"
+                        >
+                          {selectedCategory === 'waiting' && (doc.recipients.some((r) => r.user.id === userId && (r.status === 'WAITING' || r.status === 'PENDING')) || doc.proxyRequests?.some((p) => p.status === 'APPROVED'))
+                            ? 'Tanda Tangani'
+                            : 'Lihat Detail'}
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* 📍 FOOTER CONTROL: DROPDOWN LIMIT & NAVIGASI PAGINATION */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-slate-100 bg-slate-50/50 px-5 py-3.5">
+          {/* Selector Jumlah Tampilan Per Halaman */}
+          <div className="flex items-center gap-2 text-xs text-slate-600">
+            <span>Tampilkan</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value))
+                setCurrentPage(1)
+              }}
+              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+            <span>dokumen per halaman</span>
+          </div>
+
+          {/* Status & Navigasi Tombol Prev/Next */}
+          <div className="flex items-center justify-between sm:justify-end gap-4">
+            <span className="text-xs text-slate-500">
+              Menampilkan <strong className="text-slate-700">{startItem}</strong> -{' '}
+              <strong className="text-slate-700">{endItem}</strong> dari{' '}
+              <strong className="text-slate-700">{totalItems}</strong> dokumen
+            </span>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+
+              <span className="px-2 text-xs font-bold text-slate-700">
+                {currentPage} / {totalPages}
+              </span>
+
+              <button
+                type="button"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-    </section>
-  );
+    </div>
+  )
 }

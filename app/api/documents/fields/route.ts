@@ -1,0 +1,161 @@
+import { NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { auth } from '@/lib/auth'
+
+interface FieldInput {
+  recipientId?: string | null
+  type?: 'SIGNATURE' | 'PARAF' | 'AUDIT_STAMP' | 'NAME' | string
+  pageNumber: number
+  posX: number
+  posY: number
+  width?: number
+  height?: number
+  fontSize?: number | null
+  textAlign?: string | null
+}
+
+export async function POST(req: Request) {
+  try {
+    // 1. Cek Autentikasi Pengguna
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { documentId, fields, send = false } = await req.json()
+
+    if (!documentId || !fields || !Array.isArray(fields)) {
+      return NextResponse.json(
+        { message: 'Data documentId dan fields wajib diisi' },
+        { status: 400 }
+      )
+    }
+
+    // 2. Cek Dokumen di Database
+    const document = await prisma.document.findUnique({
+      where: { id: documentId },
+      include: { recipients: true },
+    })
+
+    if (!document) {
+      return NextResponse.json({ message: 'Dokumen tidak ditemukan' }, { status: 404 })
+    }
+
+    if (document.senderId !== session.user.id) {
+      return NextResponse.json(
+        { message: 'Hanya pengirim dokumen yang boleh mengatur posisi tanda tangan' },
+        { status: 403 }
+      )
+    }
+
+    const hasSelfFields = fields.some((field: FieldInput) => field.recipientId === 'self')
+    let selfRecipientId: string | null = null
+
+    if (hasSelfFields) {
+      const selfRecipient = await prisma.documentRecipient.findFirst({
+        where: { documentId, userId: document.senderId },
+        select: { id: true },
+      })
+      selfRecipientId = selfRecipient?.id ?? (
+        await prisma.documentRecipient.create({
+          data: { documentId, userId: document.senderId, role: 'Penandatangan', status: 'WAITING' },
+          select: { id: true },
+        })
+      ).id
+    }
+
+    // 📍 SIMPAN KOORDINAT APA ADANYA SESUAI PIKSEL VISUAL CANVAS (SKALA 1:1)
+    const normalizedFields = fields.map((field: FieldInput) => {
+      const isAuditStamp = field.type === 'AUDIT_STAMP'
+      const isName = field.type === 'NAME'
+      const isParaf = field.type === 'PARAF'
+
+      const defaultWidth = isAuditStamp ? 220 : isName ? 160 : isParaf ? 100 : 150
+      const defaultHeight = isAuditStamp ? 65 : isName ? 48 : isParaf ? 50 : 70
+
+      return {
+        documentId,
+        recipientId: isAuditStamp
+          ? null
+          : (field.recipientId === 'self' && selfRecipientId
+              ? selfRecipientId
+              : field.recipientId || null),
+        type: field.type || 'SIGNATURE',
+        pageNumber: field.pageNumber,
+        posX: field.posX,
+        posY: field.posY,
+        width: field.width || defaultWidth,
+        height: field.height || defaultHeight,
+        fontSize: field.fontSize ?? 10,
+        textAlign: field.textAlign || 'center',
+      }
+    })
+
+    // 3. Simpan / Overwrite Field
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.documentField.deleteMany({ where: { documentId } })
+      const createdFields = await tx.documentField.createMany({ data: normalizedFields })
+
+      if (send) {
+        await tx.document.update({ where: { id: documentId }, data: { status: 'PENDING' } })
+        if (document.sequential) {
+          await Promise.all(document.recipients.map((recipient) =>
+            tx.documentRecipient.update({
+              where: { id: recipient.id },
+              data: { status: recipient.signingOrder === 1 ? 'WAITING' : 'PENDING' },
+            })
+          ))
+        } else {
+          await tx.documentRecipient.updateMany({
+            where: { documentId },
+            data: { status: 'WAITING' },
+          })
+        }
+      } else {
+        await tx.document.update({ where: { id: documentId }, data: { status: 'DRAFT' } })
+      }
+
+      return createdFields
+    })
+
+    return NextResponse.json(
+      {
+        message: 'Koordinat frame tanda tangan berhasil disimpan',
+        savedFieldsCount: result.count,
+      },
+      { status: 200 }
+    )
+  } catch (error) {
+    console.error('Save Fields Error:', error)
+    return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 })
+  }
+}
+
+export async function GET(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const documentId = searchParams.get('documentId')
+
+    if (!documentId) {
+      return NextResponse.json({ message: 'documentId diperlukan' }, { status: 400 })
+    }
+
+    const fields = await prisma.documentField.findMany({
+      where: { documentId },
+      include: {
+        recipient: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, nip: true },
+            },
+          },
+        },
+      },
+    })
+
+    return NextResponse.json({ fields }, { status: 200 })
+  } catch (error) {
+    console.error('Get Fields Error:', error)
+    return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 })
+  }
+}

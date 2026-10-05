@@ -1,11 +1,32 @@
-datasource db {
-  provider = "postgresql"
-}
-
 generator client {
   provider = "prisma-client-js"
 }
 
+datasource db {
+  provider = "postgresql"
+}
+
+// Role Pengguna
+enum Role {
+  ADMIN
+  KARYAWAN
+}
+
+// Status Akun Pengguna
+enum UserStatus {
+  ACTIVE
+  FROZEN
+  DELETED
+}
+
+// Status Proxy Delegasi
+enum ProxyStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Status Dokumen
 enum DocumentStatus {
   DRAFT
   PENDING
@@ -14,73 +35,90 @@ enum DocumentStatus {
   REJECTED
 }
 
+// Status Recipient
 enum RecipientStatus {
   WAITING
+  PENDING
   SIGNED
   REJECTED
 }
 
-model User {
-  id           String   @id @default(uuid())
-  name         String
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  createdAt    DateTime @default(now()) @map("created_at")
+enum SpecimenType {
+  SIGNATURE
+  PARAF
+}
 
-  // Relasi
-  sentDocuments Document[]          @relation("SenderRelation")
-  recipients    DocumentRecipient[]
-  signatureLogs SignatureLog[]
+enum AdminMessageType {
+  CREATE_ACCOUNT
+  REPORT_ISSUE
+}
+
+enum AdminMessageStatus {
+  PENDING
+  RESOLVED
+}
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  name              String
+  role              Role      @default(KARYAWAN)
+  nip               String?     @unique
+  department        String?
+  status            UserStatus  @default(ACTIVE)
+  isActive          Boolean     @default(true) @map("is_active")
+  passwordHash      String    @map("password_hash")
+  signatureSpecimen String?   @map("signature_specimen")
+  avatarUrl         String?   @map("avatar_url")
+  createdAt         DateTime  @default(now()) @map("signed_at")
+
+  sentDocuments     Document[]          @relation("SenderRelation")
+  signatureLogs     SignatureLog[]
+  recipients        DocumentRecipient[]
+  specimens         UserSpecimen[]
+  contacts          Contact[]
+
+  // Relasi Delegasi / Proxy TTD
+  proxyRequestsMade     ProxySignRequest[] @relation("RequestedBy")
+  proxyRequestsTarget   ProxySignRequest[] @relation("TargetUser")
+  proxyRequestsApproved ProxySignRequest[] @relation("ApprovedBy")
 
   @@map("users")
 }
 
-model Document {
-  id        String         @id @default(uuid())
-  title     String
-  filePath  String         @map("file_path")
-  senderId  String         @map("sender_id")
-  status    DocumentStatus @default(PENDING)
-  createdAt DateTime       @default(now()) @map("created_at")
+model UserSpecimen {
+  id        String       @id @default(uuid())
+  userId    String       @map("user_id")
+  type      SpecimenType @default(SIGNATURE)
+  imageUrl  String       @map("image_url")
+  isPrimary Boolean      @default(false) @map("is_primary")
+  createdAt DateTime     @default(now()) @map("created_at")
 
-  // Relasi
-  sender     User                @relation("SenderRelation", fields: [senderId], references: [id])
-  recipients DocumentRecipient[]
-  fields     DocumentField[]
-  logs       SignatureLog[]
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_specimens")
+}
+
+model Document {
+  id           String         @id @default(uuid())
+  title        String
+  filePath     String         @map("file_path")
+  fileSize     Int            @default(0) @map("file_size")
+  senderId     String         @map("sender_id")
+  status       DocumentStatus @default(PENDING)
+  sequential   Boolean        @default(false)
+  rejectReason String?        @map("reject_reason")
+  checksum     String?
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @default(now()) @updatedAt @map("updated_at")
+
+  sender        User                @relation("SenderRelation", fields: [senderId], references: [id])
+  recipients    DocumentRecipient[]
+  fields        DocumentField[]
+  logs          SignatureLog[]
+  proxyRequests ProxySignRequest[]
 
   @@map("documents")
-}
-
-model DocumentRecipient {
-  id         String          @id @default(uuid())
-  documentId String          @map("document_id")
-  userId     String          @map("user_id")
-  status     RecipientStatus @default(WAITING)
-
-  // Relasi
-  document Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  user     User            @relation(fields: [userId], references: [id])
-  fields   DocumentField[]
-
-  @@map("document_recipients")
-}
-
-model DocumentField {
-  id          String @id @default(uuid())
-  documentId  String @map("document_id")
-  recipientId String @map("recipient_id")
-  pageNumber  Int    @map("page_number")
-  posX        Float  @map("pos_x")
-  posY        Float  @map("pos_y")
-  width       Float  @default(150)
-  height      Float  @default(60)
-
-  // Relasi
-  document  Document          @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  recipient DocumentRecipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
-
-  @@map("document_fields")
 }
 
 model SignatureLog {
@@ -91,9 +129,90 @@ model SignatureLog {
   ipAddress          String   @map("ip_address")
   signedAt           DateTime @default(now()) @map("signed_at")
 
-  // Relasi
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
   signer   User     @relation(fields: [signerId], references: [id])
 
   @@map("signature_logs")
+}
+
+model DocumentRecipient {
+  id           String          @id @default(uuid())
+  documentId   String          @map("document_id")
+  userId       String          @map("user_id")
+  role         String          @default("penandatangan")
+  status       RecipientStatus @default(WAITING)
+  signingOrder Int?            @map("signing_order")
+  rejectReason String?         @map("reject_reason")
+
+  document Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user     User            @relation(fields: [userId], references: [id])
+  fields   DocumentField[]
+
+  @@map("document_recipients")
+}
+
+model DocumentField {
+  id          String             @id @default(uuid())
+  documentId  String             @map("document_id")
+  recipientId String?            @map("recipient_id")
+  type        String             @default("SIGNATURE")
+  pageNumber  Int                @map("page_number")
+  posX        Float              @map("pos_x")
+  posY        Float              @map("pos_y")
+  width       Float              @default(150)
+  height      Float              @default(60)
+  fontSize    Int?               @default(10) @map("font_size")
+  textAlign   String?            @default("center") @map("text_align")
+
+  document  Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  recipient DocumentRecipient? @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@map("document_fields")
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  name      String
+  email     String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("contacts")
+}
+
+// Tabel Pengajuan Proxy / Perwakilan TTD
+model ProxySignRequest {
+  id            String      @id @default(uuid())
+  documentId    String      @map("document_id")
+  requestedById String      @map("requested_by_id")
+  targetUserId  String      @map("target_user_id")
+  approvedById  String?     @map("approved_by_id")
+  reason        String
+  status        ProxyStatus @default(PENDING)
+  rejectionNote String?     @map("rejection_note")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  requestedBy User     @relation("RequestedBy", fields: [requestedById], references: [id])
+  targetUser  User     @relation("TargetUser", fields: [targetUserId], references: [id])
+  approvedBy  User?    @relation("ApprovedBy", fields: [approvedById], references: [id])
+
+  @@map("proxy_sign_requests")
+}
+
+// Pesan & Permohonan dari Halaman Login (Hubungi Administrator)
+model AdminMessage {
+  id        String             @id @default(uuid())
+  email     String
+  name      String?
+  purpose   AdminMessageType   @default(CREATE_ACCOUNT)
+  message   String?            @db.Text
+  status    AdminMessageStatus @default(PENDING)
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+
+  @@map("admin_messages")
 }

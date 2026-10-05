@@ -1,113 +1,196 @@
-# 🖊️ SignAway — Web Tanda Tangan Digital
+# 🖊️ SignAway - Digital Signature Web App
 
-**SignAway** adalah platform berbasis web yang dirancang untuk memudahkan proses penandatanganan dokumen PDF secara digital. Dioptimalkan untuk perangkat layar sentuh seperti iPad, tablet desain, maupun desktop, SignAway mendukung alur **Multi-Recipient Document Signing** yang memungkinkan pengirim memplot titik tanda tangan untuk beberapa penandatangan sekaligus (termasuk diri sendiri) dalam satu dokumen.
-
----
-
-## 🚀 Fitur Utama
-
-- **Canvas Digital Responsif:** Dukungan penuh untuk *Apple Pencil*, *stylus*, dan input sentuh tanpa gangguan *screen scroll*.
-- **Multi-Recipient Drag & Drop:** Pengirim dapat memilih penerima tanda tangan (diri sendiri, rekan kerja, atau atasan) dan menempatkan *frame* lokasi tanda tangan masing-masing pada PDF.
-- **Workflow & In-App Inbox:** Sistem notifikasi dan daftar masuk (*inbox*) dokumen yang memerlukan tindakan penandatanganan dari pihak terkait.
-- **PDF Stamping & Locking:** Menempelkan gambar tanda tangan langsung ke berkas PDF secara permanen (*flattening*) setelah seluruh pihak selesai menandatangani.
-- **Audit Trail & Keamanan:** Pencatatan alamat IP, *timestamp*, dan identitas penandatangan untuk integritas dokumen.
+Aplikasi Tanda Tangan Digital Multi-Recipient berbasis Web & Tablet (iPad) yang dibangun menggunakan Next.js App Router, Prisma ORM, dan PostgreSQL.
 
 ---
 
 ## 🛠️ Tech Stack
 
-Platform ini dibangun menggunakan arsitektur modern berbasis **TypeScript & Next.js** (terinspirasi dari platform open-source *Documenso*):
-
-- **Framework:** [Next.js](https://nextjs.org/) (App Router, React 19)
-- **Bahasa:** [TypeScript](https://www.typescriptlang.org/)
-- **Styling & UI:** [Tailwind CSS](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/)
-- **Database & ORM:** PostgreSQL + [Prisma ORM](https://www.prisma.io/)
-- **PDF Engine (Frontend):** `pdfjs-dist` / `react-pdf`
-- **PDF Stamping (Backend):** `pdf-lib`
-- **Canvas Tanda Tangan:** `signature_pad`
-- **Autentikasi:** Auth.js (NextAuth)
-- **Layanan Email:** Resend / Nodemailer
+* **Framework:** Next.js (App Router) & TypeScript
+* **Database & ORM:** PostgreSQL & Prisma ORM
+* **Authentication:** Auth.js (NextAuth v5) & `bcryptjs`
+* **PDF Processing Engine:** `pdf-lib`
+* **Styling & UI:** Tailwind CSS, `shadcn/ui`, & Lucide Icons
 
 ---
 
 ## 🗄️ Entity Relationship Diagram (ERD)
 
-Berikut adalah struktur hubungan antar-tabel dalam sistem **SignAway**:
-
 <img src="ERD.png" width="400">
 
+---
+
+## 🚀 Cara Menjalankan Proyek (Development)
+
+### 1. Clone Repository & Install Dependencies
+```bash
+git clone <url-repository-kamu>
+cd SignAway
+npm install
+
+```
+
+### 2. Konfigurasi Environment Variables (`.env`)
+
+Buat berkas `.env` di direktori utama (*root*) proyek dan isi variabel berikut:
+
+```env
+DATABASE_URL="postgresql://postgres:password_kamu@localhost:5432/signaway_db?schema=public"
+NEXTAUTH_SECRET="signaway-secret-key-super-aman"
+NEXTAUTH_URL="http://localhost:3000"
+
+```
+
+### 3. Eksekusi Migrasi Database
+
+Terapkan skema database ke PostgreSQL lokal:
+
+```bash
+npx prisma migrate dev
+npx prisma generate
+
+```
+
+### 4. Jalankan Server Lokal
+
+```bash
+npm run dev
+
+```
+
+Akses aplikasi melalui browser di `http://localhost:3000` (akan di-redirect otomatis ke `/login`).
+
+---
+
+## 💻 Modul & Antarmuka Frontend (UI)
+
+* **Modul Global Layout & Sidebar (`components/Sidebar.tsx` & `app/layout.tsx`)**
+* Navigation bar terpusat yang menyesuaikan status menu aktif (*active state*) via `usePathname()`.
+* Dikonfigurasi secara global di `layout.tsx` sehingga tidak memuat ulang (*re-render*) saat pengguna berpindah halaman.
+* Otomatis tersembunyi pada halaman khusus (`/login`, `/register`, `/documents/[id]/edit`, dan `/upload/success`).
+
+
+* **Modul Autentikasi (`/login` & `/register`)**
+* **Login Page:** Akses masuk berbasis email/username dan peran (*Role Selector: Admin/Karyawan*).
+* **Register Page:** Form pendaftaran pegawai dilengkapi NIP/ID Karyawan, konfirmasi password, serta perekaman awal **Spesimen Tanda Tangan Digital** via Interactive HTML5 Canvas.
+
+
+* **Modul Upload Dokumen & Recipient Management (`/upload`)**
+* **Dropzone Upload PDF:** Area unggah file PDF fisik (maks. 25MB) dengan pemrosesan konversi ke Base64.
+* **Pencarian Kontak:** Pencarian data pengguna terdaftar via API internal (`/api/users`) berdasarkan email.
+* **Manajemen Penerima (Recipients):** Pengelolaan daftar kontak (*Contact List*) dan alur penentuan penandatangan dokumen berurutan (*Multi-Recipient*).
+
+
+* **Modul Document Field Plotting Editor (`/documents/[id]/edit`)**
+* **Interactive Canvas Plotting:** Antarmuka pemetaan titik lokasi TTD secara dinamis pada lembar PDF.
+* **Multi-Recipient Field Assignment:** Penentuan penandatangan (*recipient*) untuk setiap *box TTD* yang ditempatkan.
+* **Field Property Inspector:** Panel pengaturan tipe kolom (*Tanda Tangan* / *Paraf*) dan pengelolaan penghapusan frame TTD.
+
+
+* **Modul Konfirmasi Pengiriman (`/upload/success`)**
+* **Status Summary:** Ringkasan status pengiriman dokumen, waktu pengiriman, metode penandatanganan, dan indikator status *Menunggu Tanda Tangan* tiap penerima.
+
+---
+
+## 🔄 Update Pengembangan Modul Terbaru
+
+### Dashboard & Notifikasi Visual
+* Menambahkan indikator dot merah di card dashboard untuk dokumen yang masih belum dibuka / belum diproses.
+* Dot merah hanya aktif untuk dokumen yang benar-benar belum ditangani, bukan sekadar hitungan total dokumen.
+* Jumlah angka pada card tetap stabil; indikator visual yang berubah hanya dot merah.
+* Daftar tabel dashboard telah diperbarui dengan kolom `Penerima` yang menampilkan avatar/initial penerima dan tooltip nama saat hover.
+
+### UI/UX Improvement
+* Menghilangkan ikon notifikasi header yang tidak dibutuhkan.
+* Menata badge dan red-dot agar lebih konsisten berada di sudut kanan atas card/tombol aksi.
+* Mengurangi kebingungan visual pada halaman dashboard dan upload dengan penyederhanaan indikator.
+
+---
+
+## 📡 Dokumentasi API Endpoints (Backend)
+
+### **1. Autentikasi**
+
+* **`POST /api/auth/register`**
+* **Fungsi:** Mendaftarkan pengguna baru (Pengirim / Penandatangan) beserta spesimen TTD.
+
+
+* **`POST /api/auth/callback/credentials`**
+* **Fungsi:** Endpoint login Auth.js berbasis email dan password.
+
+
+* **`GET /api/auth/session`**
+* **Fungsi:** Memeriksa sesi login pengguna yang sedang aktif.
 
 
 
-    erDiagram
-    USERS ||--o{ DOCUMENTS : "mengirim (sender)"
-    USERS ||--o{ DOCUMENT_RECIPIENTS : "ditunjuk sebagai (user)"
-    USERS ||--o{ SIGNATURE_LOGS : "menandatangani (signer)"
+### **2. Manajemen Dokumen & Upload**
 
-    DOCUMENTS ||--|{ DOCUMENT_RECIPIENTS : "memiliki daftar penerima"
-    DOCUMENTS ||--|{ DOCUMENT_FIELDS : "memiliki plot frame TTD"
-    DOCUMENTS ||--o{ SIGNATURE_LOGS : "mencatat log audit"
+* **`POST /api/documents/upload`**
+* **Fungsi:** Mengunggah file PDF (Base64), menyimpan file ke `/public/uploads`, serta memetakan daftar penerima (*recipients*).
+* **Payload:** `{ "title": "Dokumen A", "pdfBase64": "data:application/pdf;base64,...", "recipientIds": ["user-id-1", "user-id-2"] }`
 
-    DOCUMENT_RECIPIENTS ||--|{ DOCUMENT_FIELDS : "memiliki posisi frame"
 
-    USERS {
-        uuid id PK
-        string name
-        string email UK
-        string password_hash
-        datetime created_at
-    }
+* **`GET /api/documents/[id]`**
+* **Fungsi:** Mengambil data metadata detail dokumen tertentu.
 
-    DOCUMENTS {
-        uuid id PK
-        string title
-        string file_path
-        uuid sender_id FK
-        enum status "DRAFT | PENDING | PARTIAL_SIGNED | COMPLETED | REJECTED"
-        datetime created_at
-    }
 
-    DOCUMENT_RECIPIENTS {
-        uuid id PK
-        uuid document_id FK
-        uuid user_id FK
-        enum status "WAITING | SIGNED | REJECTED"
-    }
 
-    DOCUMENT_FIELDS {
-        uuid id PK
-        uuid document_id FK
-        uuid recipient_id FK
-        int page_number
-        float pos_x
-        float pos_y
-        float width
-        float height
-    }
+### **3. Document Field Plotting**
 
-    SIGNATURE_LOGS {
-        uuid id PK
-        uuid document_id FK
-        uuid signer_id FK
-        string signature_image_path
-        string ip_address
-        datetime signed_at
-    }
+* **`POST /api/documents/fields`**
+* **Fungsi:** Menyimpan koordinat frame TTD $(X, Y, \text{halaman}, \text{ukuran})$ hasil *drag-and-drop* pengirim.
 
-📦 Struktur Repositori
 
-    signaway/
-    ├── prisma/
-    │   └── schema.prisma        # Schema Database (User, Document, Recipient, Field, Log)
-    ├── public/
-    │   └── uploads/              # Penyimpanan dokumen lokal (Development)
-    ├── src/
-    │   ├── app/                  # Next.js App Router (Pages & API Routes)
-    │   │   ├── api/              # Endpoint API (Upload, Sign, Stamp, Auth)
-    │   │   ├── dashboard/        # Halaman Dashboard & Inbox Dokumen
-    │   │   └── sign/[id]/        # Halaman Drag & Drop & Tanda Tangan (Optimized for iPad)
-    │   ├── components/           # Komponen UI (Canvas, PDFViewer, Modal, Forms)
-    │   └── lib/                  # Helper functions (pdf-lib, prisma client)
-    ├── .env.example
-    ├── package.json
-    └── README.md
+* **`GET /api/documents/fields?documentId={ID}`**
+* **Fungsi:** Mengambil data koordinat plot frame TTD dari dokumen tertentu.
+
+
+
+### **4. PDF Stamping Engine**
+
+* **`POST /api/documents/sign`**
+* **Fungsi:** Membaca koordinat field, menempelkan gambar TTD (Base64 PNG) ke PDF fisik via `pdf-lib`, mengunci status recipient, dan mencatat *Signature Log* (Audit Trail).
+
+
+
+---
+
+## 🔍 Alat Bantu Pengujian & Manajemen Data
+
+* **Prisma Studio:**
+Untuk melihat dan memverifikasi data pendaftaran pengguna maupun dokumen secara langsung melalui antarmuka tabel web, jalankan perintah:
+```bash
+npx prisma studio
+
+```
+
+
+Akses antarmuka visual di `http://localhost:5555`.
+
+
+* **Automation Scripts (`scripts/`):**
+```bash
+# Uji coba upload dokumen PDF
+npx tsx scripts/test-upload.ts
+
+# Uji coba simpan & ambil koordinat plotting field
+npx tsx scripts/test-fields.ts
+
+# Uji coba penempelan TTD fisik ke PDF (Stamping Engine)
+npx tsx scripts/test-stamping.ts
+```
+
+---
+
+## 📋 Rencana Pengembangan & Backlog Fitur (Roadmap)
+
+Berikut adalah daftar fitur potensial yang dicatat untuk pengembangan di masa mendatang:
+
+### 1. Ekstraksi & Vektorisasi Foto Spesimen Tanda Tangan (*Image-to-Vector Specimen*)
+* **Deskripsi:**
+  Memungkinkan pengguna mengunggah foto tanda tangan atau paraf fisik dari kertas (format JPG/PNG), lalu sistem secara otomatis membersihkan latar belakang kertas (*background removal*) dan melakukan vektorisasi goresan menjadi spesimen digital transparan berkualitas tinggi.
+* **Pertimbangan Teknis & Mitigasi Risiko:**
+  * **Pembersihan Noise & Kertas Fisik:** Menggunakan algoritma *adaptive binarization / thresholding* untuk memisahkan goresan tinta dari bayangan tangan, pencahayaan tidak merata, atau tekstur kertas bergaris.
+  * **Kompatibilitas Mesin PDF (`pdf-lib`):** Backend penandatanganan saat ini menempelkan gambar via `pdfDoc.embedPng()`. Hasil vektorisasi (kurva Bézier/SVG) akan diekspor kembali ke format *High-Resolution Transparent PNG* agar 100% kompatibel dan tidak merusak alur penandatanganan dokumen yang sudah ada.
+  * **Arsitektur Pemrosesan:** Menggunakan *Client-Side Canvas API* di peramban pengguna (*browser*) yang dilengkapi *Interactive Modal Tuning* (slider sensitivitas ambang kontras, pilihan warna tinta hitam/biru instansi, alat penghapus noda/eraser, dan *auto-crop* area kosong) untuk mencegah *deployment crash* dari dependensi native C++ di server.

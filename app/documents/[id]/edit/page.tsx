@@ -1,0 +1,1848 @@
+'use client'
+
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { useRouter, useParams } from 'next/navigation'
+import {
+  ArrowLeft,
+  CheckCircle2,
+  AlertTriangle,
+  Send,
+  Save,
+  PenTool,
+  X,
+  FileCheck,
+  Sliders,
+  QrCode,
+  ShieldCheck,
+  UserCheck,
+  Type,
+  AlignLeft,
+  AlignCenter,
+  Undo2,
+  Redo2,
+  Minus,
+  Plus,
+} from 'lucide-react'
+import { FieldTypeSelectorModal, FieldPlotType } from '@/components/FieldTypeSelectorModal'
+
+interface Recipient {
+  id: string
+  userId: string
+  name: string
+  email: string
+  nip?: string | null
+  role?: string
+}
+
+interface ApiRecipient {
+  id: string
+  userId: string
+  role?: string
+  user: {
+    id: string
+    name: string
+    email: string
+    nip?: string | null
+  }
+}
+
+interface ApiField {
+  id: string
+  recipientId: string
+  type?: 'SIGNATURE' | 'PARAF' | 'AUDIT_STAMP' | 'NAME'
+  pageNumber: number
+  posX: number
+  posY: number
+  width?: number
+  height?: number
+  fontSize?: number | null
+  textAlign?: string | null
+  recipient?: {
+    user?: {
+      name?: string
+      nip?: string | null
+    }
+  }
+}
+
+interface SignatureField {
+  id: string
+  recipientId: string
+  recipientName: string
+  recipientNip?: string | null
+  type: 'SIGNATURE' | 'PARAF' | 'AUDIT_STAMP' | 'NAME'
+  pageNumber: number
+  posX: number
+  posY: number
+  width: number
+  height: number
+  fontSize?: number
+  textAlign?: 'left' | 'center' | 'corner' | 'none'
+}
+
+interface FieldInteraction {
+  mode: 'drag' | 'resize'
+  fieldId: string
+  initialPageNumber: number
+  startX: number
+  startY: number
+  initialX: number
+  initialY: number
+  initialWidth: number
+  initialHeight: number
+  currentX: number
+  currentY: number
+  currentWidth: number
+  currentHeight: number
+  pointerId: number
+}
+
+interface PendingClickPlot {
+  pageNumber: number
+  posX: number
+  posY: number
+}
+
+const PDF_VIEWPORT_SCALE = 1.25
+
+interface RecipientColorTheme {
+  border: string
+  bg: string
+  selectedBorder: string
+  selectedBg: string
+  ring: string
+  badgeBg: string
+  text: string
+  icon: string
+}
+
+const RECIPIENT_COLOR_THEMES: RecipientColorTheme[] = [
+  {
+    border: 'border-blue-500',
+    bg: 'bg-blue-50/70',
+    selectedBorder: 'border-blue-600',
+    selectedBg: 'bg-blue-50/90',
+    ring: 'ring-blue-400',
+    badgeBg: 'bg-[#1e4273]',
+    text: 'text-blue-800',
+    icon: 'text-blue-600',
+  },
+  {
+    border: 'border-emerald-500',
+    bg: 'bg-emerald-50/70',
+    selectedBorder: 'border-emerald-600',
+    selectedBg: 'bg-emerald-50/90',
+    ring: 'ring-emerald-400',
+    badgeBg: 'bg-emerald-700',
+    text: 'text-emerald-800',
+    icon: 'text-emerald-600',
+  },
+  {
+    border: 'border-purple-500',
+    bg: 'bg-purple-50/70',
+    selectedBorder: 'border-purple-600',
+    selectedBg: 'bg-purple-50/90',
+    ring: 'ring-purple-400',
+    badgeBg: 'bg-purple-700',
+    text: 'text-purple-800',
+    icon: 'text-purple-600',
+  },
+  {
+    border: 'border-rose-500',
+    bg: 'bg-rose-50/70',
+    selectedBorder: 'border-rose-600',
+    selectedBg: 'bg-rose-50/90',
+    ring: 'ring-rose-400',
+    badgeBg: 'bg-rose-700',
+    text: 'text-rose-800',
+    icon: 'text-rose-600',
+  },
+  {
+    border: 'border-indigo-500',
+    bg: 'bg-indigo-50/70',
+    selectedBorder: 'border-indigo-600',
+    selectedBg: 'bg-indigo-50/90',
+    ring: 'ring-indigo-400',
+    badgeBg: 'bg-indigo-700',
+    text: 'text-indigo-800',
+    icon: 'text-indigo-600',
+  },
+]
+
+function getRecipientTheme(idx: number): RecipientColorTheme {
+  if (idx < 0) return RECIPIENT_COLOR_THEMES[0]
+  return RECIPIENT_COLOR_THEMES[idx % RECIPIENT_COLOR_THEMES.length]
+}
+
+export default function DocumentFieldPlottingPage() {
+  const router = useRouter()
+  const params = useParams()
+  const documentId = params.id as string
+
+  const [documentTitle, setDocumentTitle] = useState('Memuat dokumen...')
+  const [documentPath, setDocumentPath] = useState<string | null>(null)
+  const [recipients, setRecipients] = useState<Recipient[]>([])
+
+  // State Plotting
+  const [fields, setFields] = useState<SignatureField[]>([])
+  const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null)
+  const [activeRecipient, setActiveRecipient] = useState<Recipient | null>(null)
+  const [selectedRecipientId, setSelectedRecipientId] = useState<string | null>(null)
+
+  // State Pending Plot untuk Pemanggilan Pop-over Modal
+  const [pendingPlot, setPendingPlot] = useState<PendingClickPlot | null>(null)
+
+  const [loadingSave, setLoadingSave] = useState(false)
+  const [pdfPages, setPdfPages] = useState<Array<{ pageNumber: number; width: number; height: number }>>([])
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [showLeaveDialog, setShowLeaveDialog] = useState(false)
+  const [leaveDialogMode, setLeaveDialogMode] = useState<'back' | 'save'>('back')
+
+  // History State untuk Undo & Redo (Maksimal 50 Riwayat) dengan Ref Synchronization
+  const [history, setHistory] = useState<SignatureField[][]>([])
+  const [historyIndex, setHistoryIndex] = useState<number>(-1)
+  const historyRef = useRef<SignatureField[][]>([])
+  const historyIndexRef = useRef<number>(-1)
+  const recordHistoryRef = useRef<(newFields: SignatureField[]) => void>(() => {})
+
+  const pdfContainerRef = useRef<HTMLDivElement | null>(null)
+  const pageRefs = useRef<Record<number, HTMLDivElement | null>>({})
+  const fieldElementsRef = useRef<Record<string, HTMLDivElement | null>>({})
+  const interactionRef = useRef<FieldInteraction | null>(null)
+  const fieldsRef = useRef(fields)
+
+  useEffect(() => {
+    fieldsRef.current = fields
+  }, [fields])
+
+  // Helper untuk Menyimpan Snapshot Riwayat saat Perubahan Terjadi
+  const recordHistory = useCallback((newFields: SignatureField[]) => {
+    setHasUnsavedChanges(true)
+    const cloned = newFields.map((f) => ({ ...f }))
+    setFields(cloned)
+    const curHistory = historyRef.current
+    const curIndex = historyIndexRef.current
+    const trimmed = curHistory.slice(0, curIndex + 1)
+    const nextHistory = [...trimmed, cloned]
+    if (nextHistory.length > 50) nextHistory.shift()
+    const nextIndex = nextHistory.length - 1
+    historyRef.current = nextHistory
+    historyIndexRef.current = nextIndex
+    setHistory(nextHistory)
+    setHistoryIndex(nextIndex)
+  }, [])
+
+  useEffect(() => {
+    recordHistoryRef.current = recordHistory
+  }, [recordHistory])
+
+  // Handler Tombol Undo
+  const handleUndo = useCallback(() => {
+    const curIndex = historyIndexRef.current
+    if (curIndex > 0) {
+      const targetIndex = curIndex - 1
+      const targetFields = historyRef.current[targetIndex]
+      if (targetFields) {
+        historyIndexRef.current = targetIndex
+        setHistoryIndex(targetIndex)
+        setFields(targetFields.map((f) => ({ ...f })))
+        setHasUnsavedChanges(true)
+      }
+    }
+  }, [])
+
+  // Handler Tombol Redo
+  const handleRedo = useCallback(() => {
+    const curIndex = historyIndexRef.current
+    if (curIndex < historyRef.current.length - 1) {
+      const targetIndex = curIndex + 1
+      const targetFields = historyRef.current[targetIndex]
+      if (targetFields) {
+        historyIndexRef.current = targetIndex
+        setHistoryIndex(targetIndex)
+        setFields(targetFields.map((f) => ({ ...f })))
+        setHasUnsavedChanges(true)
+      }
+    }
+  }, [])
+
+  // Keyboard Shortcuts: Ctrl+Z (Undo) & Ctrl+Y / Ctrl+Shift+Z (Redo)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement
+      const tagName = (activeEl?.tagName || '').toLowerCase()
+      if (tagName === 'input' || tagName === 'textarea' || (activeEl as HTMLElement)?.isContentEditable) {
+        return
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        if (e.shiftKey) {
+          e.preventDefault()
+          handleRedo()
+        } else {
+          e.preventDefault()
+          handleUndo()
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault()
+        handleRedo()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleUndo, handleRedo])
+
+  // 1. Render PDF.js Viewport
+  useEffect(() => {
+    if (!documentPath) return
+
+    let cancelled = false
+    const renderPdf = async () => {
+      const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+      pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+        'pdfjs-dist/legacy/build/pdf.worker.min.mjs',
+        import.meta.url
+      ).toString()
+      const pdf = await pdfjs.getDocument(documentPath).promise
+      const pages: Array<{ pageNumber: number; width: number; height: number }> = []
+
+      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+        const page = await pdf.getPage(pageNumber)
+        const viewport = page.getViewport({ scale: PDF_VIEWPORT_SCALE })
+        pages.push({ pageNumber, width: viewport.width, height: viewport.height })
+      }
+
+      if (!cancelled) setPdfPages(pages)
+    }
+
+    renderPdf().catch((error) => {
+      console.error('PDF render error:', error)
+      alert('Gagal menampilkan PDF')
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [documentPath])
+
+  // 2. Render Canvas Per Halaman
+  useEffect(() => {
+    if (!documentPath || pdfPages.length === 0) return
+
+    let cancelled = false
+    const renderPages = async () => {
+      const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+      pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+        'pdfjs-dist/legacy/build/pdf.worker.min.mjs',
+        import.meta.url
+      ).toString()
+      const pdf = await pdfjs.getDocument(documentPath).promise
+
+      await Promise.all(
+        pdfPages.map(async ({ pageNumber, width, height }) => {
+          const page = await pdf.getPage(pageNumber)
+          const pageElement = pageRefs.current[pageNumber]
+          const canvas = pageElement?.querySelector('canvas')
+          const context = canvas?.getContext('2d')
+          if (!canvas || !context || cancelled) return
+
+          canvas.width = width
+          canvas.height = height
+          await page.render({
+            canvasContext: context,
+            viewport: page.getViewport({ scale: PDF_VIEWPORT_SCALE }),
+          }).promise
+        })
+      )
+    }
+
+    renderPages().catch((error) => console.error('PDF page render error:', error))
+    return () => {
+      cancelled = true
+    }
+  }, [documentPath, pdfPages])
+
+  // 3. Prevent Unsaved Departure
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        event.preventDefault()
+        event.returnValue = ''
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [hasUnsavedChanges])
+
+  const pdfPagesRef = useRef(pdfPages)
+  useEffect(() => {
+    pdfPagesRef.current = pdfPages
+  }, [pdfPages])
+
+  // 📍 4. OPTIMIZED DRAG & RESIZE INTERACTION LISTENER (INSTANT & PRECISE WITH CROSS-PAGE DETECTION)
+  useEffect(() => {
+    const handlePointerMove = (event: PointerEvent) => {
+      const interaction = interactionRef.current
+      if (!interaction) return
+
+      const deltaX = event.clientX - interaction.startX
+      const deltaY = event.clientY - interaction.startY
+      const element = fieldElementsRef.current[interaction.fieldId]
+      if (!element) return
+
+      if (interaction.mode === 'drag') {
+        interaction.currentX = interaction.initialX + deltaX
+        interaction.currentY = interaction.initialY + deltaY
+        // Transform GPU langsung tanpa delay
+        element.style.transform = `translate3d(${deltaX}px, ${deltaY}px, 0)`
+      } else {
+        const field = fieldsRef.current.find((f) => f.id === interaction.fieldId)
+        const isLockRatio = field?.type === 'SIGNATURE' || field?.type === 'PARAF'
+
+        if (isLockRatio) {
+          const aspectRatio = interaction.initialWidth / Math.max(1, interaction.initialHeight)
+          const rawW = interaction.initialWidth + deltaX
+          const newW = Math.max(90, Math.min(360, rawW))
+          const newH = Math.max(35, Math.round(newW / aspectRatio))
+          interaction.currentWidth = newW
+          interaction.currentHeight = newH
+          element.style.width = `${newW}px`
+          element.style.height = `${newH}px`
+        } else {
+          interaction.currentWidth = Math.max(80, interaction.initialWidth + deltaX)
+          interaction.currentHeight = Math.max(40, interaction.initialHeight + deltaY)
+          element.style.width = `${interaction.currentWidth}px`
+          element.style.height = `${interaction.currentHeight}px`
+        }
+      }
+    }
+
+    const handlePointerUp = (event: PointerEvent) => {
+      const interaction = interactionRef.current
+      if (!interaction) return
+
+      const element = fieldElementsRef.current[interaction.fieldId]
+      if (element && element.hasPointerCapture(interaction.pointerId)) {
+        element.releasePointerCapture(interaction.pointerId)
+      }
+
+      const mode = interaction.mode
+      const fieldId = interaction.fieldId
+      const nextW = interaction.currentWidth
+      const nextH = interaction.currentHeight
+
+      let targetPageNumber = interaction.initialPageNumber
+      let finalPosX = interaction.initialX
+      let finalPosY = interaction.initialY
+
+      if (mode === 'drag') {
+        let targetPageRect: DOMRect | null = null
+
+        // 1. Deteksi halaman mana yang tepat berada di bawah kursor mouse saat dilepaskan
+        for (const p of pdfPagesRef.current) {
+          const el = pageRefs.current[p.pageNumber]
+          if (el) {
+            const rect = el.getBoundingClientRect()
+            if (
+              event.clientY >= rect.top &&
+              event.clientY <= rect.bottom &&
+              event.clientX >= rect.left - 50 &&
+              event.clientX <= rect.right + 50
+            ) {
+              targetPageNumber = p.pageNumber
+              targetPageRect = rect
+              break
+            }
+          }
+        }
+
+        // 2. Jika dilepas di luar atau di area gap, cari halaman terdekat
+        if (!targetPageRect) {
+          let minDistance = Infinity
+          for (const p of pdfPagesRef.current) {
+            const el = pageRefs.current[p.pageNumber]
+            if (el) {
+              const rect = el.getBoundingClientRect()
+              const dist = Math.abs(event.clientY - (rect.top + rect.bottom) / 2)
+              if (dist < minDistance) {
+                minDistance = dist
+                targetPageNumber = p.pageNumber
+                targetPageRect = rect
+              }
+            }
+          }
+        }
+
+        const initialPageEl = pageRefs.current[interaction.initialPageNumber]
+        const initialPageRect = initialPageEl ? initialPageEl.getBoundingClientRect() : targetPageRect
+
+        if (targetPageRect && initialPageRect) {
+          // Posisi screen top-left field saat awal drag
+          const fieldScreenStartX = initialPageRect.left + interaction.initialX
+          const fieldScreenStartY = initialPageRect.top + interaction.initialY
+
+          // Offset grab point relatif ke ujung kiri-atas field
+          const grabOffsetX = interaction.startX - fieldScreenStartX
+          const grabOffsetY = interaction.startY - fieldScreenStartY
+
+          // Posisi screen baru field saat dilepaskan
+          const fieldNewScreenX = event.clientX - grabOffsetX
+          const fieldNewScreenY = event.clientY - grabOffsetY
+
+          // Konversi ke koordinat lokal di dalam halaman target
+          const localX = fieldNewScreenX - targetPageRect.left
+          const localY = fieldNewScreenY - targetPageRect.top
+
+          const targetPageInfo = pdfPagesRef.current.find((p) => p.pageNumber === targetPageNumber)
+          const maxW = Math.max(0, (targetPageInfo?.width || 744) - nextW)
+          const maxH = Math.max(0, (targetPageInfo?.height || 1052) - nextH)
+
+          finalPosX = Math.max(0, Math.min(maxW, localX))
+          finalPosY = Math.max(0, Math.min(maxH, localY))
+
+          // 📍 Smart Alignment Snapping: Kunci posisi agar presisi sejajar jika mendekati koordinat plot lain (toleransi 8px)
+          const SNAP_THRESHOLD = 8
+          const otherFieldsOnPage = fieldsRef.current.filter(
+            (f) => f.id !== fieldId && f.pageNumber === targetPageNumber
+          )
+          for (const other of otherFieldsOnPage) {
+            if (Math.abs(other.posY - finalPosY) <= SNAP_THRESHOLD) {
+              finalPosY = other.posY
+            }
+            if (Math.abs(other.posX - finalPosX) <= SNAP_THRESHOLD) {
+              finalPosX = other.posX
+            }
+          }
+        }
+      }
+
+      interactionRef.current = null
+
+      if (element) {
+        element.style.removeProperty('transform')
+      }
+
+      const current = fieldsRef.current
+      const prevField = current.find((f) => f.id === fieldId)
+      const isChanged =
+        prevField &&
+        (mode === 'drag'
+          ? prevField.posX !== finalPosX ||
+            prevField.posY !== finalPosY ||
+            prevField.pageNumber !== targetPageNumber
+          : prevField.width !== nextW || prevField.height !== nextH)
+
+      if (isChanged) {
+        const nextFields = current.map((field) => {
+          if (field.id !== fieldId) return field
+          return mode === 'drag'
+            ? { ...field, pageNumber: targetPageNumber, posX: finalPosX, posY: finalPosY }
+            : {
+                ...field,
+                width: nextW,
+                height: nextH,
+              }
+        })
+        recordHistoryRef.current(nextFields)
+      }
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointercancel', handlePointerUp)
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('pointercancel', handlePointerUp)
+    }
+  }, [])
+
+  // 5. Load Data Dokumen & Field
+  useEffect(() => {
+    const loadDocument = async () => {
+      try {
+        const res = await fetch(`/api/documents/${documentId}`)
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.message || 'Gagal memuat dokumen')
+
+        setDocumentTitle(data.document.title)
+        setDocumentPath(data.document.filePath)
+
+        const validRecipients: Recipient[] = (data.document.recipients as ApiRecipient[]).map((r) => ({
+          id: r.id,
+          userId: r.userId,
+          name: r.user.id === data.document.sender.id ? `${r.user.name} (Saya)` : r.user.name,
+          email: r.user.email,
+          nip: r.user.nip || null,
+          role: r.role,
+        }))
+
+        setRecipients(validRecipients)
+
+        // Load Field Koordinat dari DB
+        const fieldsResponse = await fetch(`/api/documents/fields?documentId=${documentId}`)
+        const fieldsData = await fieldsResponse.json()
+        if (!fieldsResponse.ok) throw new Error(fieldsData.message || 'Gagal memuat posisi TTD')
+
+        const loadedFields = (fieldsData.fields as ApiField[]).map((field) => {
+          const isAudit = field.type === 'AUDIT_STAMP'
+          const isName = field.type === 'NAME'
+          const isParaf = field.type === 'PARAF'
+          return {
+            id: field.id,
+            recipientId: field.recipientId || '',
+            recipientName: isAudit ? 'Sistem E-Sign' : (field.recipient?.user?.name || 'Penandatangan'),
+            recipientNip: isAudit ? null : (field.recipient?.user?.nip || null),
+            type: field.type || 'SIGNATURE',
+            pageNumber: field.pageNumber,
+            posX: field.posX,
+            posY: field.posY,
+            width: field.width || (isAudit ? 210 : isName ? 160 : isParaf ? 100 : 150),
+            height: field.height || (isAudit ? 65 : isName ? 48 : isParaf ? 50 : 70),
+            fontSize: field.fontSize || 10,
+            textAlign: (field.textAlign as 'left' | 'center') || 'center',
+          }
+        })
+
+        const clonedLoaded = loadedFields.map((f) => ({ ...f }))
+        setFields(clonedLoaded)
+        historyRef.current = [clonedLoaded]
+        historyIndexRef.current = 0
+        setHistory([clonedLoaded])
+        setHistoryIndex(0)
+      } catch (error) {
+        alert(error instanceof Error ? error.message : 'Gagal memuat dokumen')
+      }
+    }
+
+    if (documentId) loadDocument()
+  }, [documentId])
+
+  // Klik Area Dokumen -> Membuka Modal Pilihan Tipe Plotting
+  const handlePdfClick = (e: React.MouseEvent<HTMLDivElement>, pageNumber: number) => {
+    if (!activeRecipient) return
+    if (!pdfContainerRef.current) return
+
+    const pageElement = pageRefs.current[pageNumber]
+    if (!pageElement) return
+    const rect = pageElement.getBoundingClientRect()
+    const posX = Math.max(0, e.clientX - rect.left - 75)
+    const posY = Math.max(0, e.clientY - rect.top - 35)
+
+    // Buka Modal Pemilihan Tipe (TTD atau Paraf atau Nama)
+    setPendingPlot({ pageNumber, posX, posY })
+  }
+
+  // METODE KONFIRMASI DARI MODAL TERPISAH
+  const handleConfirmFieldType = (type: FieldPlotType) => {
+    if (!pendingPlot) return
+
+    const isName = type === 'NAME'
+    const isParaf = type === 'PARAF'
+    const newField: SignatureField = {
+      id: `field-${crypto.randomUUID()}`,
+      recipientId: activeRecipient?.id || '',
+      recipientName: activeRecipient?.name || 'Penandatangan',
+      recipientNip: activeRecipient?.nip || null,
+      type,
+      pageNumber: pendingPlot.pageNumber,
+      posX: pendingPlot.posX,
+      posY: pendingPlot.posY,
+      width: isName ? 160 : isParaf ? 100 : 150,
+      height: isName ? 48 : isParaf ? 50 : 70,
+      fontSize: 10,
+      textAlign: type === 'SIGNATURE' ? 'center' : type === 'NAME' ? 'center' : undefined,
+    }
+
+    const nextFields = [...fields, newField]
+
+    recordHistory(nextFields)
+    setSelectedFieldId(newField.id)
+    setPendingPlot(null)
+    setActiveRecipient(null)
+  }
+
+  // Helper untuk menambah atau mengarahkan ke Stempel Audit dari Sidebar
+  const handleAddAuditStamp = () => {
+    setActiveRecipient(null)
+    const existing = fields.find((f) => f.type === 'AUDIT_STAMP')
+    if (existing) {
+      setSelectedFieldId(existing.id)
+      pageRefs.current[existing.pageNumber]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
+
+    // Cari halaman yang sedang paling nampak di scroll container user
+    let targetPage = 1
+    const container = pdfContainerRef.current?.parentElement || (typeof document !== 'undefined' ? document.querySelector('main') : null)
+    if (pdfPages.length > 0) {
+      const containerRect = container ? container.getBoundingClientRect() : { top: 0, height: window.innerHeight }
+      const centerY = containerRect.top + containerRect.height / 2
+
+      let minDistance = Infinity
+      for (const p of pdfPages) {
+        const el = pageRefs.current[p.pageNumber]
+        if (el) {
+          const rect = el.getBoundingClientRect()
+          if (rect.top <= centerY && rect.bottom >= centerY) {
+            targetPage = p.pageNumber
+            break
+          }
+          const pageCenter = (rect.top + rect.bottom) / 2
+          const dist = Math.abs(pageCenter - centerY)
+          if (dist < minDistance) {
+            minDistance = dist
+            targetPage = p.pageNumber
+          }
+        }
+      }
+    }
+
+    const targetPageInfo = pdfPages.find((p) => p.pageNumber === targetPage)
+    const pageWidth = targetPageInfo?.width || 744
+    const pageHeight = targetPageInfo?.height || 1052
+    const initialWidth = 210
+    const initialHeight = 65
+
+    const newField: SignatureField = {
+      id: `field-${crypto.randomUUID()}`,
+      recipientId: '',
+      recipientName: 'Sistem E-Sign',
+      type: 'AUDIT_STAMP',
+      pageNumber: targetPage,
+      posX: Math.max(20, Math.round(pageWidth - initialWidth - 30)),
+      posY: Math.max(20, Math.round(pageHeight - initialHeight - 50)),
+      width: initialWidth,
+      height: initialHeight,
+    }
+
+    recordHistory([...fields, newField])
+    setSelectedFieldId(newField.id)
+    pageRefs.current[targetPage]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
+  const selectedField = fields.find((f) => f.id === selectedFieldId)
+  const visibleFields = selectedRecipientId
+    ? fields.filter((field) => field.recipientId === selectedRecipientId || field.type === 'AUDIT_STAMP')
+    : fields
+
+  const canSend = recipients.length > 0 && recipients.every((recipient) =>
+    fields.some((field) => field.recipientId === recipient.id)
+  )
+
+  const handleDeleteField = (fieldId: string) => {
+    const targetField = fields.find((f) => f.id === fieldId)
+    if (targetField) {
+      recordHistory(fields.filter((f) => f.id !== fieldId))
+    }
+    setSelectedFieldId(null)
+  }
+
+  const handleUpdateFieldType = (fieldId: string, type: 'SIGNATURE' | 'PARAF' | 'NAME') => {
+    const nextFields: SignatureField[] = fields.map((f) => {
+      if (f.id !== fieldId) return f
+      return {
+        ...f,
+        type,
+        width: type === 'NAME' ? 160 : type === 'PARAF' ? 100 : 150,
+        height: type === 'NAME' ? 48 : type === 'PARAF' ? 50 : 70,
+        textAlign: (type === 'SIGNATURE' ? 'center' : type === 'NAME' ? 'center' : undefined) as 'center' | undefined,
+      }
+    })
+    recordHistory(nextFields)
+  }
+
+  const handleUpdateFieldWatermark = (fieldId: string, watermarkStyle: 'center' | 'corner' | 'none') => {
+    const nextFields: SignatureField[] = fields.map((f) => (f.id === fieldId ? { ...f, textAlign: watermarkStyle } : f))
+    recordHistory(nextFields)
+  }
+
+  const handleUpdateFieldFontSize = (fieldId: string, fontSize: number) => {
+    const clamped = Math.max(6, Math.min(36, fontSize))
+    const nextFields = fields.map((f) => {
+      if (f.id !== fieldId) return f
+      // Otomatis sesuaikan ukuran box jika font besar membutuhkan ruang lebih
+      const autoMinH = Math.max(48, Math.round(clamped * 2.2 + 10))
+      const autoMinW = Math.max(160, Math.round(clamped * 7.5 + 20))
+      return {
+        ...f,
+        fontSize: clamped,
+        width: Math.max(f.width, autoMinW),
+        height: Math.max(f.height, autoMinH),
+      }
+    })
+    recordHistory(nextFields)
+  }
+
+  const handleUpdateFieldTextAlign = (fieldId: string, textAlign: 'left' | 'center') => {
+    const nextFields = fields.map((f) => (f.id === fieldId ? { ...f, textAlign } : f))
+    recordHistory(nextFields)
+  }
+
+  const handleLeaveEditor = async (mode: 'save' | 'discard') => {
+    setShowLeaveDialog(false)
+
+    if (mode === 'discard') {
+      const res = await fetch(`/api/documents/${documentId}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        alert(data.message || 'Gagal membuang draft')
+        return
+      }
+
+      router.push('/drafts')
+      return
+    }
+
+    const saved = await handleSaveFields(false)
+    if (saved) {
+      setHasUnsavedChanges(false)
+      if (leaveDialogMode === 'back') {
+        router.push('/drafts')
+      }
+    }
+  }
+
+  const handleSaveFields = async (send = false) => {
+    setLoadingSave(true)
+    try {
+      const res = await fetch('/api/documents/fields', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentId, fields, send }),
+      })
+
+      if (!res.ok) throw new Error('Gagal menyimpan posisi TTD')
+      return true
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Gagal menyimpan posisi TTD')
+      return false
+    } finally {
+      setLoadingSave(false)
+    }
+  }
+
+  return (
+    <div className="flex h-screen flex-col bg-slate-100 font-sans">
+      {/* PEMANGGILAN KOMPONEN MODAL POP-OVER TERPISAH */}
+      <FieldTypeSelectorModal
+        isOpen={Boolean(pendingPlot)}
+        recipientName={activeRecipient?.name}
+        onClose={() => setPendingPlot(null)}
+        onConfirm={handleConfirmFieldType}
+      />
+
+      {/* Dialog Unsaved Changes */}
+      {showLeaveDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Perhatian</p>
+            <h3 className="mt-2 text-xl font-bold text-slate-800">Dokumen belum disimpan</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              {leaveDialogMode === 'save'
+                ? 'Apakah ingin menyimpan perubahan ke draft?'
+                : 'Mau disimpan ke draft atau dibuang?'}
+            </p>
+            <div className="mt-5 grid gap-2 sm:grid-cols-3">
+              <button
+                type="button"
+                onClick={() => void handleLeaveEditor('save')}
+                className="rounded-xl bg-[#1e4273] px-3 py-2 text-xs font-semibold text-white hover:bg-blue-900"
+              >
+                Simpan draft
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleLeaveEditor('discard')}
+                className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100"
+              >
+                Buang
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowLeaveDialog(false)}
+                className="rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Header Bar */}
+      <header className="flex h-16 items-center justify-between border-b border-slate-800 bg-[#0d2a4a] px-6 shadow-md text-white">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              if (!hasUnsavedChanges) {
+                router.back()
+                return
+              }
+              setLeaveDialogMode('back')
+              setShowLeaveDialog(true)
+            }}
+            className="rounded-lg p-2 text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <div>
+            <h1 className="text-sm font-bold text-white tracking-tight">{documentTitle}</h1>
+            <p className="text-[11px] text-blue-200/80">Penempatan Tanda Tangan & Paraf</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {/* Undo & Redo Toolbar */}
+          <div className="flex items-center gap-0.5 bg-[#08182b] p-1 rounded-xl border border-white/10">
+            <button
+              type="button"
+              title="Undo (Ctrl+Z)"
+              onClick={handleUndo}
+              disabled={historyIndex <= 0}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-blue-100 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition-all cursor-pointer disabled:cursor-not-allowed"
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+              <span className="hidden md:inline text-[11px]">Undo</span>
+            </button>
+            <button
+              type="button"
+              title="Redo (Ctrl+Y)"
+              onClick={handleRedo}
+              disabled={historyIndex >= history.length - 1}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-blue-100 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition-all cursor-pointer disabled:cursor-not-allowed"
+            >
+              <Redo2 className="h-3.5 w-3.5" />
+              <span className="hidden md:inline text-[11px]">Redo</span>
+            </button>
+          </div>
+
+          {activeRecipient && (
+            <button
+              type="button"
+              onClick={() => setActiveRecipient(null)}
+              className="rounded-xl border border-red-400/30 bg-red-950/40 text-red-300 px-3.5 py-2 text-xs font-semibold hover:bg-red-900/50 transition-all cursor-pointer shadow-xs"
+            >
+              Batal Tempatkan
+            </button>
+          )}
+          <button
+            onClick={() => {
+              if (!hasUnsavedChanges) {
+                void handleSaveFields(false)
+                return
+              }
+              setLeaveDialogMode('save')
+              setShowLeaveDialog(true)
+            }}
+            disabled={loadingSave}
+            className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold text-white hover:bg-white/20 transition-all cursor-pointer"
+          >
+            <Save className="h-4 w-4" /> Simpan Draft
+          </button>
+          <button
+            onClick={() => {
+              handleSaveFields(true).then((saved) => {
+                if (saved) {
+                  router.replace(`/upload/success?documentId=${documentId}`)
+                }
+              })
+            }}
+            disabled={!canSend || loadingSave}
+            className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50 shadow-md transition-all cursor-pointer"
+          >
+            <Send className="h-4 w-4" /> Kirim untuk Ditandatangani
+          </button>
+        </div>
+      </header>
+
+      {/* Main Workspace */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar Kiri: Daftar Penandatangan */}
+        <aside className="w-72 border-r border-slate-200/90 bg-[#f8fafc] p-4 space-y-5 overflow-y-auto shrink-0">
+          <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-3.5">
+            <h3 className="text-[11px] font-bold uppercase tracking-wider text-blue-900 mb-1">Instruksi</h3>
+            <p className="text-xs text-blue-800/85 leading-relaxed">
+              Klik <span className="font-bold text-blue-700">Tempatkan</span> lalu klik area dokumen untuk memilih menambah TTD atau Paraf.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Daftar Penandatangan</h3>
+
+            {recipients.map((recipient, idx) => (
+              <div
+                key={recipient.id}
+                className={`p-3 rounded-xl border transition-all ${
+                  activeRecipient?.id === recipient.id || selectedRecipientId === recipient.id
+                    ? 'border-blue-600 bg-blue-50/70 ring-2 ring-blue-500/20 shadow-xs'
+                    : 'border-slate-200/90 bg-white shadow-2xs hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <span
+                    className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-white shadow-xs ${getRecipientTheme(idx).badgeBg}`}
+                  >
+                    {idx + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-800 truncate">{recipient.name}</p>
+                    <p className="text-[10px] text-slate-500 truncate">{recipient.email}</p>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2">
+                  {(() => {
+                    const recipientFieldCount = fields.filter((field) => field.recipientId === recipient.id).length
+                    return recipientFieldCount > 0 ? (
+                      <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-600">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> {recipientFieldCount} plot ditempatkan
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-[11px] font-medium text-amber-600">
+                        <AlertTriangle className="h-3.5 w-3.5" /> Belum ditempatkan
+                      </span>
+                    )
+                  })()}
+
+                  <button
+                    onClick={() => {
+                      setActiveRecipient(recipient)
+                    }}
+                    className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+                  >
+                    {activeRecipient?.id === recipient.id ? 'Mencari Posisi...' : 'Tempatkan'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* 📍 KARTU STEMPEL AUDIT (QR & DOC-ID) */}
+          <div className="pt-4 border-t border-slate-200">
+            <div className="flex items-center justify-between mb-1.5">
+              <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Stempel Verifikasi
+              </h3>
+              {fields.some((f) => f.type === 'AUDIT_STAMP') && (
+                <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full">
+                  Aktif
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-500 mb-2.5">
+              QR Code & Timestamp verifikasi keabsahan dokumen. Dapat diposisikan ke bagian dokumen mana pun.
+            </p>
+
+            {(() => {
+              const auditField = fields.find((f) => f.type === 'AUDIT_STAMP')
+              if (auditField) {
+                return (
+                  <div className="p-3 rounded-xl border border-emerald-300 bg-emerald-50/70 space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-emerald-900 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Hal. {auditField.pageNumber}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteField(auditField.id)}
+                        className="text-[11px] font-semibold text-rose-600 hover:underline cursor-pointer"
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedFieldId(auditField.id)
+                        pageRefs.current[auditField.pageNumber]?.scrollIntoView({
+                          behavior: 'smooth',
+                          block: 'center',
+                        })
+                      }}
+                      className="w-full text-center py-1.5 text-xs font-bold text-emerald-700 bg-white rounded-lg border border-emerald-200 hover:bg-emerald-50 cursor-pointer shadow-xs"
+                    >
+                      Pilih & Atur Posisi
+                    </button>
+                  </div>
+                )
+              }
+              return (
+                <button
+                  type="button"
+                  onClick={handleAddAuditStamp}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold text-emerald-700 bg-white hover:bg-emerald-50 border border-emerald-200 rounded-xl transition-all cursor-pointer shadow-2xs"
+                >
+                  <QrCode className="w-4 h-4 text-emerald-600" /> + Tempatkan Stempel Audit
+                </button>
+              )
+            })()}
+          </div>
+        </aside>
+
+        {/* Panel Tengah: Canvas PDF */}
+        <main className="flex-1 bg-slate-700/80 p-8 overflow-y-auto flex justify-center">
+          <div ref={pdfContainerRef} className="flex flex-col items-center gap-4 pb-8">
+            {pdfPages.map((page) => (
+              <div
+                key={page.pageNumber}
+                ref={(element) => {
+                  pageRefs.current[page.pageNumber] = element
+                }}
+                onClick={(event) => handlePdfClick(event, page.pageNumber)}
+                className={`relative shrink-0 bg-white shadow-xl select-none ${
+                  activeRecipient ? 'cursor-crosshair ring-2 ring-blue-500 ring-offset-2' : 'cursor-default'
+                }`}
+                style={{ width: page.width, height: page.height }}
+              >
+                <canvas className="absolute inset-0 block" />
+
+                {/* 📍 Garis Panduan Sejajar Horizontal (Alignment Guide Line) */}
+                {selectedField &&
+                  selectedField.pageNumber === page.pageNumber &&
+                  fields.some(
+                    (f) =>
+                      f.id !== selectedField.id &&
+                      f.pageNumber === page.pageNumber &&
+                      Math.abs(f.posY - selectedField.posY) < 1
+                  ) && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: `${selectedField.posY}px`,
+                        left: 0,
+                        right: 0,
+                        height: '1px',
+                        borderTop: '1.5px dashed #2563eb',
+                        pointerEvents: 'none',
+                        zIndex: 25,
+                      }}
+                    >
+                      <span className="absolute -top-3 right-3 text-[9px] font-bold text-blue-700 bg-white/95 px-1.5 py-0.5 rounded border border-blue-200 shadow-xs">
+                        Sejajar (Y: {Math.round(selectedField.posY)})
+                      </span>
+                    </div>
+                  )}
+
+                {/* 📍 Selalu render SEMUA field di halaman ini agar tidak ada plot yang invisible */}
+                {fields
+                  .filter((field) => field.pageNumber === page.pageNumber)
+                  .map((field) => {
+                    const isSelected = selectedFieldId === field.id
+                    const isAudit = field.type === 'AUDIT_STAMP'
+                    const isParaf = field.type === 'PARAF'
+                    const recipientIndex = recipients.findIndex((r) => r.id === field.recipientId)
+                    const theme = getRecipientTheme(recipientIndex)
+
+                    if (isAudit) {
+                      return (
+                        <div
+                          key={field.id}
+                          ref={(element) => {
+                            fieldElementsRef.current[field.id] = element
+                          }}
+                          onPointerDown={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            setActiveRecipient(null)
+
+                            const el = fieldElementsRef.current[field.id]
+                            if (el) el.setPointerCapture(event.pointerId)
+
+                            setSelectedFieldId(field.id)
+                            const interaction: FieldInteraction = {
+                              mode: 'drag',
+                              fieldId: field.id,
+                              initialPageNumber: field.pageNumber,
+                              startX: event.clientX,
+                              startY: event.clientY,
+                              initialX: field.posX,
+                              initialY: field.posY,
+                              initialWidth: field.width,
+                              initialHeight: field.height,
+                              currentX: field.posX,
+                              currentY: field.posY,
+                              currentWidth: field.width,
+                              currentHeight: field.height,
+                              pointerId: event.pointerId,
+                            }
+                            interactionRef.current = interaction
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedFieldId(field.id)
+                          }}
+                          style={{
+                            left: `${field.posX}px`,
+                            top: `${field.posY}px`,
+                            width: `${field.width}px`,
+                            height: `${field.height}px`,
+                            touchAction: 'none',
+                            userSelect: 'none',
+                          }}
+                          className={`absolute z-10 rounded-md p-1.5 flex items-center gap-2 select-none cursor-grab active:cursor-grabbing bg-white/60 hover:bg-white/80 backdrop-blur-xs ${
+                            isSelected
+                              ? 'border-2 border-dashed border-emerald-500 ring-2 ring-emerald-400/30'
+                              : 'border border-dashed border-slate-300 hover:border-slate-400'
+                          }`}
+                        >
+                          <div className="absolute -top-3 left-2 bg-emerald-800 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-xs pointer-events-none">
+                            Stempel Verifikasi (Opsi 3)
+                          </div>
+
+                          <button
+                            type="button"
+                            aria-label="Hapus stempel"
+                            onPointerDown={(event) => {
+                              event.preventDefault()
+                              event.stopPropagation()
+                              handleDeleteField(field.id)
+                            }}
+                            className="absolute -right-2.5 -top-2.5 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow hover:bg-red-700 cursor-pointer"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+
+                          {/* Sisi Kiri: Preview QR Code (Lepas / Tanpa Frame Kotak) */}
+                          <div className="h-full aspect-square flex items-center justify-center shrink-0 pointer-events-none select-none">
+                            <QrCode className="w-full h-full text-slate-900 pointer-events-none select-none" />
+                          </div>
+
+                          {/* Sisi Kanan: Logo E-Sign Terverifikasi (Lepas / Tanpa Frame Kotak) */}
+                          <div className="flex-1 h-full flex items-center justify-center pointer-events-none p-0.5 overflow-hidden select-none">
+                            <img
+                              src="/assets/watermark.png"
+                              alt="E-Sign Terverifikasi"
+                              draggable={false}
+                              className="max-h-full max-w-full object-contain pointer-events-none select-none"
+                            />
+                          </div>
+
+                          {/* Indikator Koordinat Real-Time saat Terpilih */}
+                          {isSelected && (
+                            <div className="absolute -bottom-2.5 left-2 bg-slate-800/90 text-white text-[8px] font-mono px-1.5 py-0.5 rounded shadow-xs pointer-events-none">
+                              X: {Math.round(field.posX)} · Y: {Math.round(field.posY)} · Fix
+                            </div>
+                          )}
+                        </div>
+                      )
+                    }
+
+                    if (field.type === 'NAME') {
+                      return (
+                        <div
+                          key={field.id}
+                          ref={(element) => {
+                            fieldElementsRef.current[field.id] = element
+                          }}
+                          onPointerDown={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            setActiveRecipient(null)
+
+                            const el = fieldElementsRef.current[field.id]
+                            if (el) el.setPointerCapture(event.pointerId)
+
+                            setSelectedFieldId(field.id)
+                            const interaction: FieldInteraction = {
+                              mode: 'drag',
+                              fieldId: field.id,
+                              initialPageNumber: field.pageNumber,
+                              startX: event.clientX,
+                              startY: event.clientY,
+                              initialX: field.posX,
+                              initialY: field.posY,
+                              initialWidth: field.width,
+                              initialHeight: field.height,
+                              currentX: field.posX,
+                              currentY: field.posY,
+                              currentWidth: field.width,
+                              currentHeight: field.height,
+                              pointerId: event.pointerId,
+                            }
+                            interactionRef.current = interaction
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedFieldId(field.id)
+                          }}
+                          style={{
+                            left: `${field.posX}px`,
+                            top: `${field.posY}px`,
+                            width: `${field.width}px`,
+                            height: `${field.height}px`,
+                          }}
+                          className={`absolute z-10 rounded-md border-2 border-dashed p-1.5 flex flex-col justify-center select-none cursor-move ${
+                            isSelected
+                              ? 'border-indigo-600 bg-white/95 ring-2 ring-indigo-400 shadow-md'
+                              : 'border-indigo-400 bg-white/85 hover:border-indigo-500'
+                          }`}
+                        >
+                          <div className="absolute -top-3 left-2 bg-indigo-700 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-xs pointer-events-none">
+                            {field.recipientName} (Nama & NIK)
+                          </div>
+
+                          <button
+                            type="button"
+                            aria-label="Hapus plot"
+                            onPointerDown={(event) => {
+                              event.preventDefault()
+                              event.stopPropagation()
+                              handleDeleteField(field.id)
+                            }}
+                            className="absolute -right-3 -top-3 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow hover:bg-red-700 cursor-pointer"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+
+                          {/* Preview Teks Nama & NIK (Sesuai Preferensi Kesepakatan) */}
+                          <div
+                            className={`w-full flex flex-col justify-center pointer-events-none overflow-hidden px-1 ${
+                              field.textAlign === 'left' ? 'items-start text-left' : 'items-center text-center'
+                            }`}
+                            style={{
+                              fontSize: `${field.fontSize || 10}px`,
+                              lineHeight: 1.25,
+                            }}
+                          >
+                            <span className="font-bold tracking-wide uppercase underline text-slate-900 truncate max-w-full">
+                              {field.recipientName.replace(' (Saya)', '')}
+                            </span>
+                            {field.recipientNip ? (
+                              <span className="font-semibold text-slate-700 font-mono tracking-tight mt-0.5 text-[0.9em] truncate max-w-full">
+                                {field.recipientNip}
+                              </span>
+                            ) : (
+                              <span className="italic text-amber-600 font-medium tracking-tight mt-0.5 text-[0.75em] truncate max-w-full">
+                                (NIK belum diatur)
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Indikator Koordinat Real-Time saat Terpilih */}
+                          {isSelected && (
+                            <div className="absolute -bottom-2.5 left-2 bg-slate-800/90 text-white text-[8px] font-mono px-1.5 py-0.5 rounded shadow-xs pointer-events-none">
+                              X: {Math.round(field.posX)} · Y: {Math.round(field.posY)} · {field.fontSize || 10}pt
+                            </div>
+                          )}
+
+                          {isSelected && (
+                            <button
+                              type="button"
+                              aria-label="Ubah ukuran plot"
+                              onPointerDown={(event) => {
+                                event.preventDefault()
+                                event.stopPropagation()
+
+                                const el = fieldElementsRef.current[field.id]
+                                if (el) el.setPointerCapture(event.pointerId)
+
+                                const interaction: FieldInteraction = {
+                                  mode: 'resize',
+                                  fieldId: field.id,
+                                  initialPageNumber: field.pageNumber,
+                                  startX: event.clientX,
+                                  startY: event.clientY,
+                                  initialX: field.posX,
+                                  initialY: field.posY,
+                                  initialWidth: field.width,
+                                  initialHeight: field.height,
+                                  currentX: field.posX,
+                                  currentY: field.posY,
+                                  currentWidth: field.width,
+                                  currentHeight: field.height,
+                                  pointerId: event.pointerId,
+                                }
+                                interactionRef.current = interaction
+                              }}
+                              className="absolute bottom-0 right-0 h-4 w-4 cursor-se-resize rounded-tl bg-indigo-600"
+                            />
+                          )}
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <div
+                        key={field.id}
+                        ref={(element) => {
+                          fieldElementsRef.current[field.id] = element
+                        }}
+                        onPointerDown={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          setActiveRecipient(null)
+
+                          const el = fieldElementsRef.current[field.id]
+                          if (el) {
+                            el.setPointerCapture(event.pointerId)
+                          }
+
+                          setSelectedFieldId(field.id)
+                          const interaction: FieldInteraction = {
+                            mode: 'drag',
+                            fieldId: field.id,
+                            initialPageNumber: field.pageNumber,
+                            startX: event.clientX,
+                            startY: event.clientY,
+                            initialX: field.posX,
+                            initialY: field.posY,
+                            initialWidth: field.width,
+                            initialHeight: field.height,
+                            currentX: field.posX,
+                            currentY: field.posY,
+                            currentWidth: field.width,
+                            currentHeight: field.height,
+                            pointerId: event.pointerId,
+                          }
+                          interactionRef.current = interaction
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setSelectedFieldId(field.id)
+                        }}
+                        style={{
+                          left: `${field.posX}px`,
+                          top: `${field.posY}px`,
+                          width: `${field.width}px`,
+                          height: `${field.height}px`,
+                        }}
+                        className={`absolute z-10 rounded-lg border-2 border-dashed p-2 flex flex-col items-center justify-center select-none cursor-move ${
+                          isParaf
+                            ? isSelected
+                              ? 'border-amber-600 bg-amber-50/90 ring-2 ring-amber-400 shadow-md'
+                              : 'border-amber-500 bg-amber-50/70'
+                            : isSelected
+                            ? `${theme.selectedBorder} ${theme.selectedBg} ring-2 ${theme.ring} shadow-md`
+                            : `${theme.border} ${theme.bg}`
+                        }`}
+                      >
+                        <div
+                          className={`absolute -top-3 left-2 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-xs pointer-events-none ${
+                            isParaf ? 'bg-amber-600' : theme.badgeBg
+                          }`}
+                        >
+                          {field.recipientName} ({isParaf ? 'Paraf' : 'TTD'})
+                        </div>
+
+                        <button
+                          type="button"
+                          aria-label="Hapus plot"
+                          onPointerDown={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            handleDeleteField(field.id)
+                          }}
+                          className="absolute -right-3 -top-3 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow hover:bg-red-700 cursor-pointer"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+
+                        {/* Watermark E-Sign untuk Field TTD */}
+                        {!isParaf && field.textAlign !== 'none' && (
+                          field.textAlign === 'corner' ? (
+                            <div className="absolute bottom-1 right-1 pointer-events-none z-0">
+                              <img src="/assets/watermark.png" alt="watermark" className="h-4 object-contain" />
+                            </div>
+                          ) : (
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+                              <img src="/assets/watermark.png" alt="watermark" className="max-h-[60%] max-w-[80%] object-contain opacity-30" />
+                            </div>
+                          )
+                        )}
+
+                        {isParaf ? (
+                          <FileCheck className="w-4 h-4 text-amber-600 mb-0.5 pointer-events-none relative z-10" />
+                        ) : (
+                          <PenTool className={`w-4 h-4 mb-0.5 pointer-events-none relative z-10 ${theme.icon}`} />
+                        )}
+
+                        <span
+                          className={`text-[10px] font-bold pointer-events-none relative z-10 ${
+                            isParaf ? 'text-amber-800' : theme.text
+                          }`}
+                        >
+                          {isParaf ? 'Paraf di sini' : 'Tanda tangan di sini'}
+                        </span>
+
+                        {/* Indikator Koordinat Real-Time saat Terpilih */}
+                        {isSelected && (
+                          <div className="absolute -bottom-2.5 left-2 bg-slate-800/90 text-white text-[8px] font-mono px-1.5 py-0.5 rounded shadow-xs pointer-events-none">
+                            X: {Math.round(field.posX)} · Y: {Math.round(field.posY)}
+                          </div>
+                        )}
+
+                        {isSelected && (
+                          <button
+                            type="button"
+                            aria-label="Ubah ukuran plot"
+                            onPointerDown={(event) => {
+                              event.preventDefault()
+                              event.stopPropagation()
+
+                              const el = fieldElementsRef.current[field.id]
+                              if (el) {
+                                el.setPointerCapture(event.pointerId)
+                              }
+
+                              const interaction: FieldInteraction = {
+                                mode: 'resize',
+                                fieldId: field.id,
+                                initialPageNumber: field.pageNumber,
+                                startX: event.clientX,
+                                startY: event.clientY,
+                                initialX: field.posX,
+                                initialY: field.posY,
+                                initialWidth: field.width,
+                                initialHeight: field.height,
+                                currentX: field.posX,
+                                currentY: field.posY,
+                                currentWidth: field.width,
+                                currentHeight: field.height,
+                                pointerId: event.pointerId,
+                              }
+                              interactionRef.current = interaction
+                            }}
+                            className={`absolute bottom-0 right-0 h-4 w-4 cursor-se-resize rounded-tl ${
+                              isParaf ? 'bg-amber-600' : theme.badgeBg
+                            }`}
+                          />
+                        )}
+                      </div>
+                    )
+                  })}
+              </div>
+            ))}
+          </div>
+        </main>
+
+        {/* Sidebar Kanan: Properti Field */}
+        <aside className="w-64 border-l border-slate-200/90 bg-[#f8fafc] p-4 space-y-5 overflow-y-auto shrink-0">
+          <h3 className="text-xs font-bold text-slate-800 border-b border-slate-200 pb-2.5 flex items-center gap-1.5">
+            <Sliders className="h-3.5 w-3.5 text-blue-600" /> Properti Field
+          </h3>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1.5">Filter Penandatangan</label>
+              <select
+                value={selectedRecipientId ?? ''}
+                onChange={(event) => {
+                  const recipientId = event.target.value || null
+                  setSelectedRecipientId(recipientId)
+                  setSelectedFieldId(null)
+                }}
+                className="mb-3 w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-700 shadow-2xs focus:ring-2 focus:ring-blue-500/20 outline-none"
+              >
+                <option value="">Semua penandatangan</option>
+                {recipients.map((recipient) => (
+                  <option key={recipient.id} value={recipient.id}>
+                    {recipient.name}
+                  </option>
+                ))}
+              </select>
+
+              {visibleFields.length > 0 ? (
+                <div className="space-y-2">
+                  {visibleFields.map((field, index) => (
+                    <button
+                      key={field.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedFieldId(field.id)
+                        setSelectedRecipientId(field.recipientId)
+                      }}
+                      className={`w-full rounded-xl border p-2.5 text-left text-[11px] transition-all cursor-pointer ${
+                        selectedFieldId === field.id
+                          ? 'border-blue-500 bg-blue-50/90 ring-2 ring-blue-500/20 shadow-xs'
+                          : 'border-slate-200/90 bg-white hover:border-slate-300 shadow-2xs'
+                      }`}
+                    >
+                      <span className="flex items-center justify-between font-bold text-slate-700">
+                        <span>
+                          {index + 1}. {field.recipientName}
+                        </span>
+                        <span
+                          className={`text-[9px] px-1.5 py-0.5 rounded font-extrabold ${
+                            field.type === 'AUDIT_STAMP'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : field.type === 'NAME'
+                              ? 'bg-indigo-100 text-indigo-700'
+                              : field.type === 'PARAF'
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-blue-100 text-blue-700'
+                          }`}
+                        >
+                          {field.type === 'NAME' ? 'NAMA & NIK' : field.type}
+                        </span>
+                      </span>
+                      <span className="block text-slate-500 text-[10px] mt-1">
+                        Halaman {field.pageNumber} · X: {Math.round(field.posX)} · Y: {Math.round(field.posY)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400 italic">Belum ada plot ditempatkan.</p>
+              )}
+            </div>
+
+            {selectedField ? (
+              <div className="space-y-4 border-t border-slate-200 pt-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Ditugaskan Kepada</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={selectedField.recipientName}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-100/90 p-2.5 text-xs font-semibold text-slate-700"
+                  />
+                </div>
+
+                {/* Switcher Tipe Field Terpilih */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1.5">Tipe Pengesahan</label>
+                  <div className="grid grid-cols-3 gap-1 bg-slate-200/70 p-1 rounded-xl border border-slate-300/60">
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateFieldType(selectedField.id, 'SIGNATURE')}
+                      className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        selectedField.type === 'SIGNATURE'
+                          ? 'bg-white text-blue-600 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <PenTool className="h-3 w-3" /> TTD
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateFieldType(selectedField.id, 'PARAF')}
+                      className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        selectedField.type === 'PARAF'
+                          ? 'bg-white text-amber-600 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <FileCheck className="h-3 w-3" /> Paraf
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateFieldType(selectedField.id, 'NAME')}
+                      className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        selectedField.type === 'NAME'
+                          ? 'bg-white text-indigo-600 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <UserCheck className="h-3 w-3" /> Nama
+                    </button>
+                  </div>
+                </div>
+
+                {/* Panel Pilihan Watermark E-Sign saat Tipe Plot adalah SIGNATURE (TTD) */}
+                {selectedField.type === 'SIGNATURE' && (
+                  <div className="space-y-2 border-t border-slate-200 pt-3">
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Watermark E-Sign
+                    </label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateFieldWatermark(selectedField.id, 'center')}
+                        className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                          (selectedField.textAlign || 'center') === 'center'
+                            ? 'border-blue-600 bg-blue-50/90 ring-2 ring-blue-500/20 text-blue-900 shadow-2xs font-semibold'
+                            : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700 shadow-2xs'
+                        }`}
+                      >
+                        <span className="block text-[11px] font-bold">Opsi 1</span>
+                        <span className="block text-[9px] text-slate-500 mt-0.5 leading-tight">Center (30%)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateFieldWatermark(selectedField.id, 'corner')}
+                        className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                          selectedField.textAlign === 'corner'
+                            ? 'border-blue-600 bg-blue-50/90 ring-2 ring-blue-500/20 text-blue-900 shadow-2xs font-semibold'
+                            : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700 shadow-2xs'
+                        }`}
+                      >
+                        <span className="block text-[11px] font-bold">Opsi 2</span>
+                        <span className="block text-[9px] text-slate-500 mt-0.5 leading-tight">Pojok Kanan</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateFieldWatermark(selectedField.id, 'none')}
+                        className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                          selectedField.textAlign === 'none'
+                            ? 'border-blue-600 bg-blue-50/90 ring-2 ring-blue-500/20 text-blue-900 shadow-2xs font-semibold'
+                            : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700 shadow-2xs'
+                        }`}
+                      >
+                        <span className="block text-[11px] font-bold">Tanpa WM</span>
+                        <span className="block text-[9px] text-slate-500 mt-0.5 leading-tight">Tidak Ada</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Panel Pengaturan Tipografi saat Tipe Plot adalah NAME (Nama & NIK) */}
+                {selectedField.type === 'NAME' && (
+                  <div className="space-y-3.5 border-t border-slate-200 pt-3">
+                    {/* Ukuran Font (6pt - 36pt) */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                          <Type className="h-3.5 w-3.5 text-indigo-600" /> Ukuran Font
+                        </label>
+                        <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200 shadow-2xs">
+                          <button
+                            type="button"
+                            title="Perkecil Font (-1pt)"
+                            disabled={(selectedField.fontSize || 10) <= 6}
+                            onClick={() => handleUpdateFieldFontSize(selectedField.id, (selectedField.fontSize || 10) - 1)}
+                            className="p-1 rounded bg-slate-100 text-slate-700 hover:text-indigo-600 disabled:opacity-40 disabled:hover:text-slate-600 transition-all cursor-pointer disabled:cursor-not-allowed"
+                          >
+                            <Minus className="h-3 w-3" />
+                          </button>
+                          <div className="flex items-center gap-0.5 px-1">
+                            <input
+                              type="number"
+                              min={6}
+                              max={36}
+                              value={selectedField.fontSize || 10}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value, 10)
+                                if (!isNaN(val)) {
+                                  handleUpdateFieldFontSize(selectedField.id, val)
+                                }
+                              }}
+                              className="w-8 text-center text-xs font-bold text-indigo-700 bg-transparent focus:outline-hidden focus:ring-1 focus:ring-indigo-500 rounded"
+                            />
+                            <span className="text-[10px] font-semibold text-slate-400">pt</span>
+                          </div>
+                          <button
+                            type="button"
+                            title="Perbesar Font (+1pt)"
+                            disabled={(selectedField.fontSize || 10) >= 36}
+                            onClick={() => handleUpdateFieldFontSize(selectedField.id, (selectedField.fontSize || 10) + 1)}
+                            className="p-1 rounded bg-slate-100 text-slate-700 hover:text-indigo-600 disabled:opacity-40 disabled:hover:text-slate-600 transition-all cursor-pointer disabled:cursor-not-allowed"
+                          >
+                            <Plus className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Range Slider 6pt - 36pt */}
+                      <div className="px-0.5">
+                        <input
+                          type="range"
+                          min={6}
+                          max={36}
+                          step={1}
+                          value={selectedField.fontSize || 10}
+                          onChange={(e) => handleUpdateFieldFontSize(selectedField.id, Number(e.target.value))}
+                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                        />
+                        <div className="flex justify-between text-[9px] text-slate-400 mt-0.5">
+                          <span>6pt</span>
+                          <span>12pt</span>
+                          <span>18pt</span>
+                          <span>24pt</span>
+                          <span>36pt</span>
+                        </div>
+                      </div>
+
+                      {/* Tombol Preset Cepat */}
+                      <div className="grid grid-cols-4 gap-1 pt-1">
+                        {[8, 10, 12, 14, 18, 24, 30, 36].map((size) => (
+                          <button
+                            key={size}
+                            type="button"
+                            onClick={() => handleUpdateFieldFontSize(selectedField.id, size)}
+                            className={`py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                              (selectedField.fontSize || 10) === size
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            {size}pt
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Kesejajaran Teks */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
+                        Kesejajaran Teks
+                      </label>
+                      <div className="grid grid-cols-2 gap-1.5 bg-slate-200/70 p-1 rounded-xl border border-slate-300/60">
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateFieldTextAlign(selectedField.id, 'left')}
+                          className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            selectedField.textAlign === 'left'
+                              ? 'bg-white text-indigo-600 shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <AlignLeft className="h-3.5 w-3.5" /> Rata Kiri
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateFieldTextAlign(selectedField.id, 'center')}
+                          className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            (selectedField.textAlign || 'center') === 'center'
+                              ? 'bg-white text-indigo-600 shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <AlignCenter className="h-3.5 w-3.5" /> Rata Tengah
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Catatan Format */}
+                    <div className="rounded-xl bg-indigo-50/80 border border-indigo-100 p-2.5 text-[10px] text-indigo-900/80 leading-relaxed">
+                      <p className="font-semibold text-indigo-900 mb-0.5">Format Teks Otomatis:</p>
+                      <ul className="list-disc list-inside space-y-0.5 text-[9.5px]">
+                        <li>Nama kapital dengan garis bawah (<u>UNDERLINE</u>)</li>
+                        <li>NIK tercetak di bawah nama (angka saja)</li>
+                      </ul>
+                    </div>
+
+                    {/* Peringatan jika NIK belum diisi di profil penandatangan */}
+                    {(() => {
+                      const fieldRecipient = recipients.find((r) => r.id === selectedField.recipientId)
+                      if (!fieldRecipient?.nip) {
+                        return (
+                          <div className="rounded-xl bg-amber-50 border border-amber-200 p-2.5 text-[10px] text-amber-800 flex items-start gap-2">
+                            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-semibold text-amber-900">NIK Belum Terdaftar di Profil</p>
+                              <p className="mt-0.5 leading-relaxed text-amber-800">
+                                Akun <strong>{fieldRecipient?.name || 'penandatangan'}</strong> belum memiliki NIK/NIP di profil akunnya. NIK tidak akan tercetak di PDF jika data profil kosong. Silakan lengkapi NIP/NIK melalui menu <em>Pengaturan Profil</em>.
+                              </p>
+                            </div>
+                          </div>
+                        )
+                      }
+                      return null
+                    })()}
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
+        </aside>
+      </div>
+    </div>
+  )
+}
