@@ -262,9 +262,8 @@ export default function UploadDocumentPage() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-slate-100/80 p-8">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <PageHeaderBanner
+    <div className="mx-auto max-w-6xl w-full space-y-6">
+      <PageHeaderBanner
           title="Unggah Dokumen"
           subtitle="Unggah berkas PDF baru dan atur pihak-pihak penandatangan dokumen."
         />
@@ -537,6 +536,5 @@ export default function UploadDocumentPage() {
           </div>
         </div>
       </div>
-    </div>
   )
 }

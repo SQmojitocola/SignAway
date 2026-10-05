@@ -182,7 +182,7 @@ export default function SpecimensPage() {
   const parafCount = specimens.filter((s) => s.type === 'PARAF').length
 
   return (
-    <div className="min-h-screen w-full bg-slate-100/80 p-8 space-y-6">
+    <div className="max-w-6xl mx-auto w-full space-y-6">
       {/* Header Banner Card */}
       <PageHeaderBanner
         title="Atribut Pengesahan"

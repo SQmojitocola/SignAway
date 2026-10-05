@@ -107,7 +107,7 @@ export default function ProxyRequestsPage() {
   const rejectedCount = requests.filter((r) => r.status === 'REJECTED').length
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-6 font-sans text-slate-800">
+    <div className="max-w-7xl mx-auto space-y-6 font-sans text-slate-800">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-extrabold text-[#003b73] tracking-tight">

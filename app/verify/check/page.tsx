@@ -92,9 +92,8 @@ export default function VerifyCheckPage() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-slate-100/80 p-8">
-      <div className="mx-auto max-w-5xl space-y-6">
-        {/* Header Banner Card */}
+    <div className="mx-auto max-w-5xl w-full space-y-6">
+      {/* Header Banner Card */}
         <PageHeaderBanner
           title="Verifikasi Dokumen"
           subtitle="Pemeriksaan keaslian dan integritas berkas PDF bertanda tangan digital."
@@ -248,6 +247,5 @@ export default function VerifyCheckPage() {
           )}
         </div>
       </div>
-    </div>
   )
 }

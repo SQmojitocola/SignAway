@@ -234,11 +234,8 @@ export default function SettingsPage() {
       .map((n) => n[0].toUpperCase())
       .join("")
     : "U";
-
   return (
-    <div className="bg-[#f8fafc] text-gray-900 min-h-screen font-sans">
-      <main className="min-w-0 flex flex-col">
-        <div className="p-8 max-w-6xl w-full mx-auto flex flex-col gap-6 pb-16">
+    <div className="max-w-6xl w-full mx-auto flex flex-col gap-6 pb-16 font-sans text-slate-800">
 
           {/* Header Banner Card */}
           <PageHeaderBanner
@@ -739,8 +736,6 @@ export default function SettingsPage() {
             </div>
           </div>
 
-        </div>
-      </main>
     </div>
   );
 }

@@ -75,7 +75,7 @@ export default async function DashboardPage() {
   }));
 
   return (
-    <main className="min-w-0 flex flex-col w-full">
+    <div className="min-w-0 flex flex-col w-full">
       <div className="max-w-7xl mx-auto w-full flex flex-col gap-6">
         <PageHeaderBanner
           title={`Halo, ${user.name}`}
@@ -103,6 +103,6 @@ export default async function DashboardPage() {
 
         <PendingDocuments documents={dashboardDocuments} userId={user.id} />
       </div>
-    </main>
+    </div>
   );
 }

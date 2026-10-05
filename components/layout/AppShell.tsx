@@ -11,18 +11,17 @@ export default function AppShell({
 }) {
   const pathname = usePathname()
 
-  // Sembunyikan Sidebar untuk Login, Register, Editor Plotting, dan Konfirmasi Pengiriman
+  // Sembunyikan Sidebar untuk Login, Register, Editor Plotting, Signing, Viewer Dokumen, dan Konfirmasi Pengiriman
   const isHideSidebar =
     pathname === '/login' ||
     pathname === '/register' ||
-    pathname.includes('/edit') ||
-    pathname.includes('/sign') ||
+    pathname.startsWith('/documents/') ||
     pathname.includes('/success')
 
   return (
     <AuthProvider>
       {isHideSidebar ? (
-        <main className="w-full min-h-screen">{children}</main>
+        <div className="w-full min-h-screen">{children}</div>
       ) : (
         <div className="flex min-h-screen">
           <Sidebar />

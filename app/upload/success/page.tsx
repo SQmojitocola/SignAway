@@ -72,7 +72,7 @@ export default function UploadSuccessPage() {
   })
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-slate-100/80 p-6">
+    <div className="flex min-h-screen w-full items-center justify-center bg-dot-pattern p-6">
       <div className="w-full max-w-lg rounded-3xl bg-white p-8 shadow-xl border border-slate-200/60 space-y-6">
         
         {/* Icon & Banner Sukses */}
