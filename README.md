@@ -24,7 +24,7 @@ Aplikasi Tanda Tangan Digital Multi-Recipient berbasis Web & Tablet (iPad) yang 
 
 ### 1. Clone Repository & Install Dependencies
 ```bash
-git clone <url-repository-kamu>
+git clone <https://github.com/SQmojitocola/SignAway.git>
 cd SignAway
 npm install
 
@@ -193,4 +193,4 @@ Berikut adalah daftar fitur potensial yang dicatat untuk pengembangan di masa me
 * **Pertimbangan Teknis & Mitigasi Risiko:**
   * **Pembersihan Noise & Kertas Fisik:** Menggunakan algoritma *adaptive binarization / thresholding* untuk memisahkan goresan tinta dari bayangan tangan, pencahayaan tidak merata, atau tekstur kertas bergaris.
   * **Kompatibilitas Mesin PDF (`pdf-lib`):** Backend penandatanganan saat ini menempelkan gambar via `pdfDoc.embedPng()`. Hasil vektorisasi (kurva Bézier/SVG) akan diekspor kembali ke format *High-Resolution Transparent PNG* agar 100% kompatibel dan tidak merusak alur penandatanganan dokumen yang sudah ada.
-  * **Arsitektur Pemrosesan:** Menggunakan *Client-Side Canvas API* di peramban pengguna (*browser*) yang dilengkapi *Interactive Modal Tuning* (slider sensitivitas ambang kontras, pilihan warna tinta hitam/biru instansi, alat penghapus noda/eraser, dan *auto-crop* area kosong) untuk mencegah *deployment crash* dari dependensi native C++ di server.
+  * **Arsitektur Pemrosesan:** Menggunakan *Client-Side Canvas API* di peramban pengguna (*browser*) yang dilengkapi *Interactive Modal Tuning* (slider sensitivitas ambang kontras, pilihan warna tinta hitam/biru instansi, alat penghapus noda/eraser, dan *auto-crop* area kosong) untuk mencegah *deployment crash* dari dependensi native C++ di server.
