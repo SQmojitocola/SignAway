@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 import QRCode from 'qrcode'
+import fs from 'fs/promises'
+import path from 'path'
 import { prisma } from '@/lib/prisma'
 
 export async function GET(
@@ -55,6 +57,16 @@ export async function GET(
     const bgCard = rgb(0.96, 0.97, 0.99)
     const borderCard = rgb(0.85, 0.88, 0.92)
 
+    // Load Logo E-Sign
+    let logoImage = null
+    try {
+      const logoPath = path.join(process.cwd(), 'public', 'assets', 'Logo_E-Sign.png')
+      const logoBytes = await fs.readFile(logoPath)
+      logoImage = await pdfDoc.embedPng(logoBytes)
+    } catch (err) {
+      console.warn('Gagal memuat Logo_E-Sign.png:', err)
+    }
+
     // 2. Bingkai Header Elegan
     page.drawRectangle({
       x: 35,
@@ -65,21 +77,24 @@ export async function GET(
       borderWidth: 0,
     })
 
-    page.drawText('SIGNAWAY DIGITAL TRUST NETWORK', {
+    page.drawText('SERTIFIKAT KEASLIAN PENGESAHAN', {
       x: 55,
-      y: height - 60,
-      size: 9,
-      font: helveticaBold,
-      color: rgb(0.7, 0.82, 1),
-    })
-
-    page.drawText('CERTIFICATE OF DIGITAL AUTHENTICITY', {
-      x: 55,
-      y: height - 80,
+      y: height - 73,
       size: 15,
       font: helveticaBold,
       color: rgb(1, 1, 1),
     })
+
+    if (logoImage) {
+      const logoHeight = 36
+      const logoWidth = (logoImage.width / logoImage.height) * logoHeight
+      page.drawImage(logoImage, {
+        x: width - 35 - 18 - logoWidth,
+        y: height - 100 + (65 - logoHeight) / 2,
+        width: logoWidth,
+        height: logoHeight,
+      })
+    }
 
     // 3. Status Keabsahan Banner (Hijau)
     page.drawRectangle({
@@ -330,7 +345,7 @@ export async function GET(
     })
 
     page.drawText(
-      `Sertifikat ini diterbitkan secara otomatis oleh platform SignAway pada ${new Date().toISOString().replace('T', ' ').slice(0, 19)} UTC.`,
+      `Sertifikat ini diterbitkan secara otomatis oleh platform E-Sign pada ${new Date().toISOString().replace('T', ' ').slice(0, 19)} UTC.`,
       {
         x: 35,
         y: 40,

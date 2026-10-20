@@ -1,19 +1,21 @@
 'use client';
 
 import Link from "next/link";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { useRouter, usePathname } from "next/navigation";
 import { FilePenLine, FileText, FolderOpen, Landmark, LayoutDashboard, Settings, Upload } from "lucide-react";
 
 export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const isGeneralManager = (session?.user as { jobLevel?: string } | undefined)?.jobLevel === 'GENERAL_MANAGER';
 
   const menuItems = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Draft', href: '/drafts', icon: FolderOpen },
     { name: 'All Documents', href: '/documents', icon: FileText },
-    { name: 'Upload', href: '/upload', icon: Upload },
+    ...(!isGeneralManager ? [{ name: 'Upload', href: '/upload', icon: Upload }] : []),
   ];
 
   return (

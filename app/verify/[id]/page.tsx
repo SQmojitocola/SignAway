@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ShieldCheck, CheckCircle2, Download, ArrowLeft, UploadCloud, AlertTriangle, FileCheck } from 'lucide-react'
+import UserJobBadge from '@/components/user/UserJobBadge'
 
 interface DocumentVerificationData {
   id: string
@@ -11,12 +12,12 @@ interface DocumentVerificationData {
   status: string
   filePath?: string
   createdAt: string
-  sender: { name: string; email: string }
+  sender: { name: string; email: string; role?: string; jobLevel?: string | null; position?: string | null }
   recipients: Array<{
     id: string
     status: string
     updatedAt: string
-    user: { id?: string; name: string; email: string }
+    user: { id?: string; name: string; email: string; role?: string; jobLevel?: string | null; position?: string | null }
   }>
   logs: Array<{
     id: string
@@ -205,8 +206,20 @@ export default function PublicVerifierPage() {
                       className="grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-slate-100 pb-6 text-xs text-slate-600"
                     >
                       <div className="space-y-1">
-                        <p className="font-bold text-slate-800 text-sm">{recipient.user?.name}</p>
-                        <p className="text-slate-500 text-[11px]">{recipient.user?.email}</p>
+                        <div className="flex items-center gap-3">
+                          <div className="w-[50px] h-[50px] min-w-[50px] min-h-[50px] rounded-full bg-blue-100 text-blue-800 border border-blue-200 flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
+                            {recipient.user?.name ? recipient.user.name.charAt(0).toUpperCase() : 'U'}
+                          </div>
+                          <div className="flex flex-col justify-between py-0.5 min-w-0">
+                            <p className="font-bold text-slate-800 text-sm leading-tight truncate">{recipient.user?.name}</p>
+                            {recipient.user && (
+                              <div className="my-0.5">
+                                <UserJobBadge user={recipient.user} size="xs" />
+                              </div>
+                            )}
+                            <p className="text-slate-500 text-[11px] leading-tight truncate">{recipient.user?.email}</p>
+                          </div>
+                        </div>
                         <p className="text-[10px] text-slate-400 font-semibold pt-1">Signer</p>
                         <p className="text-[10px] text-slate-500">
                           Authentication Level: <span className="text-slate-700 font-medium">Email Session</span>

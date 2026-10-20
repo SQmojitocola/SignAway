@@ -12,11 +12,16 @@ import {
 } from 'lucide-react'
 
 import PageHeaderBanner from '@/components/PageHeaderBanner'
+import UserJobBadge from '@/components/user/UserJobBadge'
 
 interface UserContact {
   id: string
   name: string
   email: string
+  role?: string | null
+  jobLevel?: string | null
+  position?: string | null
+  avatarUrl?: string | null
 }
 
 export default function UploadDocumentPage() {
@@ -53,10 +58,18 @@ export default function UploadDocumentPage() {
         if (sessionRes.ok && contentTypeSession?.includes('application/json')) {
           const sessionData = await sessionRes.json()
           if (sessionData?.user) {
+            // General Manager tidak memiliki akses upload dokumen
+            if (sessionData.user.jobLevel === 'GENERAL_MANAGER') {
+              router.replace('/dashboard')
+              return
+            }
             setCurrentUser({
               id: sessionData.user.id || 'self',
               name: sessionData.user.name || 'Saya Sendiri',
               email: sessionData.user.email || '',
+              role: sessionData.user.role,
+              jobLevel: sessionData.user.jobLevel,
+              position: sessionData.user.position,
             })
           }
         }
@@ -85,6 +98,10 @@ export default function UploadDocumentPage() {
         id: currentUser.id,
         name: `${currentUser.name} (Saya)`,
         email: currentUser.email,
+        role: currentUser.role,
+        jobLevel: currentUser.jobLevel,
+        position: currentUser.position,
+        avatarUrl: currentUser.avatarUrl,
       })
     } else {
       list.push({
@@ -370,10 +387,22 @@ export default function UploadDocumentPage() {
                 </div>
 
                 {foundContact && (
-                  <div className="flex items-center justify-between rounded-lg bg-white border border-blue-100 p-2 mt-2 shadow-sm">
-                    <div className="truncate pr-2">
-                      <p className="text-xs font-bold text-slate-800">{foundContact.name}</p>
-                      <p className="text-[10px] text-slate-500">{foundContact.email}</p>
+                  <div className="flex items-center justify-between rounded-lg bg-white border border-blue-100 p-2.5 mt-2 shadow-sm">
+                    <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                      <div className="w-[50px] h-[50px] min-w-[50px] min-h-[50px] rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden shadow-xs border border-white/20">
+                        {foundContact.avatarUrl ? (
+                          <img src={foundContact.avatarUrl} alt={foundContact.name} className="w-full h-full object-cover" />
+                        ) : (
+                          foundContact.name.charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      <div className="flex flex-col justify-between py-0.5 min-w-0">
+                        <p className="text-xs font-bold text-slate-800 leading-tight truncate">{foundContact.name}</p>
+                        <div className="my-0.5">
+                          <UserJobBadge user={foundContact} size="xs" />
+                        </div>
+                        <p className="text-[10px] text-slate-500 leading-tight truncate">{foundContact.email}</p>
+                      </div>
                     </div>
                     <button
                       type="button"
@@ -382,7 +411,7 @@ export default function UploadDocumentPage() {
                         setFoundContact(null)
                         setSearchEmail('')
                       }}
-                      className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-bold text-white hover:bg-blue-700"
+                      className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700 shrink-0"
                     >
                       Pilih
                     </button>
@@ -444,15 +473,27 @@ export default function UploadDocumentPage() {
                           key={user.id}
                           className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-2.5 shadow-sm"
                         >
-                          <div className="truncate pr-2">
-                            <p
-                              className={`text-xs font-bold ${
-                                isSelf ? 'text-blue-700' : 'text-slate-800'
-                              }`}
-                            >
-                              {user.name}
-                            </p>
-                            <p className="text-[10px] text-slate-500">{user.email}</p>
+                          <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                            <div className="w-[50px] h-[50px] min-w-[50px] min-h-[50px] rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden shadow-xs border border-slate-200/60">
+                              {user.avatarUrl ? (
+                                <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+                              ) : (
+                                user.name.charAt(0).toUpperCase()
+                              )}
+                            </div>
+                            <div className="flex flex-col justify-between py-0.5 min-w-0">
+                              <p
+                                className={`text-xs font-bold leading-tight truncate ${
+                                  isSelf ? 'text-blue-700' : 'text-slate-800'
+                                }`}
+                              >
+                                {user.name}
+                              </p>
+                              <div className="my-0.5">
+                                <UserJobBadge user={user} size="xs" />
+                              </div>
+                              <p className="text-[10px] text-slate-500 leading-tight truncate">{user.email}</p>
+                            </div>
                           </div>
                           <button
                             type="button"
@@ -488,13 +529,20 @@ export default function UploadDocumentPage() {
                         key={recipient.id}
                         className="flex items-center justify-between rounded-lg bg-white p-2.5 shadow-sm border border-slate-200/60"
                       >
-                        <div className="flex items-center gap-2.5 truncate">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
-                            {index + 1}
-                          </span>
-                          <div className="truncate">
-                            <p className="text-xs font-bold text-slate-800">{recipient.name}</p>
-                            <p className="text-[10px] text-slate-400">{recipient.email}</p>
+                        <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                          <div className="w-[50px] h-[50px] min-w-[50px] min-h-[50px] rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden shadow-xs border border-blue-200">
+                            {recipient.avatarUrl ? (
+                              <img src={recipient.avatarUrl} alt={recipient.name} className="w-full h-full object-cover" />
+                            ) : (
+                              recipient.name.charAt(0).toUpperCase()
+                            )}
+                          </div>
+                          <div className="flex flex-col justify-between py-0.5 min-w-0">
+                            <p className="text-xs font-bold text-slate-800 leading-tight truncate">{recipient.name}</p>
+                            <div className="my-0.5">
+                              <UserJobBadge user={recipient} size="xs" />
+                            </div>
+                            <p className="text-[10px] text-slate-400 leading-tight truncate">{recipient.email}</p>
                           </div>
                         </div>
                         <button

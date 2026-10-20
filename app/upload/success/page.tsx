@@ -3,11 +3,18 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { CheckCircle2, Home, Files } from 'lucide-react'
+import UserJobBadge from '@/components/user/UserJobBadge'
 
 interface Recipient {
   id: string
   status: string
-  user: { name: string; email: string }
+  user: {
+    name: string
+    email: string
+    role?: string
+    jobLevel?: string | null
+    position?: string | null
+  }
 }
 
 interface Field {
@@ -138,12 +145,17 @@ export default function UploadSuccessPage() {
                   className="flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/80 p-3"
                 >
                   <div className="flex items-center gap-3 min-w-0 pr-2">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-bold text-slate-600">
+                    <span className="flex w-[48px] h-[48px] min-w-[48px] min-h-[48px] shrink-0 items-center justify-center rounded-full bg-slate-200 text-sm font-bold text-slate-700 shadow-xs border border-slate-300/60">
                       {idx + 1}
                     </span>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-800 truncate">{recipient.user?.name}</p>
-                      <p className="text-[10px] text-slate-500 truncate">
+                    <div className="flex flex-col justify-between py-0.5 min-w-0">
+                      <p className="text-xs font-bold text-slate-800 leading-tight truncate">{recipient.user?.name}</p>
+                      {recipient.user && (
+                        <div className="my-0.5">
+                          <UserJobBadge user={recipient.user} size="xs" />
+                        </div>
+                      )}
+                      <p className="text-[10px] text-slate-500 leading-tight truncate">
                         {recipient.user?.email}{' '}
                         {pageNumbers.length > 0 && (
                           <span className="text-blue-600 font-medium">

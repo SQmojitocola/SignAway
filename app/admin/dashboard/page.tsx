@@ -17,6 +17,7 @@ import {
   Sparkles,
   Building2,
 } from 'lucide-react'
+import UserJobBadge from '@/components/user/UserJobBadge'
 
 function getInitials(name: string) {
   return (
@@ -141,13 +142,13 @@ export default async function AdminDashboardPage() {
       take: 5,
       orderBy: { updatedAt: 'desc' },
       include: {
-        sender: { select: { id: true, name: true, email: true, department: true, avatarUrl: true } },
+        sender: { select: { id: true, name: true, email: true, department: true, avatarUrl: true, role: true, jobLevel: true, position: true } },
         recipients: {
           select: {
             id: true,
             status: true,
             signingOrder: true,
-            user: { select: { id: true, name: true, email: true, avatarUrl: true } },
+            user: { select: { id: true, name: true, email: true, avatarUrl: true, role: true, jobLevel: true, position: true } },
           },
           orderBy: { signingOrder: 'asc' },
         },
@@ -371,20 +372,25 @@ export default async function AdminDashboardPage() {
 
                         {/* 2. Pengunggah (Uploader) */}
                         <td className="py-3 px-3">
-                          <div className="flex items-center gap-2 max-w-[140px]">
-                            <div className="w-6 h-6 rounded-full bg-[#003b73] text-white flex items-center justify-center font-bold text-[9px] shrink-0 overflow-hidden shadow-xs border border-white/20">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-[50px] h-[50px] min-w-[50px] min-h-[50px] rounded-full bg-[#003b73] text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden shadow-xs border border-white/20">
                               {doc.sender?.avatarUrl ? (
                                 <img src={doc.sender.avatarUrl} alt={doc.sender?.name || 'User'} className="w-full h-full object-cover" />
                               ) : (
                                 getInitials(doc.sender?.name || 'User')
                               )}
                             </div>
-                            <div className="min-w-0">
-                              <p className="font-semibold text-slate-800 truncate">
+                            <div className="flex flex-col justify-between py-0.5 min-w-0">
+                              <p className="font-semibold text-slate-800 text-xs leading-tight truncate">
                                 {doc.sender?.name}
                               </p>
-                              <p className="text-[10px] text-slate-400 truncate">
-                                {doc.sender?.department || doc.sender?.email}
+                              {doc.sender && (
+                                <div className="my-0.5">
+                                  <UserJobBadge user={doc.sender} size="xs" />
+                                </div>
+                              )}
+                              <p className="text-[10px] text-slate-400 leading-tight truncate">
+                                {doc.sender?.email}
                               </p>
                             </div>
                           </div>

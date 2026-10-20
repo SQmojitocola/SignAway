@@ -5,13 +5,21 @@ import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, XCircle, Download, CheckCircle2, ShieldAlert, ShieldCheck, Clock, PenTool } from 'lucide-react'
 import ProxyRequestModal from '@/components/document/ProxyRequestModal'
 import CancelDocumentButton from '@/components/admin/CancelDocumentButton'
+import UserJobBadge from '@/components/user/UserJobBadge'
 
 interface Recipient {
   id: string
   userId?: string
   status: string
   rejectReason?: string | null
-  user: { id: string; name: string; email: string }
+  user: {
+    id: string
+    name: string
+    email: string
+    role?: string
+    jobLevel?: string | null
+    position?: string | null
+  }
 }
 
 interface DocumentField {
@@ -403,11 +411,18 @@ export default function DocumentDetailPage() {
                   key={r.id}
                   className="flex items-center justify-between border-b border-slate-800/50 pb-2.5 last:border-0 last:pb-0"
                 >
-                  <div className="flex items-center gap-2 min-w-0 pr-2">
-                    <span className="font-mono text-[10px] text-slate-500 shrink-0">#{idx + 1}</span>
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-slate-300 truncate">{r.user?.name}</p>
-                      <p className="text-[9px] text-slate-500 truncate">{r.user?.email}</p>
+                  <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                    <span className="flex w-[44px] h-[44px] min-w-[44px] min-h-[44px] shrink-0 items-center justify-center rounded-full bg-slate-800 text-[11px] font-bold text-slate-300 font-mono border border-slate-700/80">
+                      #{idx + 1}
+                    </span>
+                    <div className="flex flex-col justify-between py-0.5 min-w-0">
+                      <p className="text-xs font-medium text-slate-200 leading-tight truncate">{r.user?.name}</p>
+                      {r.user && (
+                        <div className="my-0.5">
+                          <UserJobBadge user={r.user} size="xs" />
+                        </div>
+                      )}
+                      <p className="text-[10px] text-slate-400 leading-tight truncate">{r.user?.email}</p>
                     </div>
                   </div>
 

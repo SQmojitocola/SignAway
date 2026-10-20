@@ -12,6 +12,13 @@ enum Role {
   KARYAWAN
 }
 
+// Tingkat Jabatan Pengguna
+enum JobLevel {
+  GENERAL_MANAGER
+  HEAD_SECTION
+  STAFF
+}
+
 // Status Akun Pengguna
 enum UserStatus {
   ACTIVE
@@ -59,18 +66,20 @@ enum AdminMessageStatus {
 }
 
 model User {
-  id                String    @id @default(uuid())
-  email             String    @unique
+  id                String      @id @default(uuid())
+  email             String      @unique
   name              String
-  role              Role      @default(KARYAWAN)
+  role              Role        @default(KARYAWAN)
+  jobLevel          JobLevel?   @default(STAFF) @map("job_level")
+  position          String?
   nip               String?     @unique
   department        String?
   status            UserStatus  @default(ACTIVE)
   isActive          Boolean     @default(true) @map("is_active")
-  passwordHash      String    @map("password_hash")
-  signatureSpecimen String?   @map("signature_specimen")
-  avatarUrl         String?   @map("avatar_url")
-  createdAt         DateTime  @default(now()) @map("signed_at")
+  passwordHash      String      @map("password_hash")
+  signatureSpecimen String?     @map("signature_specimen")
+  avatarUrl         String?     @map("avatar_url")
+  createdAt         DateTime    @default(now()) @map("signed_at")
 
   sentDocuments     Document[]          @relation("SenderRelation")
   signatureLogs     SignatureLog[]

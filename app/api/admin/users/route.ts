@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    const { name, email, password, nip, department, role } = body
+    const { name, email, password, nip, department, role, jobLevel, position } = body
 
     if (!name || !email || !password) {
       return NextResponse.json({ error: 'Nama, Email, dan Password wajib diisi.' }, { status: 400 })
@@ -45,6 +45,8 @@ export async function POST(req: Request) {
         nip: nip || null,
         department: department || null,
         role: role || 'KARYAWAN',
+        jobLevel: jobLevel || 'STAFF',
+        position: position || null,
         status: 'ACTIVE',
         isActive: true,
       },
@@ -53,6 +55,8 @@ export async function POST(req: Request) {
         name: true,
         email: true,
         role: true,
+        jobLevel: true,
+        position: true,
         nip: true,
         department: true,
         status: true,
@@ -86,7 +90,7 @@ export async function PUT(req: Request) {
     }
 
     const body = await req.json()
-    const { id, name, email, password, nip, department, role, status } = body
+    const { id, name, email, password, nip, department, role, jobLevel, position, status } = body
 
     if (!id) {
       return NextResponse.json({ error: 'ID Pengguna wajib disertakan.' }, { status: 400 })
@@ -126,6 +130,8 @@ export async function PUT(req: Request) {
       nip?: string | null
       department?: string | null
       role?: 'ADMIN' | 'KARYAWAN'
+      jobLevel?: 'GENERAL_MANAGER' | 'HEAD_SECTION' | 'STAFF'
+      position?: string | null
       status?: 'ACTIVE' | 'FROZEN' | 'DELETED'
       isActive?: boolean
       passwordHash?: string
@@ -136,6 +142,8 @@ export async function PUT(req: Request) {
     if (nip !== undefined) updateData.nip = nip || null
     if (department !== undefined) updateData.department = department || null
     if (role) updateData.role = role
+    if (jobLevel) updateData.jobLevel = jobLevel
+    if (position !== undefined) updateData.position = position || null
 
     if (status) {
       updateData.status = status
@@ -158,6 +166,8 @@ export async function PUT(req: Request) {
         name: true,
         email: true,
         role: true,
+        jobLevel: true,
+        position: true,
         nip: true,
         department: true,
         status: true,

@@ -24,10 +24,12 @@ export default function Sidebar() {
   const router = useRouter()
   const { data: session } = useSession()
 
-  // 📍 Sinkronkan role dari session atau cek jika sedang di route /admin
-  const sessionRole = (session?.user as { role?: string } | undefined)?.role
+  // 📍 Sinkronkan role dan jobLevel dari session atau cek jika sedang di route /admin
+  const sessionUser = session?.user as { role?: string; jobLevel?: string } | undefined
+  const sessionRole = sessionUser?.role
   const userRole = sessionRole || (pathname.startsWith('/admin') ? 'ADMIN' : null)
   const isAdmin = userRole === 'ADMIN' || pathname.startsWith('/admin')
+  const isGeneralManager = sessionUser?.jobLevel === 'GENERAL_MANAGER'
 
   // Menu Khusus Administrator
   const adminMenuItems = [
@@ -39,13 +41,13 @@ export default function Sidebar() {
     { name: 'Manajemen Karyawan', href: '/admin/users', icon: Users },
   ]
 
-  // Menu Khusus Karyawan / Staff Biasa
+  // Menu Khusus Karyawan / Staff Biasa (General Manager: Fitur Upload Dihilangkan)
   const staffMenuItems = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Draft', href: '/drafts', icon: FolderOpen },
     { name: 'Atribut Pengesahan', href: '/specimens', icon: PenTool },
     { name: 'Daftar Kontak', href: '/contacts', icon: Users },
-    { name: 'Upload', href: '/upload', icon: Upload },
+    ...(!isGeneralManager ? [{ name: 'Upload', href: '/upload', icon: Upload }] : []),
     { name: 'Verifikasi Dokumen', href: '/verify/check', icon: ShieldCheck },
   ]
 

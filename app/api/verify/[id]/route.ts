@@ -22,7 +22,7 @@ export async function GET(
         checksum: true,
         createdAt: true,
         sender: {
-          select: { id: true, name: true, email: true },
+          select: { id: true, name: true, email: true, role: true, jobLevel: true, position: true },
         },
         recipients: {
           select: {
@@ -31,7 +31,7 @@ export async function GET(
             role: true,
             signingOrder: true,
             user: {
-              select: { id: true, name: true, email: true },
+              select: { id: true, name: true, email: true, role: true, jobLevel: true, position: true },
             },
           },
         },
@@ -43,7 +43,7 @@ export async function GET(
             signedAt: true,
             signatureImagePath: true,
             signer: {
-              select: { id: true, name: true, email: true },
+              select: { id: true, name: true, email: true, role: true, jobLevel: true, position: true },
             },
           },
           orderBy: { signedAt: 'asc' },

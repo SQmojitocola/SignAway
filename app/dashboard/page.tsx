@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import PendingDocuments, { type DashboardDocument } from "@/components/dashboard/PendingDocuments";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-
 import PageHeaderBanner from "@/components/PageHeaderBanner";
+import UserJobBadge from "@/components/user/UserJobBadge";
 
 function getInitials(name: string) {
   return name
@@ -22,10 +22,18 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  // 1. Ambil data user beserta Role-nya dari database
+  // 1. Ambil data user beserta Role & Tingkat Jabatan dari database
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, name: true, email: true, role: true, avatarUrl: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      jobLevel: true,
+      position: true,
+      avatarUrl: true,
+    },
   });
 
   if (!user) {
@@ -52,13 +60,33 @@ export default async function DashboardPage() {
       createdAt: true,
       status: true,
       sequential: true,
-      sender: { select: { id: true, name: true, email: true, avatarUrl: true } },
+      sender: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          avatarUrl: true,
+          role: true,
+          jobLevel: true,
+          position: true,
+        },
+      },
       recipients: {
         select: {
           id: true,
           status: true,
           signingOrder: true,
-          user: { select: { id: true, name: true, email: true, avatarUrl: true } },
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              avatarUrl: true,
+              role: true,
+              jobLevel: true,
+              position: true,
+            },
+          },
         },
       },
     },
@@ -79,6 +107,7 @@ export default async function DashboardPage() {
       <div className="max-w-7xl mx-auto w-full flex flex-col gap-6">
         <PageHeaderBanner
           title={`Halo, ${user.name}`}
+          badge={<UserJobBadge user={user} className="bg-white/15 text-white border-white/25 backdrop-blur-xs font-bold" />}
           subtitle="Ringkasan dokumen yang memerlukan perhatian dan tindakan tanda tangan Anda."
           action={
             <Link

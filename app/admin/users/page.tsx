@@ -19,6 +19,8 @@ import {
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import PageHeaderBanner from '@/components/PageHeaderBanner'
+import UserJobBadge from '@/components/user/UserJobBadge'
+import { getUserJobTitle } from '@/lib/user-utils'
 
 export type UserStatusType = 'ACTIVE' | 'FROZEN' | 'DELETED'
 
@@ -27,6 +29,8 @@ interface UserData {
   name: string
   email: string
   role: 'ADMIN' | 'KARYAWAN'
+  jobLevel?: 'GENERAL_MANAGER' | 'HEAD_SECTION' | 'STAFF' | null
+  position?: string | null
   nip: string | null
   department: string | null
   status: UserStatusType
@@ -53,6 +57,8 @@ export default function UserManagementPage() {
     nip: '',
     department: 'Divisi Umum',
     role: 'KARYAWAN' as 'ADMIN' | 'KARYAWAN',
+    jobLevel: 'STAFF' as 'GENERAL_MANAGER' | 'HEAD_SECTION' | 'STAFF',
+    position: '',
   })
 
   // Modal Edit / Customize Karyawan
@@ -64,6 +70,8 @@ export default function UserManagementPage() {
     nip: '',
     department: '',
     role: 'KARYAWAN' as 'ADMIN' | 'KARYAWAN',
+    jobLevel: 'STAFF' as 'GENERAL_MANAGER' | 'HEAD_SECTION' | 'STAFF',
+    position: '',
     status: 'ACTIVE' as UserStatusType,
     newPassword: '',
   })
@@ -124,7 +132,9 @@ export default function UserManagementPage() {
         u.name.toLowerCase().includes(search.toLowerCase()) ||
         u.email.toLowerCase().includes(search.toLowerCase()) ||
         (u.nip && u.nip.includes(search)) ||
-        (u.department && u.department.toLowerCase().includes(search.toLowerCase()))
+        (u.department && u.department.toLowerCase().includes(search.toLowerCase())) ||
+        (u.position && u.position.toLowerCase().includes(search.toLowerCase())) ||
+        getUserJobTitle(u).toLowerCase().includes(search.toLowerCase())
 
       const matchesStatus = statusFilter === 'ALL' || u.status === statusFilter
 
@@ -168,6 +178,8 @@ export default function UserManagementPage() {
           nip: '',
           department: 'Divisi Umum',
           role: 'KARYAWAN',
+          jobLevel: 'STAFF',
+          position: '',
         })
         setToastMsg({ type: 'success', text: `Karyawan ${data.user.name} berhasil didaftarkan!` })
         fetchUsers()
@@ -188,6 +200,8 @@ export default function UserManagementPage() {
       nip: user.nip || '',
       department: user.department || '',
       role: user.role,
+      jobLevel: (user.jobLevel as 'GENERAL_MANAGER' | 'HEAD_SECTION' | 'STAFF') || 'STAFF',
+      position: user.position || '',
       status: user.status,
       newPassword: '',
     })
@@ -214,6 +228,8 @@ export default function UserManagementPage() {
           nip: editFormData.nip,
           department: editFormData.department,
           role: editFormData.role,
+          jobLevel: editFormData.jobLevel,
+          position: editFormData.position,
           status: editFormData.status,
           password: editFormData.newPassword.trim() || undefined,
         }),
@@ -322,6 +338,14 @@ export default function UserManagementPage() {
       'No': idx + 1,
       'Nama Karyawan': u.name,
       'Email': u.email,
+      'Tingkat Jabatan':
+        u.jobLevel === 'GENERAL_MANAGER'
+          ? 'General Manager'
+          : u.jobLevel === 'HEAD_SECTION'
+          ? 'Section Head'
+          : 'Staff/PIC',
+      'Spesifikasi Jabatan': u.position || '-',
+      'Gelar Lengkap': getUserJobTitle(u),
       'NIP': u.nip || '-',
       'Departemen': u.department || 'Umum',
       'Role Akses': u.role === 'ADMIN' ? 'Administrator' : 'Karyawan',
@@ -345,6 +369,9 @@ export default function UserManagementPage() {
       { wch: 6 },  // No
       { wch: 26 }, // Nama
       { wch: 32 }, // Email
+      { wch: 18 }, // Tingkat Jabatan
+      { wch: 22 }, // Spesifikasi Jabatan
+      { wch: 28 }, // Gelar Lengkap
       { wch: 18 }, // NIP
       { wch: 22 }, // Departemen
       { wch: 16 }, // Role
@@ -483,8 +510,8 @@ export default function UserManagementPage() {
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-400 font-bold uppercase text-[10px] tracking-wider">
                 <th className="p-4">Karyawan</th>
-                <th className="p-4">NIP & Departemen</th>
-                <th className="p-4">Role Akses</th>
+                <th className="p-4">NIP / NIK</th>
+                <th className="p-4">Jabatan & Role</th>
                 <th className="p-4">Status Akun</th>
                 <th className="p-4">Tgl Terdaftar</th>
                 <th className="p-4 text-center">Aksi & Kustomisasi</th>
@@ -524,7 +551,7 @@ export default function UserManagementPage() {
                       <td className="p-4">
                         <div className="flex items-center gap-3">
                           <div
-                            className={`flex h-9 w-9 items-center justify-center rounded-full font-bold text-xs shrink-0 overflow-hidden shadow-xs border border-white/20 ${
+                            className={`flex w-[54px] h-[54px] min-w-[54px] min-h-[54px] items-center justify-center rounded-full font-bold text-sm shrink-0 overflow-hidden shadow-xs border border-white/20 ${
                               isDeleted
                                 ? 'bg-slate-300 text-slate-600'
                                 : isFrozen
@@ -538,8 +565,8 @@ export default function UserManagementPage() {
                               user.name.substring(0, 2).toUpperCase()
                             )}
                           </div>
-                          <div>
-                            <p className="font-bold text-slate-800 flex items-center gap-1.5">
+                          <div className="flex flex-col justify-between py-0.5 min-w-0">
+                            <p className="font-bold text-slate-800 text-xs sm:text-sm flex items-center gap-1.5 leading-tight truncate">
                               {user.name}
                               {user.role === 'ADMIN' && (
                                 <span title="Administrator">
@@ -547,28 +574,27 @@ export default function UserManagementPage() {
                                 </span>
                               )}
                             </p>
-                            <p className="text-[10px] text-slate-400">{user.email}</p>
+                            <div className="my-0.5">
+                              <UserJobBadge user={user} size="xs" />
+                            </div>
+                            <p className="text-[10px] sm:text-[11px] text-slate-400 leading-tight truncate">{user.email}</p>
                           </div>
                         </div>
                       </td>
 
-                      {/* NIP & Departemen */}
+                      {/* NIP */}
                       <td className="p-4">
-                        <p className="font-semibold text-slate-700">{user.nip || '-'}</p>
-                        <p className="text-[10px] text-slate-400">{user.department || 'Umum'}</p>
+                        <p className="font-semibold text-slate-700 text-xs">{user.nip || '-'}</p>
                       </td>
 
-                      {/* Role */}
+                      {/* Jabatan & Role */}
                       <td className="p-4">
-                        <span
-                          className={`px-2.5 py-1 rounded-md text-[10px] font-extrabold uppercase ${
-                            user.role === 'ADMIN'
-                              ? 'bg-purple-100 text-purple-700'
-                              : 'bg-blue-50 text-blue-700'
-                          }`}
-                        >
-                          {user.role}
-                        </span>
+                        <div className="space-y-1">
+                          <UserJobBadge user={user} />
+                          <p className="text-[10px] text-slate-400 font-medium">
+                            {user.role === 'ADMIN' ? 'Akses Admin' : 'Akses Karyawan'}
+                          </p>
+                        </div>
                       </td>
 
                       {/* Status Akun */}
@@ -689,27 +715,15 @@ export default function UserManagementPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">NIP / NIK</label>
-                  <input
-                    type="text"
-                    placeholder="12345678"
-                    value={createFormData.nip}
-                    onChange={(e) => setCreateFormData({ ...createFormData, nip: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-[#003b73]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Departemen</label>
-                  <input
-                    type="text"
-                    placeholder="Pengadaan / IT"
-                    value={createFormData.department}
-                    onChange={(e) => setCreateFormData({ ...createFormData, department: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-[#003b73]"
-                  />
-                </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">NIP / NIK</label>
+                <input
+                  type="text"
+                  placeholder="12345678"
+                  value={createFormData.nip}
+                  onChange={(e) => setCreateFormData({ ...createFormData, nip: e.target.value })}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-[#003b73]"
+                />
               </div>
 
               <div>
@@ -736,15 +750,77 @@ export default function UserManagementPage() {
                 />
               </div>
 
+              {/* Tingkat Jabatan & Spesifikasi Bagian */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Tingkat Jabatan
+                  </label>
+                  <select
+                    value={createFormData.jobLevel}
+                    onChange={(e) => {
+                      const newLevel = e.target.value as 'GENERAL_MANAGER' | 'HEAD_SECTION' | 'STAFF'
+                      setCreateFormData({
+                        ...createFormData,
+                        jobLevel: newLevel,
+                        position: newLevel === 'GENERAL_MANAGER' ? '' : createFormData.position,
+                      })
+                    }}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-[#003b73] bg-white cursor-pointer font-medium"
+                  >
+                    <option value="GENERAL_MANAGER">General Manager (Pimpinan - Tanpa Upload Dokumen)</option>
+                    <option value="HEAD_SECTION">Head Section / Section Head</option>
+                    <option value="STAFF">Staff / PIC (Pelaksana)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Spesifikasi Bagian
+                    {createFormData.jobLevel === 'GENERAL_MANAGER' && (
+                      <span className="text-slate-400 font-normal ml-1">(Greyed Out - Khusus GM)</span>
+                    )}
+                  </label>
+                  <input
+                    type="text"
+                    disabled={createFormData.jobLevel === 'GENERAL_MANAGER'}
+                    placeholder={
+                      createFormData.jobLevel === 'GENERAL_MANAGER'
+                        ? 'Tidak berlaku untuk General Manager'
+                        : 'Contoh: Piutang / Keuangan / Koordinator Project'
+                    }
+                    value={createFormData.jobLevel === 'GENERAL_MANAGER' ? '' : createFormData.position}
+                    onChange={(e) => setCreateFormData({ ...createFormData, position: e.target.value })}
+                    className={`w-full rounded-xl border px-3 py-2 text-xs outline-none transition-colors ${
+                      createFormData.jobLevel === 'GENERAL_MANAGER'
+                        ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed select-none'
+                        : 'border-slate-200 focus:border-[#003b73] bg-white text-slate-800'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              {/* Preview Tag Jabatan */}
+              <div className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                <span className="text-[11px] font-bold text-slate-500">Preview Tag Profil:</span>
+                <UserJobBadge
+                  user={{
+                    role: createFormData.role,
+                    jobLevel: createFormData.jobLevel,
+                    position: createFormData.position,
+                  }}
+                />
+              </div>
+
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Role Akses</label>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Role Hak Akses Sistem</label>
                 <select
                   value={createFormData.role}
                   onChange={(e) => setCreateFormData({ ...createFormData, role: e.target.value as 'ADMIN' | 'KARYAWAN' })}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-[#003b73] bg-white cursor-pointer"
                 >
-                  <option value="KARYAWAN">Karyawan (Signer / User)</option>
-                  <option value="ADMIN">Administrator (Hak Akses Penuh)</option>
+                  <option value="KARYAWAN">Pengguna / Karyawan (Signer)</option>
+                  <option value="ADMIN">Administrator (Hak Akses Penuh Panel Admin)</option>
                 </select>
               </div>
 
@@ -825,34 +901,84 @@ export default function UserManagementPage() {
                 />
               </div>
 
-              {/* NIP & Departemen */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* NIP */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">NIP / NIK</label>
+                <input
+                  type="text"
+                  placeholder="12345678"
+                  value={editFormData.nip}
+                  onChange={(e) => setEditFormData({ ...editFormData, nip: e.target.value })}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-[#003b73]"
+                />
+              </div>
+
+              {/* Tingkat Jabatan & Spesifikasi Bagian */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">NIP / NIK</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Tingkat Jabatan
+                  </label>
+                  <select
+                    value={editFormData.jobLevel}
+                    onChange={(e) => {
+                      const newLevel = e.target.value as 'GENERAL_MANAGER' | 'HEAD_SECTION' | 'STAFF'
+                      setEditFormData({
+                        ...editFormData,
+                        jobLevel: newLevel,
+                        position: newLevel === 'GENERAL_MANAGER' ? '' : editFormData.position,
+                      })
+                    }}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-[#003b73] bg-white cursor-pointer font-medium"
+                  >
+                    <option value="GENERAL_MANAGER">General Manager (Pimpinan - Tanpa Upload Dokumen)</option>
+                    <option value="HEAD_SECTION">Head Section / Section Head</option>
+                    <option value="STAFF">Staff / PIC (Pelaksana)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Spesifikasi Bagian
+                    {editFormData.jobLevel === 'GENERAL_MANAGER' && (
+                      <span className="text-slate-400 font-normal ml-1">(Greyed Out - Khusus GM)</span>
+                    )}
+                  </label>
                   <input
                     type="text"
-                    placeholder="12345678"
-                    value={editFormData.nip}
-                    onChange={(e) => setEditFormData({ ...editFormData, nip: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-[#003b73]"
+                    disabled={editFormData.jobLevel === 'GENERAL_MANAGER'}
+                    placeholder={
+                      editFormData.jobLevel === 'GENERAL_MANAGER'
+                        ? 'Tidak berlaku untuk General Manager'
+                        : 'Contoh: Piutang / Keuangan / Koordinator Project'
+                    }
+                    value={editFormData.jobLevel === 'GENERAL_MANAGER' ? '' : editFormData.position}
+                    onChange={(e) => setEditFormData({ ...editFormData, position: e.target.value })}
+                    className={`w-full rounded-xl border px-3 py-2 text-xs outline-none transition-colors ${
+                      editFormData.jobLevel === 'GENERAL_MANAGER'
+                        ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed select-none'
+                        : 'border-slate-200 focus:border-[#003b73] bg-white text-slate-800'
+                    }`}
                   />
                 </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Departemen</label>
-                  <input
-                    type="text"
-                    placeholder="Operasional / SDM"
-                    value={editFormData.department}
-                    onChange={(e) => setEditFormData({ ...editFormData, department: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-[#003b73]"
-                  />
-                </div>
+              </div>
+
+              {/* Preview Tag Jabatan */}
+              <div className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                <span className="text-[11px] font-bold text-slate-500">Preview Tag Profil:</span>
+                <UserJobBadge
+                  user={{
+                    role: editFormData.role,
+                    jobLevel: editFormData.jobLevel,
+                    position: editFormData.position,
+                  }}
+                />
               </div>
 
               {/* Role & Status */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Role Hak Akses</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Role Hak Akses Sistem</label>
                   <select
                     value={editFormData.role}
                     onChange={(e) =>
@@ -860,7 +986,7 @@ export default function UserManagementPage() {
                     }
                     className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-[#003b73] bg-white cursor-pointer"
                   >
-                    <option value="KARYAWAN">Karyawan (Signer / User)</option>
+                    <option value="KARYAWAN">Pengguna / Karyawan (Signer)</option>
                     <option value="ADMIN">Administrator</option>
                   </select>
                 </div>

@@ -3,12 +3,16 @@
 import React, { useEffect, useState } from "react";
 import MaterialIcon from "@/components/ui/MaterialIcon";
 import PageHeaderBanner from "@/components/PageHeaderBanner";
+import { getUserJobTitle } from "@/lib/user-utils";
+import UserJobBadge from "@/components/user/UserJobBadge";
 
 export default function SettingsPage() {
   const [profileName, setProfileName] = useState("");
   const [profileEmail, setProfileEmail] = useState("");
   const [profileNip, setProfileNip] = useState("");
   const [profileRole, setProfileRole] = useState("");
+  const [profileJobLevel, setProfileJobLevel] = useState<string | null>(null);
+  const [profilePosition, setProfilePosition] = useState<string | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
@@ -53,6 +57,8 @@ export default function SettingsPage() {
           setProfileEmail(data.user?.email ?? "");
           setProfileNip(data.user?.nip ?? "");
           setProfileRole(data.user?.role ?? "KARYAWAN");
+          setProfileJobLevel(data.user?.jobLevel ?? null);
+          setProfilePosition(data.user?.position ?? null);
           setAvatarUrl(data.user?.avatarUrl ?? null);
         }
       } catch (err) {
@@ -219,12 +225,12 @@ export default function SettingsPage() {
     }
   };
 
-  const roleLabel =
-    profileRole === "ADMIN"
-      ? "Administrator"
-      : profileRole === "ATASAN"
-        ? "Atasan / Verifikator"
-        : "Karyawan / Staf";
+  const userObj = {
+    role: profileRole,
+    jobLevel: profileJobLevel,
+    position: profilePosition,
+  };
+  const jobTitle = getUserJobTitle(userObj);
 
   const initials = profileName
     ? profileName
@@ -251,9 +257,9 @@ export default function SettingsPage() {
                     <span className="text-xs font-semibold text-white leading-tight">
                       {profileLoading ? "Memuat..." : profileName || "Pengguna"}
                     </span>
-                    <span className="text-[10px] text-blue-200 leading-tight">
-                      {roleLabel}
-                    </span>
+                    <div className="mt-0.5">
+                      <UserJobBadge user={userObj} size="xs" />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -338,7 +344,7 @@ export default function SettingsPage() {
 
               <div className="flex flex-col sm:flex-row sm:items-center gap-6 mb-8 pb-6 border-b border-gray-100">
                 <div className="relative group">
-                  <div className="w-20 h-20 rounded-full overflow-hidden bg-[#003b73] text-white border-2 border-blue-100 flex items-center justify-center font-bold text-2xl shrink-0 shadow-inner">
+                  <div className="w-[64px] h-[64px] min-w-[64px] min-h-[64px] rounded-full overflow-hidden bg-[#003b73] text-white border-2 border-blue-100 flex items-center justify-center font-bold text-xl shrink-0 shadow-inner">
                     {avatarPreview ? (
                       <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
                     ) : avatarUrl ? (
@@ -362,12 +368,12 @@ export default function SettingsPage() {
                     className="hidden"
                   />
                 </div>
-                <div className="flex flex-col gap-1">
-                  <h4 className="text-sm font-bold text-slate-800">{profileName || "Pengguna"}</h4>
-                  <p className="text-xs text-slate-500">{profileEmail}</p>
-                  <span className="inline-block mt-1 w-fit text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-[#003b73] border border-blue-200">
-                    {roleLabel}
-                  </span>
+                <div className="flex flex-col justify-between py-0.5 items-start min-w-0">
+                  <h4 className="text-sm font-bold text-slate-800 leading-tight">{profileName || "Pengguna"}</h4>
+                  <div className="my-0.5">
+                    <UserJobBadge user={userObj} size="sm" />
+                  </div>
+                  <p className="text-xs text-slate-500 leading-tight">{profileEmail}</p>
                 </div>
               </div>
 
@@ -475,13 +481,27 @@ export default function SettingsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Peran / Hak Akses</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Jabatan / Bagian</label>
                   <div className="relative">
-                    <MaterialIcon name="corporate_fare" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <MaterialIcon name="id_card" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
                       type="text"
                       readOnly
-                      value={roleLabel}
+                      value={jobTitle.toUpperCase()}
+                      className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 font-bold uppercase cursor-not-allowed outline-none"
+                    />
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-1">Ditetapkan oleh Administrator sesuai struktur organisasi.</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Hak Akses Sistem</label>
+                  <div className="relative">
+                    <MaterialIcon name="security" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      readOnly
+                      value={profileRole === "ADMIN" ? "Administrator" : "Pengguna Sistem"}
                       className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-500 cursor-not-allowed outline-none"
                     />
                   </div>

@@ -33,6 +33,10 @@ export async function GET(req: Request) {
         name: true,
         email: true,
         avatarUrl: true,
+        role: true,
+        jobLevel: true,
+        position: true,
+        department: true,
       },
     })
 

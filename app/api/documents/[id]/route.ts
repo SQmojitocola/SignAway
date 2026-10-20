@@ -39,7 +39,7 @@ export async function GET(
         createdAt: true,
         sequential: true,
         sender: {
-          select: { id: true, name: true, email: true, role: true },
+          select: { id: true, name: true, email: true, role: true, jobLevel: true, position: true },
         },
         recipients: {
           select: {
@@ -49,7 +49,7 @@ export async function GET(
             signingOrder: true,
             rejectReason: true,
             user: {
-              select: { id: true, name: true, email: true, role: true, nip: true },
+              select: { id: true, name: true, email: true, role: true, nip: true, jobLevel: true, position: true },
             },
           },
         },

@@ -16,16 +16,30 @@ export async function GET() {
     })
 
     const emails = contacts.map((c) => c.email.toLowerCase())
-    const usersWithAvatar = await prisma.user.findMany({
+    const usersInfo = await prisma.user.findMany({
       where: { email: { in: emails } },
-      select: { email: true, avatarUrl: true },
+      select: {
+        email: true,
+        avatarUrl: true,
+        role: true,
+        jobLevel: true,
+        position: true,
+        department: true,
+      },
     })
-    const avatarMap = new Map(usersWithAvatar.map((u) => [u.email.toLowerCase(), u.avatarUrl]))
+    const userMap = new Map(usersInfo.map((u) => [u.email.toLowerCase(), u]))
 
-    const enrichedContacts = contacts.map((c) => ({
-      ...c,
-      avatarUrl: avatarMap.get(c.email.toLowerCase()) ?? null,
-    }))
+    const enrichedContacts = contacts.map((c) => {
+      const match = userMap.get(c.email.toLowerCase())
+      return {
+        ...c,
+        avatarUrl: match?.avatarUrl ?? null,
+        role: match?.role ?? null,
+        jobLevel: match?.jobLevel ?? null,
+        position: match?.position ?? null,
+        department: match?.department ?? null,
+      }
+    })
 
     return NextResponse.json({ contacts: enrichedContacts }, { status: 200 })
   } catch (error) {

@@ -26,6 +26,8 @@ export async function GET() {
         name: true,
         email: true,
         role: true,
+        jobLevel: true,
+        position: true,
         nip: true,
         department: true,
         status: true,

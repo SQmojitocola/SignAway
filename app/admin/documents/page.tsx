@@ -11,6 +11,8 @@ import {
 import CancelDocumentButton from '@/components/admin/CancelDocumentButton'
 import DocumentFilterBar from '@/components/admin/DocumentFilterBar'
 import PageHeaderBanner from '@/components/PageHeaderBanner'
+import UserJobBadge from '@/components/user/UserJobBadge'
+import { getUserJobTitle } from '@/lib/user-utils'
 
 function getInitials(name: string) {
   return (
@@ -97,13 +99,13 @@ export default async function AdminDocumentsPage(props: PageProps) {
       take: pageSize,
       orderBy: { updatedAt: 'desc' },
       include: {
-        sender: { select: { id: true, name: true, email: true, avatarUrl: true } },
+        sender: { select: { id: true, name: true, email: true, avatarUrl: true, role: true, jobLevel: true, position: true } },
         recipients: {
           select: {
             id: true,
             status: true,
             signingOrder: true,
-            user: { select: { id: true, name: true, email: true, avatarUrl: true } },
+            user: { select: { id: true, name: true, email: true, avatarUrl: true, role: true, jobLevel: true, position: true } },
           },
           orderBy: { signingOrder: 'asc' },
         },
@@ -233,18 +235,23 @@ export default async function AdminDocumentsPage(props: PageProps) {
                           title={`Filter dokumen hanya dari ${doc.sender?.name || 'Pengunggah'}`}
                           className="flex items-center gap-2 group hover:opacity-85 transition-opacity"
                         >
-                          <div className="w-7 h-7 rounded-full bg-[#003b73] text-white flex items-center justify-center font-bold text-[10px] shrink-0 overflow-hidden shadow-xs border border-white/20">
+                          <div className="w-[50px] h-[50px] min-w-[50px] min-h-[50px] rounded-full bg-[#003b73] text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden shadow-xs border border-white/20">
                             {doc.sender?.avatarUrl ? (
                               <img src={doc.sender.avatarUrl} alt={doc.sender?.name || 'User'} className="w-full h-full object-cover" />
                             ) : (
                               getInitials(doc.sender?.name || 'User')
                             )}
                           </div>
-                          <div className="min-w-0">
-                            <p className="font-semibold text-slate-800 group-hover:text-blue-700 transition-colors truncate">
+                          <div className="flex flex-col justify-between py-0.5 min-w-0">
+                            <p className="font-semibold text-slate-800 text-xs leading-tight group-hover:text-blue-700 transition-colors truncate">
                               {doc.sender?.name}
                             </p>
-                            <p className="text-[10px] text-slate-400 truncate">{doc.sender?.email}</p>
+                            {doc.sender && (
+                              <div className="my-0.5">
+                                <UserJobBadge user={doc.sender} size="xs" />
+                              </div>
+                            )}
+                            <p className="text-[10px] text-slate-400 leading-tight truncate">{doc.sender?.email}</p>
                           </div>
                         </Link>
                       </td>
@@ -257,7 +264,7 @@ export default async function AdminDocumentsPage(props: PageProps) {
                               {doc.recipients.slice(0, 4).map((r) => (
                                 <div
                                   key={r.id}
-                                  title={`${r.user.name} (${r.status})`}
+                                  title={`${r.user.name} (${getUserJobTitle(r.user)} - ${r.status})`}
                                   className={`w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-bold text-white overflow-hidden shadow-xs ${
                                     r.status === 'SIGNED'
                                       ? 'bg-emerald-500'

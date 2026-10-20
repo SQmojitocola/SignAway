@@ -4,12 +4,17 @@ import { useState, useEffect } from 'react'
 import { Search, UserPlus, Trash2, Mail, CheckCircle2, AlertCircle, Save } from 'lucide-react'
 
 import PageHeaderBanner from '@/components/PageHeaderBanner'
+import UserJobBadge from '@/components/user/UserJobBadge'
 
 interface Contact {
   id: string
   name: string
   email: string
   avatarUrl?: string | null
+  role?: string | null
+  jobLevel?: string | null
+  position?: string | null
+  department?: string | null
   createdAt: string
 }
 
@@ -18,6 +23,10 @@ interface FoundUser {
   name: string
   email: string
   avatarUrl?: string | null
+  role?: string | null
+  jobLevel?: string | null
+  position?: string | null
+  department?: string | null
 }
 
 export default function ContactsPage() {
@@ -223,16 +232,19 @@ export default function ContactsPage() {
                 AKUN DITEMUKAN
               </p>
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden shadow-xs border border-white/20">
+                <div className="w-[54px] h-[54px] min-w-[54px] min-h-[54px] rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm shrink-0 overflow-hidden shadow-xs border border-white/20">
                   {foundUser.avatarUrl ? (
                     <img src={foundUser.avatarUrl} alt={foundUser.name} className="w-full h-full object-cover" />
                   ) : (
                     foundUser.name.charAt(0).toUpperCase()
                   )}
                 </div>
-                <div>
-                  <p className="text-xs font-bold text-slate-800">{foundUser.name}</p>
-                  <p className="text-[10px] text-slate-500">{foundUser.email}</p>
+                <div className="flex flex-col justify-between py-0.5 min-w-0">
+                  <p className="text-xs font-bold text-slate-800 leading-tight truncate">{foundUser.name}</p>
+                  <div className="my-0.5">
+                    <UserJobBadge user={foundUser} size="xs" />
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-tight truncate">{foundUser.email}</p>
                 </div>
               </div>
               <button
@@ -304,16 +316,19 @@ export default function ContactsPage() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700 shrink-0 overflow-hidden shadow-xs border border-slate-200/60">
+                    <div className="flex w-[54px] h-[54px] min-w-[54px] min-h-[54px] items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700 shrink-0 overflow-hidden shadow-xs border border-slate-200/60">
                       {contact.avatarUrl ? (
                         <img src={contact.avatarUrl} alt={contact.name} className="w-full h-full object-cover" />
                       ) : (
                         contact.name.charAt(0).toUpperCase()
                       )}
                     </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-800">{contact.name}</p>
-                      <p className="text-[10px] text-slate-500">{contact.email}</p>
+                    <div className="flex flex-col justify-between py-0.5 min-w-0">
+                      <p className="text-xs font-bold text-slate-800 leading-tight truncate">{contact.name}</p>
+                      <div className="my-0.5">
+                        <UserJobBadge user={contact} size="xs" />
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-tight truncate">{contact.email}</p>
                     </div>
                   </div>
 

@@ -12,6 +12,8 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react'
+import UserJobBadge from '@/components/user/UserJobBadge'
+import { getUserJobTitle } from '@/lib/user-utils'
 
 export interface DashboardDocument {
   id: string
@@ -19,12 +21,28 @@ export interface DashboardDocument {
   createdAt: Date
   status: 'DRAFT' | 'PENDING' | 'PARTIAL_SIGNED' | 'COMPLETED' | 'REJECTED'
   sequential: boolean
-  sender: { id: string; name: string; email: string; avatarUrl?: string | null }
+  sender: {
+    id: string
+    name: string
+    email: string
+    avatarUrl?: string | null
+    role?: string | null
+    jobLevel?: string | null
+    position?: string | null
+  }
   recipients: Array<{
     id: string
     status: 'WAITING' | 'PENDING' | 'SIGNED' | 'REJECTED'
     signingOrder: number | null
-    user: { id: string; name: string; email: string; avatarUrl?: string | null }
+    user: {
+      id: string
+      name: string
+      email: string
+      avatarUrl?: string | null
+      role?: string | null
+      jobLevel?: string | null
+      position?: string | null
+    }
   }>
   proxyRequests?: Array<{
     id: string
@@ -293,17 +311,20 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
                         </div>
                       </td>
                       <td className="p-4">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1e4273] text-[10px] font-bold text-white shrink-0 overflow-hidden shadow-xs border border-white/20">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="flex w-[52px] h-[52px] min-w-[52px] min-h-[52px] items-center justify-center rounded-full bg-[#1e4273] text-sm font-bold text-white shrink-0 overflow-hidden shadow-xs border border-white/20">
                             {doc.sender.avatarUrl ? (
                               <img src={doc.sender.avatarUrl} alt={doc.sender.name} className="w-full h-full object-cover" />
                             ) : (
                               getInitials(doc.sender.name)
                             )}
                           </div>
-                          <div className="min-w-0">
-                            <p className="font-semibold text-slate-700 truncate">{doc.sender.name}</p>
-                            <p className="text-[10px] text-slate-400 truncate">{doc.sender.email}</p>
+                          <div className="flex flex-col justify-between py-0.5 min-w-0">
+                            <p className="font-semibold text-slate-800 leading-tight truncate">{doc.sender.name}</p>
+                            <div className="my-0.5">
+                              <UserJobBadge user={doc.sender} size="xs" />
+                            </div>
+                            <p className="text-[10px] text-slate-400 leading-tight truncate">{doc.sender.email}</p>
                           </div>
                         </div>
                       </td>
@@ -313,7 +334,7 @@ export default function PendingDocuments({ documents, userId }: PendingDocuments
                             {doc.recipients.slice(0, 4).map((recipient) => (
                               <div
                                 key={recipient.id}
-                                title={recipient.user.name}
+                                title={`${recipient.user.name} (${getUserJobTitle(recipient.user)})`}
                                 className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-slate-200 text-[9px] font-bold text-slate-600 overflow-hidden shadow-xs"
                               >
                                 {recipient.user.avatarUrl ? (

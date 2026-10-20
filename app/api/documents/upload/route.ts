@@ -14,7 +14,18 @@ export async function POST(req: Request) {
 
     const senderId = session.user.id
 
-    // 2. Parse Form Data
+    // Cek Tingkat Jabatan User (General Manager tidak diizinkan upload dokumen)
+    const currentUser = await prisma.user.findUnique({
+      where: { id: senderId },
+      select: { jobLevel: true },
+    })
+
+    if (currentUser?.jobLevel === 'GENERAL_MANAGER') {
+      return NextResponse.json(
+        { message: 'Akses ditolak. Tingkat General Manager tidak memiliki hak untuk mengunggah dokumen.' },
+        { status: 403 }
+      )
+    }
     const formData = await req.formData()
     const file = formData.get('file') as File | null
     const title = (formData.get('title') as string) || 'Dokumen Tanpa Judul'
