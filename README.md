@@ -1,4 +1,4 @@
-# 🖊️ SignAway - Digital Signature Web App
+# 🖊️ E-sign - Digital Signature Web App
 
 Aplikasi Tanda Tangan Digital Multi-Recipient berbasis Web & Tablet (iPad) yang dibangun menggunakan Next.js App Router, Prisma ORM, dan PostgreSQL.
 
